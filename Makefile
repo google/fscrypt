@@ -45,7 +45,8 @@ go:
 	govendor test $(GOFLAGS) +local
 
 update:
-	@govendor fetch +external +vendor +missing
+	@govendor fetch +missing
+	@govendor add +external
 	@govendor remove +unused
 
 lint:

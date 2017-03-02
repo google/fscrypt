@@ -58,7 +58,7 @@ message ProtectorData {
   WrappedKeyData wrapped_key = 7;
 }
 
-// Type of encryption, should match the declarations of FS_ENCRYPTION_MODE
+// Type of encryption, should match the declarations of unix.FS_ENCRYPTION_MODE
 enum EncryptionMode {
   default = 0;
   XTS = 1;

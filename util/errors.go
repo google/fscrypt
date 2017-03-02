@@ -22,6 +22,7 @@ package util
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 // InvalidInputF creates an error that should indicate either bad input from a
@@ -47,4 +48,18 @@ func NeverError(err error) {
 	if err != nil {
 		log.Panicf("NeverError() check failed: %v", err)
 	}
+}
+
+// UnderlyingError returns the underlying error for known os error types.
+// From: src/os/error.go
+func UnderlyingError(err error) error {
+	switch err := err.(type) {
+	case *os.PathError:
+		return err.Err
+	case *os.LinkError:
+		return err.Err
+	case *os.SyscallError:
+		return err.Err
+	}
+	return err
 }

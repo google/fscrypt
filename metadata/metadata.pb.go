@@ -62,7 +62,7 @@ func (x SourceType) String() string {
 }
 func (SourceType) EnumDescriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-// Type of encryption, should match the declarations of FS_ENCRYPTION_MODE
+// Type of encryption, should match the declarations of unix.FS_ENCRYPTION_MODE
 type EncryptionMode int32
 
 const (

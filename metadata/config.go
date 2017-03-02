@@ -20,8 +20,10 @@
 
 // Package metadata contains all of the on disk structures.
 // These structures are definied in meatadata.proto. The package also
-// contains functions for reading and writing the Config file to disk
-// giving us a config file.
+// contains functions for manipulating these structures, specifically:
+//    * Reading and Writing the Config file to disk
+//    * Getting and Setting Policies for directories
+//    * Reasonable defaults for a Policy's EncryptionOptions
 package metadata
 
 //go:generate protoc --go_out=. metadata.proto

@@ -71,7 +71,7 @@ You will also want to add `$GOPATH/bin` to your `$PATH`.
 
 `fscrypt` has the following build dependencies:
 *   `make`
-*   A C compiler ('gcc' or 'clang')
+*   A C compiler (`gcc` or `clang`)
 *   Go
 
 Once this is setup, you can run `make fscrypt` to build the executable in
@@ -81,10 +81,13 @@ dynamically linked binary by default.
 
 ## Running and Installing
 
-`fscrypt` currently has no runtime dependencies. Installing it just requires
-placing it in your path or running `make install`. Change `$GOBIN` to change the
-install location of `fscrypt`. By default, `fscrypt` is installed to
-`$GOPATH/bin`.
+`fscrypt` has the following runtime dependencies:
+*   Kernel support for filesystem encryption (this will depend on your kernel
+    configuration and specific filesystem)
+
+Installing it just requires placing it in your path or running `make install`.
+Change `$GOBIN` to change the install location of `fscrypt`. By default,
+`fscrypt` is installed to `$GOPATH/bin`.
 
 ## Example Usage
 

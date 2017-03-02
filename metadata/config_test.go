@@ -32,11 +32,7 @@ var testConfig = &Config{
 		Parallelism: 8,
 	},
 	Compatibility: "",
-	Options: &EncryptionOptions{
-		Padding:       32,
-		ContentsMode:  EncryptionMode_XTS,
-		FilenamesMode: EncryptionMode_CTS,
-	},
+	Options:       DefaultOptions,
 }
 
 var testConfigString = `{

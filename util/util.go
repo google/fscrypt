@@ -31,3 +31,25 @@ import (
 func Ptr(slice []byte) unsafe.Pointer {
 	return unsafe.Pointer(&slice[0])
 }
+
+// Index returns the first index i such that inVal == inArray[i].
+// ok is true if we find a match, false otherwise.
+func Index(inVal int64, inArray []int64) (index int, ok bool) {
+	for index, val := range inArray {
+		if val == inVal {
+			return index, true
+		}
+	}
+	return 0, false
+}
+
+// Lookup finds inVal in inArray and returns the corresponding element in
+// outArray. Specifically, if inVal == inArray[i], outVal == outArray[i].
+// ok is true if we find a match, false otherwise.
+func Lookup(inVal int64, inArray, outArray []int64) (outVal int64, ok bool) {
+	index, ok := Index(inVal, inArray)
+	if !ok {
+		return 0, false
+	}
+	return outArray[index], true
+}
