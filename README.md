@@ -76,10 +76,10 @@ default.
 
 ## Running and Installing
 
-`fscrypt` is a standalone binary, and it currently has no runtime dependencies.
-Installing it just requires placing it in your path or running `make install`.
-Change `$GOBIN` to change the install location of `fscrypt`; by default it is
-installed to `$GOPATH/bin`.
+`fscrypt` currently has no runtime dependencies. Installing it just requires
+placing it in your path or running `make install`. Change `$GOBIN` to change the
+install location of `fscrypt`. By default, `fscrypt` is installed to
+`$GOPATH/bin`.
 
 ## Example Usage
 
