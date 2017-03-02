@@ -40,6 +40,12 @@ func makeKey(b byte, n int) (*Key, error) {
 	return NewFixedLengthKeyFromReader(ConstReader(b), n)
 }
 
+var fakeValidDescriptor = "0123456789abcdef"
+var fakeInvalidDescriptor = "123456789abcdef"
+
+var fakeValidPolicyKey, _ = makeKey(42, PolicyKeyLen)
+var fakeInvalidPolicyKey, _ = makeKey(42, PolicyKeyLen-1)
+
 // Tests the two ways of making keys
 func TestMakeKeys(t *testing.T) {
 	data := []byte("1234\n6789")
@@ -109,5 +115,27 @@ func TestLongLength(t *testing.T) {
 	}
 	if !bytes.Equal(data, key.data) {
 		t.Error("Key contained incorrect data")
+	}
+}
+
+// Adds a key with and without legacy (check keyctl to see the key identifiers).
+func TestAddKeys(t *testing.T) {
+	for _, service := range []string{ServiceDefault, ServiceExt4, ServiceF2FS} {
+		if err := InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, service); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+// Makes sure a key fails with bad descriptor, policy, or service
+func TestBadAddKeys(t *testing.T) {
+	if InsertPolicyKey(fakeInvalidPolicyKey, fakeValidDescriptor, ServiceDefault) == nil {
+		t.Error("InsertPolicyKey should fail with bad policy key")
+	}
+	if InsertPolicyKey(fakeValidPolicyKey, fakeInvalidDescriptor, ServiceDefault) == nil {
+		t.Error("InsertPolicyKey should fail with bad descriptor")
+	}
+	if InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, "ext4") == nil {
+		t.Error("InsertPolicyKey should fail with bad service")
 	}
 }

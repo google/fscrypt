@@ -27,15 +27,31 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"fscrypt/metadata"
 	"fscrypt/util"
 )
+
+// Service Prefixes for keyring keys. As of kernel v4.8, all filesystems
+// supporting encryption will use FS_KEY_DESC_PREFIX to indicate that a key in
+// the keyring should be used with filesystem encryption. However, we also
+// include the older service prefixes for legacy compatibility.
+const (
+	ServiceDefault = unix.FS_KEY_DESC_PREFIX
+	// ServiceExt4 was used before v4.8 for ext4 filesystem encryption.
+	ServiceExt4 = "ext4:"
+	// ServiceExt4 was used before v4.6 for F2FS filesystem encryption.
+	ServiceF2FS = "f2fs:"
+)
+
+// PolicyKeyLen is the length of all keys passed directly to the Keyring
+const PolicyKeyLen = unix.FS_MAX_KEY_SIZE
 
 /*
 UseMlock determines whether we should use the mlock/munlock syscalls to
 prevent sensitive data like keys and passphrases from being paged to disk.
 UseMlock defaults to true, but can be set to false if the application calling
-into this library has insufficient privileges to lock memory. A package could
-also bind this setting to a flag by using:
+into this library has insufficient privileges to lock memory. Code using this
+package could also bind this setting to a flag by using:
 
 	flag.BoolVar(&crypto.UseMlock, "lock-memory", true, "lock keys in memory")
 */
@@ -200,4 +216,53 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+// addPayloadToSessionKeyring adds the payload to the current session keyring as
+// type logon, returning the key's new ID.
+func addPayloadToSessionKeyring(payload []byte, description string) (int, error) {
+	// We cannot add directly to KEY_SPEC_SESSION_KEYRING, as that will make
+	// a new session keyring if one does not exist, which will be garbage
+	// collected when the process terminates. Instead, we first get the ID
+	// of the KEY_SPEC_SESSION_KEYRING, which will return the user session
+	// keyring if a session keyring does not exist.
+	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	return unix.AddKey("logon", description, payload, keyringID)
+}
+
+// InsertPolicyKey puts the provided policy key into the kernel keyring with the
+// provided descriptor, provided service prefix, and type logon. The key and
+// descriptor must have the appropriate lengths.
+func InsertPolicyKey(key *Key, descriptor string, service string) error {
+	if key.Len() != PolicyKeyLen {
+		return util.InvalidLengthError("Policy Key", PolicyKeyLen, key.Len())
+	}
+
+	if len(descriptor) != metadata.DescriptorLen {
+		return util.InvalidLengthError("Descriptor", metadata.DescriptorLen, len(descriptor))
+	}
+
+	// Create our payload (containing an FscryptKey)
+	payload, err := newBlankKey(unix.SizeofFscryptKey)
+	if err != nil {
+		return err
+	}
+	defer payload.Wipe()
+
+	// Cast the payload to an FscryptKey so we can initialize the fields.
+	fscryptKey := (*unix.FscryptKey)(util.Ptr(payload.data))
+	// Mode is ignored by the kernel
+	fscryptKey.Mode = 0
+	fscryptKey.Size = PolicyKeyLen
+	copy(fscryptKey.Raw[:], key.data)
+
+	if _, err := addPayloadToSessionKeyring(payload.data, service+descriptor); err != nil {
+		return util.SystemErrorF("inserting key - %s: %v", descriptor, err)
+	}
+
+	return nil
 }

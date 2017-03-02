@@ -120,12 +120,13 @@ func GetPolicy(path string) (*PolicyData, error) {
 // policy. Returns an error if we cannot set the policy for any reason (not a
 // directory, invalid options or KeyDescriptor, etc).
 func SetPolicy(path string, data *PolicyData) error {
-	// Convert the padding value to a flag and the policyID to a byte array
+	// Convert the padding value to a flag
 	paddingFlag, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
 	if !ok {
 		return util.InvalidInputF("padding of %d", data.Options.Padding)
 	}
 
+	// Convert the policyDescriptor to a byte array
 	if len(data.KeyDescriptor) != DescriptorLen {
 		return util.InvalidLengthError("policy descriptor", DescriptorLen, len(data.KeyDescriptor))
 	}

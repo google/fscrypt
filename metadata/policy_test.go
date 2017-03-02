@@ -110,7 +110,7 @@ func TestSetPolicyFile(t *testing.T) {
 }
 
 // Tests that we fail when using bad policies
-func TestSetPolicyBadIDs(t *testing.T) {
+func TestSetPolicyBadDescriptors(t *testing.T) {
 	// Policies that are too short, have invalid chars, or are too long
 	badDescriptors := []string{"123456789abcde", "xxxxxxxxxxxxxxxx", "0123456789abcdef00"}
 	for _, badDescriptor := range badDescriptors {
@@ -121,7 +121,7 @@ func TestSetPolicyBadIDs(t *testing.T) {
 		}
 
 		if err = SetPolicy(directory, badPolicy); err == nil {
-			t.Errorf("id %q should have made SetPolicy fail", badDescriptor)
+			t.Errorf("descriptor %q should have made SetPolicy fail", badDescriptor)
 		}
 		os.RemoveAll(directory)
 	}
