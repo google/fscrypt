@@ -21,6 +21,9 @@
 package crypto
 
 import (
+	"bytes"
+	"encoding/base32"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -262,4 +265,91 @@ func InsertPolicyKey(key *Key, descriptor string, service string) error {
 	}
 
 	return nil
+}
+
+var (
+	// The recovery code is base32 with a dash between each block of 8 characters.
+	encoding      = base32.StdEncoding
+	blockSize     = 8
+	separator     = []byte("-")
+	encodedLength = encoding.EncodedLen(InternalKeyLen)
+	decodedLength = encoding.DecodedLen(encodedLength)
+	// RecoveryCodeLength is the number of bytes in every recovery code
+	RecoveryCodeLength = (encodedLength/blockSize)*(blockSize+len(separator)) - len(separator)
+)
+
+// WriteRecoveryCode outputs key's recovery code to the provided writer.
+// WARNING: This recovery key is enough to derive the original key, so it must
+// be given the same level of protection as a raw cryptographic key.
+func WriteRecoveryCode(key *Key, writer io.Writer) error {
+	if key.Len() != InternalKeyLen {
+		return util.InvalidLengthError("key", InternalKeyLen, key.Len())
+	}
+
+	// We store the base32 encoded data (without separators) in a temp key
+	encodedKey, err := newBlankKey(encodedLength)
+	if err != nil {
+		return err
+	}
+	defer encodedKey.Wipe()
+	encoding.Encode(encodedKey.data, key.data)
+
+	w := util.NewErrWriter(writer)
+
+	// Write the blocks with separators between them
+	w.Write(encodedKey.data[:blockSize])
+	for blockStart := blockSize; blockStart < encodedLength; blockStart += blockSize {
+		w.Write(separator)
+
+		blockEnd := util.MinInt(blockStart+blockSize, encodedLength)
+		w.Write(encodedKey.data[blockStart:blockEnd])
+	}
+
+	// If any writes have failed, return the error
+	return w.Err()
+}
+
+// ReadRecoveryCode gets the recovery code from the provided writer and returns
+// the corresponding cryptographic key.
+// WARNING: This recovery key is enough to derive the original key, so it must
+// be given the same level of protection as a raw cryptographic key.
+func ReadRecoveryCode(reader io.Reader) (*Key, error) {
+	// We store the base32 encoded data (without separators) in a temp key
+	encodedKey, err := newBlankKey(encodedLength)
+	if err != nil {
+		return nil, err
+	}
+	defer encodedKey.Wipe()
+
+	r := util.NewErrReader(reader)
+
+	// Read the other blocks, checking the separators between them
+	r.Read(encodedKey.data[:blockSize])
+	inputSeparator := make([]byte, len(separator))
+
+	for blockStart := blockSize; blockStart < encodedLength; blockStart += blockSize {
+		r.Read(inputSeparator)
+		if r.Err() == nil && !bytes.Equal(separator, inputSeparator) {
+			return nil, fmt.Errorf("invalid separator: %q", inputSeparator)
+		}
+
+		blockEnd := util.MinInt(blockStart+blockSize, encodedLength)
+		r.Read(encodedKey.data[blockStart:blockEnd])
+	}
+
+	// If any reads have failed, return the error
+	if r.Err() != nil {
+		return nil, r.Err()
+	}
+
+	// Now we decode the key, resizing if necessary
+	decodedKey, err := newBlankKey(decodedLength)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = encoding.Decode(decodedKey.data, encodedKey.data); err != nil {
+		decodedKey.Wipe()
+		return nil, err
+	}
+	return decodedKey.resize(InternalKeyLen)
 }

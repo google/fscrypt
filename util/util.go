@@ -24,8 +24,71 @@
 package util
 
 import (
+	"io"
 	"unsafe"
 )
+
+// ErrReader wraps an io.Reader, passing along calls to Read() until a read
+// fails. Then, the error is stored, and all subsequent calls to Read() do
+// nothing. This allows you to write code which has many subsequent reads and
+// do all of the error checking at the end. For example:
+//
+//  r := NewErrReader(reader)
+//  r.Read(foo)
+//  io.ReadFull(r, bar)
+//  if r.Err() != nil {
+//    // Handle error
+//  }
+//
+// Taken from https://blog.golang.org/errors-are-values by Rob Pike.
+type ErrReader struct {
+	r   io.Reader
+	err error
+}
+
+// NewErrReader creates an ErrReader which wraps the provided reader.
+func NewErrReader(reader io.Reader) *ErrReader {
+	return &ErrReader{r: reader, err: nil}
+}
+
+// Read runs ReadFull on the wrapped reader if no errors have occurred.
+// Otherwise, the previous error is just returned and no reads are attempted.
+func (e *ErrReader) Read(p []byte) (n int, err error) {
+	if e.err == nil {
+		n, e.err = io.ReadFull(e.r, p)
+	}
+	return n, e.err
+}
+
+// Err returns the first encountered err (or nil if no errors occurred).
+func (e *ErrReader) Err() error {
+	return e.err
+}
+
+// ErrWriter works exactly like ErrReader, except with io.Writer.
+type ErrWriter struct {
+	w   io.Writer
+	err error
+}
+
+// NewErrWriter creates an ErrWriter which wraps the provided reader.
+func NewErrWriter(writer io.Writer) *ErrWriter {
+	return &ErrWriter{w: writer, err: nil}
+}
+
+// Write runs the wrapped writer's Write if no errors have occurred. Otherwise,
+// the previous error is just returned and no writes are attempted.
+func (e *ErrWriter) Write(p []byte) (n int, err error) {
+	if e.err == nil {
+		n, e.err = e.w.Write(p)
+	}
+	return n, e.err
+}
+
+// Err returns the first encountered err (or nil if no errors occurred).
+func (e *ErrWriter) Err() error {
+	return e.err
+}
 
 // Ptr converts an Go byte array to a pointer to the start of the array.
 func Ptr(slice []byte) unsafe.Pointer {
@@ -52,4 +115,12 @@ func Lookup(inVal int64, inArray, outArray []int64) (outVal int64, ok bool) {
 		return 0, false
 	}
 	return outArray[index], true
+}
+
+// MinInt returns the lesser of a and b.
+func MinInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

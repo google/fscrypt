@@ -368,6 +368,18 @@ func BenchmarkUnwrap(b *testing.B) {
 	}
 }
 
+func BenchmarkUnwrapNolock(b *testing.B) {
+	UseMlock = false
+	defer func() {
+		UseMlock = true
+	}()
+	data, _ := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+
+	for n := 0; n < b.N; n++ {
+		_, _ = Unwrap(fakeWrappingKey, data)
+	}
+}
+
 func BenchmarkRandomWrapUnwrap(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		wk, _ := NewRandomKey(InternalKeyLen)
