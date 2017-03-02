@@ -21,6 +21,7 @@ package crypto
 
 import (
 	"bytes"
+	"compress/zlib"
 	"os"
 	"testing"
 )
@@ -138,4 +139,34 @@ func TestBadAddKeys(t *testing.T) {
 	if InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, "ext4") == nil {
 		t.Error("InsertPolicyKey should fail with bad service")
 	}
+}
+
+// Check that we can create random keys. All this test does to test the
+// "randomness" is generate a page of random bytes and attempts compression.
+// If the data can be compressed it is probably not very random. This isn't
+// indented to be a sufficient test for randomness (which is impossible), but a
+// way to catch simple regressions (key is all zeros or contains a repeating
+// pattern).
+func TestRandomKeyGen(t *testing.T) {
+	key, err := NewRandomKey(os.Getpagesize())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer key.Wipe()
+
+	if didCompress(key.data) {
+		t.Errorf("Random key (%d bytes) should not be compressible", key.Len())
+	}
+}
+
+// didCompress checks if the given data can be compressed. Specifically, it
+// returns true if running zlib on the provided input produces a shorter output.
+func didCompress(input []byte) bool {
+	var output bytes.Buffer
+
+	w := zlib.NewWriter(&output)
+	_, err := w.Write(input)
+	w.Close()
+
+	return err == nil && len(input) > output.Len()
 }
