@@ -22,6 +22,11 @@ package crypto
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/aes"
+	"crypto/sha256"
+	"fmt"
+	"fscrypt/metadata"
+	"fscrypt/util"
 	"os"
 	"testing"
 )
@@ -46,6 +51,15 @@ var fakeInvalidDescriptor = "123456789abcdef"
 
 var fakeValidPolicyKey, _ = makeKey(42, PolicyKeyLen)
 var fakeInvalidPolicyKey, _ = makeKey(42, PolicyKeyLen-1)
+var fakeWrappingKey, _ = makeKey(17, InternalKeyLen)
+
+// Checks that len(array) == expected
+func lengthCheck(name string, array []byte, expected int) error {
+	if len(array) != expected {
+		return util.InvalidLengthError(name, expected, len(array))
+	}
+	return nil
+}
 
 // Tests the two ways of making keys
 func TestMakeKeys(t *testing.T) {
@@ -169,4 +183,199 @@ func didCompress(input []byte) bool {
 	w.Close()
 
 	return err == nil && len(input) > output.Len()
+}
+
+// Checks that the input arrays are all distinct
+func buffersDistinct(buffers ...[]byte) bool {
+	for i := 0; i < len(buffers); i++ {
+		for j := i + 1; j < len(buffers); j++ {
+			if bytes.Equal(buffers[i], buffers[j]) {
+				// Different entry, but equal arrays
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// Checks that our cryptographic operations all produce distinct data
+func TestKeysAndOutputsDistinct(t *testing.T) {
+	data, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	encKey, authKey := stretchKey(fakeWrappingKey)
+
+	if !buffersDistinct(fakeWrappingKey.data, fakeValidPolicyKey.data,
+		encKey.data, authKey.data, data.IV, data.EncryptedKey, data.Hmac) {
+		t.Error("Key wrapping produced duplicate data")
+	}
+}
+
+// Check that Wrap() works with fixed keys
+func TestWrapSucceeds(t *testing.T) {
+	data, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = lengthCheck("IV", data.IV, aes.BlockSize); err != nil {
+		t.Error(err)
+	}
+	if err = lengthCheck("Encrypted Key", data.EncryptedKey, PolicyKeyLen); err != nil {
+		t.Error(err)
+	}
+	if err = lengthCheck("HMAC", data.Hmac, sha256.Size); err != nil {
+		t.Error(err)
+	}
+}
+
+// Checks that applying Wrap then Unwrap gives the original data
+func testWrapUnwrapEqual(wrappingKey *Key, secretKey *Key) error {
+	data, err := Wrap(wrappingKey, secretKey)
+	if err != nil {
+		return err
+	}
+
+	secret, err := Unwrap(wrappingKey, data)
+	if err != nil {
+		return err
+	}
+	defer secret.Wipe()
+
+	if !bytes.Equal(secretKey.data, secret.data) {
+		return fmt.Errorf("Got %x after wrap/unwrap with w=%x and s=%x",
+			secret.data, wrappingKey.data, secretKey.data)
+	}
+	return nil
+}
+
+// Check that Unwrap(Wrap(x)) == x with fixed keys
+func TestWrapUnwrapEqual(t *testing.T) {
+	if err := testWrapUnwrapEqual(fakeWrappingKey, fakeValidPolicyKey); err != nil {
+		t.Error(err)
+	}
+}
+
+// Check that Unwrap(Wrap(x)) == x with random keys
+func TestRandomWrapUnwrapEqual(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		wk, err := NewRandomKey(InternalKeyLen)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sk, err := NewRandomKey(InternalKeyLen)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = testWrapUnwrapEqual(wk, sk); err != nil {
+			t.Error(err)
+		}
+		wk.Wipe()
+		sk.Wipe()
+	}
+}
+
+// Check that Unwrap(Wrap(x)) == x with differing lengths of secret key
+func TestDifferentLengthSecretKey(t *testing.T) {
+	wk, err := makeKey(1, InternalKeyLen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		sk, err := makeKey(2, i)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = testWrapUnwrapEqual(wk, sk); err != nil {
+			t.Error(err)
+		}
+		sk.Wipe()
+	}
+}
+
+// Wrong length of wrapping key should fail
+func TestWrongWrappingKeyLength(t *testing.T) {
+	_, err := Wrap(fakeValidPolicyKey, fakeWrappingKey)
+	if err == nil {
+		t.Fatal("using a policy key for wrapping should fail")
+	}
+}
+
+// Wraping twice with the same keys should give different components
+func TestWrapTwiceDistinct(t *testing.T) {
+	data1, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data2, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !buffersDistinct(data1.IV, data1.EncryptedKey, data1.Hmac,
+		data2.IV, data2.EncryptedKey, data2.Hmac) {
+		t.Error("Wrapping same keys twice should give distinct results")
+	}
+}
+
+// Attempts to Unwrap data with key after altering tweek, should fail
+func testFailWithTweek(key *Key, data *metadata.WrappedKeyData, tweek []byte) error {
+	tweek[0]++
+	_, err := Unwrap(key, data)
+	tweek[0]--
+	return err
+}
+
+// Wrapping then unwrapping with different components altered
+func TestUnwrapWrongKey(t *testing.T) {
+	data, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if testFailWithTweek(fakeWrappingKey, data, fakeWrappingKey.data) == nil {
+		t.Error("using a different wrapping key should make unwrap fail")
+	}
+}
+
+func TestUnwrapWrongData(t *testing.T) {
+	data, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if testFailWithTweek(fakeWrappingKey, data, data.EncryptedKey) == nil {
+		t.Error("changing encryption key should make unwrap fail")
+	}
+	if testFailWithTweek(fakeWrappingKey, data, data.IV) == nil {
+		t.Error("changing IV should make unwrap fail")
+	}
+	if testFailWithTweek(fakeWrappingKey, data, data.Hmac) == nil {
+		t.Error("changing HMAC should make unwrap fail")
+	}
+}
+
+func BenchmarkWrap(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		Wrap(fakeWrappingKey, fakeValidPolicyKey)
+	}
+}
+
+func BenchmarkUnwrap(b *testing.B) {
+	data, _ := Wrap(fakeWrappingKey, fakeValidPolicyKey)
+
+	for n := 0; n < b.N; n++ {
+		Unwrap(fakeWrappingKey, data)
+	}
+}
+
+func BenchmarkRandomWrapUnwrap(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		wk, _ := NewRandomKey(InternalKeyLen)
+		sk, _ := NewRandomKey(InternalKeyLen)
+
+		testWrapUnwrapEqual(wk, sk)
+		// Must manually call wipe here, or test will use too much memory.
+		wk.Wipe()
+		sk.Wipe()
+	}
 }

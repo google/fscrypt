@@ -43,9 +43,6 @@ const (
 	ServiceF2FS = "f2fs:"
 )
 
-// PolicyKeyLen is the length of all keys passed directly to the Keyring
-const PolicyKeyLen = unix.FS_MAX_KEY_SIZE
-
 /*
 UseMlock determines whether we should use the mlock/munlock syscalls to
 prevent sensitive data like keys and passphrases from being paged to disk.
