@@ -54,6 +54,7 @@ more managed environment and handling more functionality in the
 background. `fscrypt` has a [design document](https://goo.gl/55cCrI) that
 discusses many of the higher level design choices that were made.
 
+<!-- TODO add in features when command-line interface is complete -->
 Specifically, `fscrypt` contains the following functionality:
 *   Telling the time (but this is a stub program)
 
@@ -68,11 +69,15 @@ git clone [REDACTED] $GOPATH/src/fscrypt
 ```
 You will also want to add `$GOPATH/bin` to your `$PATH`.
 
+`fscrypt` has the following build dependencies:
+*   `make`
+*   A C compiler ('gcc' or 'clang')
+*   Go
+
 Once this is setup, you can run `make fscrypt` to build the executable in
-`build/fscrypt`. The only other build dependencies are `make` and a C compiler.
-Pass `"LDFLAGS += -static"` to `make` to get a static executable. If a Go
-project contains C code, the go compiler produces a dynamically linked binary by
-default.
+`build/fscrypt`. Pass `"LDFLAGS += -static"` to `make` to get a static
+executable. If a Go project contains C code, the go compiler produces a
+dynamically linked binary by default.
 
 ## Running and Installing
 
@@ -87,21 +92,33 @@ TODO
 
 ## Contributing
 
-If you are making changes to the `fscrypt` component, you will need the
-following additional commands:
-*   `make go` - Checks that all the go files build and tests pass.
+If you are making changes to the `fscrypt` component, you will need to have
+[govendor](https://github.com/kardianos/govendor) installed, and you will want
+to use the following additional commands:
+*   `make update` - Updates the dependencies in the `vendor/` directory.
+*   `make go` - Generates, builds, and tests all the Go code. Requires
+    [protoc (v3.0 or later)](https://github.com/google/protobuf/releases) and
+    [protoc-gen-go](https://github.com/golang/protobuf).
 *   `make format` - Formats all of the go code.
-*   `make lint` - Checks the code for style errors, requires
-    [`golint`](https://github.com/golang/lint) to be installed.
-*   `make all` - Does the above three commands and builds `fscrypt`.
+*   `make lint` - Checks the code for style errors. Requires
+    [`golint`](https://github.com/golang/lint).
+*   `make all` - Runs the above commands and builds `fscrypt`.
+
+These commands should be run before submitting any changes.
 
 Make sure that `$GOPATH/bin` is in you `$PATH`. All the above dependencies can
 be installed with:
-```bash
+``` bash
+# Grab the latest version of protoc from github.com/google/protobuf/releases
+> curl -L <download_link_for_your_architecture> > protoc.zip
+> unzip protoc.zip -d protoc
+> sudo mv protoc/bin/protoc /usr/local/bin/
+> rm -rf protoc.zip protoc/
+# Grab the go packages in the standard manner
+> go get -u github.com/golang/protobuf/protoc-gen-go
+> go get -u github.com/kardianos/govendor
 > go get -u github.com/golang/lint/golint
 ```
-
-These commands should be run before submitting any changes.
 
 ## Known Issues
 

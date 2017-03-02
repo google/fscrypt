@@ -29,10 +29,10 @@ ifdef LDFLAGS
 	GOFLAGS += --ldflags '-extldflags "$(LDFLAGS)"'
 endif
 
-.PHONY: default all $(NAME) go lint format install clean
+.PHONY: default all $(NAME) go update lint format install clean
 
 default: $(NAME)
-all: format lint go $(NAME)
+all: update go format lint $(NAME)
 
 $(NAME):
 	@mkdir -p $(BUILD_DIR)
@@ -40,18 +40,23 @@ $(NAME):
 
 # Makes sure go files build and tests pass
 go:
-	go build $(GOFLAGS) ./...
-	go test $(GOFLAGS) ./...
+	govendor generate $(GOFLAGS) +local
+	govendor build $(GOFLAGS) +local
+	govendor test $(GOFLAGS) +local
+
+update:
+	@govendor fetch +external +vendor +missing
+	@govendor remove +unused
 
 lint:
-	@golint ./... || true
-	@go vet ./...
+	@golint $$(go list ./... | grep -v vendor) | grep -v "pb.go" || true
+	@govendor vet +local
 
 format:
-	go fmt ./...
+	@govendor fmt +local
 
 install:
-	go install $(GOFLAGS) ./...
+	govendor install $(GOFLAGS) +local
 
 clean:
 	rm -rf $(BUILD_DIR)
