@@ -21,13 +21,22 @@
 //	- Key management (key.go)
 //		- Securely holding keys in memory
 //		- Inserting keys into the keyring
+//		- Making recovery keys
 //	- Randomness (rand.go)
 //	- Cryptographic algorithms (crypto.go)
 //		- encryption (AES256-CTR)
 //		- authentication (SHA256-based HMAC)
 //		- key stretching (SHA256-based HKDF)
 //		- key wrapping/unwrapping (Encrypt then MAC)
+//		- passphrase-based key derivation (Argon2id)
 package crypto
+
+/*
+#cgo LDFLAGS: -largon2
+#include <stdlib.h> // malloc(), free()
+#include <argon2.h>
+*/
+import "C"
 
 import (
 	"crypto/aes"
@@ -36,6 +45,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"unsafe"
 
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/sys/unix"
@@ -54,7 +64,7 @@ const (
 	PolicyKeyLen = unix.FS_MAX_KEY_SIZE
 )
 
-// "name" has invalid length if expected != actual
+// checkInputLength panics if "name" has invalid length (expected != actual)
 func checkInputLength(name string, expected, actual int) {
 	if expected != actual {
 		util.NeverError(util.InvalidLengthError(name, expected, actual))
@@ -80,9 +90,9 @@ func stretchKey(key *Key) (encKey, authKey *Key) {
 	return
 }
 
-// Runs AES256-CTR on the input using the provided key and iv. This function can
-// be used to either encrypt or decrypt input of any size. Note that input and
-// output must be the same size.
+// aesCTR runs AES256-CTR on the input using the provided key and iv. This
+// function can be used to either encrypt or decrypt input of any size. Note
+// that input and output must be the same size.
 func aesCTR(key *Key, iv, input, output []byte) {
 	checkInputLength("aesCTR key", InternalKeyLen, key.Len())
 	checkInputLength("aesCTR iv", IVLen, len(iv))
@@ -95,7 +105,7 @@ func aesCTR(key *Key, iv, input, output []byte) {
 	stream.XORKeyStream(output, input)
 }
 
-// Get a HMAC (with a SHA256-based hash) of some data using the provided key.
+// getHMAC returns the SHA256-based HMAC of some data using the provided key.
 func getHMAC(key *Key, data ...[]byte) []byte {
 	checkInputLength("hmac key", InternalKeyLen, key.Len())
 
@@ -165,4 +175,78 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 	aesCTR(encKey, data.IV, data.EncryptedKey, secretKey.data)
 
 	return secretKey, nil
+}
+
+// newArgon2Context creates an argon2_context C struct given the hash and
+// passphrase keys, salt and costs. The structure must be freed by the caller.
+func newArgon2Context(hash, passphrase *Key,
+	salt []byte, costs *metadata.HashingCosts) *C.argon2_context {
+
+	ctx := (*C.argon2_context)(C.malloc(C.sizeof_argon2_context))
+
+	ctx.out = (*C.uint8_t)(util.Ptr(hash.data))
+	ctx.outlen = C.uint32_t(hash.Len())
+
+	ctx.pwd = (*C.uint8_t)(util.Ptr(passphrase.data))
+	ctx.pwdlen = C.uint32_t(passphrase.Len())
+
+	ctx.salt = (*C.uint8_t)(util.Ptr(salt))
+	ctx.saltlen = C.uint32_t(len(salt))
+
+	ctx.secret = nil // We don't use the secret field.
+	ctx.secretlen = 0
+	ctx.ad = nil // We don't use the associated data field.
+	ctx.adlen = 0
+
+	ctx.t_cost = C.uint32_t(costs.Time)
+	ctx.m_cost = C.uint32_t(costs.Memory)
+	ctx.lanes = C.uint32_t(costs.Parallelism)
+
+	ctx.threads = ctx.lanes
+	ctx.version = C.ARGON2_VERSION_13
+
+	// We use the built in malloc/free for memory.
+	ctx.allocate_cbk = nil
+	ctx.free_cbk = nil
+	ctx.flags = C.ARGON2_FLAG_CLEAR_PASSWORD
+
+	return ctx
+}
+
+/*
+PassphraseHash uses Argon2id to produce a Key given the passphrase, salt, and
+hashing costs. This method is designed to take a long time and consume
+considerable memory. On success, passphrase will no longer have valid data.
+However, the caller should still call passphrase.Wipe().
+
+Argon2 is the winning algorithm of the Password Hashing Competition
+(see: https://password-hashing.net). It is designed to be "memory hard"
+in that a large amount of memory is required to compute the hash value.
+This makes it hard to use specialized hardware like GPUs and ASICs. We
+use it in "id" mode to provide extra protection against side-channel
+attacks. For more info see: https://github.com/P-H-C/phc-winner-argon2
+*/
+func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) (*Key, error) {
+	if len(salt) != SaltLen {
+		return nil, util.InvalidLengthError("salt", SaltLen, len(salt))
+	}
+
+	// This key will hold the hashing output
+	hash, err := newBlankKey(InternalKeyLen)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := newArgon2Context(hash, passphrase, salt, costs)
+	defer C.free(unsafe.Pointer(ctx))
+
+	// Run the hashing function (translating the error if there is one)
+	returnCode := C.argon2id_ctx(ctx)
+	if returnCode != C.ARGON2_OK {
+		hash.Wipe()
+		errorString := C.GoString(C.argon2_error_message(returnCode))
+		return nil, util.SystemErrorF("argon2: %s", errorString)
+	}
+
+	return hash, nil
 }

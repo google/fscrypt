@@ -73,6 +73,15 @@ You will also want to add `$GOPATH/bin` to your `$PATH`.
 *   `make`
 *   A C compiler (`gcc` or `clang`)
 *   Go
+*   [Argon2 Passphrase Hash](https://github.com/P-H-C/phc-winner-argon2), a C
+    library which can be installed (both the header `argon2.h` and library
+    `libargon2`) by running:
+    ```bash
+    > git clone https://github.com/P-H-C/phc-winner-argon2 argon2
+    > cd argon2
+    > make
+    > sudo make install
+    ```
 
 Once this is setup, you can run `make fscrypt` to build the executable in
 `build/fscrypt`. Pass `"LDFLAGS += -static"` to `make` to get a static
@@ -84,6 +93,8 @@ dynamically linked binary by default.
 `fscrypt` has the following runtime dependencies:
 *   Kernel support for filesystem encryption (this will depend on your kernel
     configuration and specific filesystem)
+*   `libargon2` (see the above installation instructions for Argon2), unless you
+    built a static executable.
 
 Installing it just requires placing it in your path or running `make install`.
 Change `$GOBIN` to change the install location of `fscrypt`. By default,

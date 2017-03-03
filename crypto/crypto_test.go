@@ -24,11 +24,12 @@ import (
 	"compress/zlib"
 	"crypto/aes"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
-	"fscrypt/metadata"
-	"fscrypt/util"
 	"os"
 	"testing"
+
+	. "fscrypt/metadata"
 )
 
 // Reader that always returns the same byte
@@ -48,15 +49,51 @@ func makeKey(b byte, n int) (*Key, error) {
 
 var fakeValidDescriptor = "0123456789abcdef"
 var fakeInvalidDescriptor = "123456789abcdef"
+var fakeSalt = bytes.Repeat([]byte{'a'}, SaltLen)
+var fakePassword = []byte("password")
 
 var fakeValidPolicyKey, _ = makeKey(42, PolicyKeyLen)
 var fakeInvalidPolicyKey, _ = makeKey(42, PolicyKeyLen-1)
 var fakeWrappingKey, _ = makeKey(17, InternalKeyLen)
 
+// As the passpharase hashing function clears the passphrase, we need to make
+// a new passphrase key for each test
+func fakePassphraseKey() (*Key, error) {
+	return NewFixedLengthKeyFromReader(bytes.NewReader(fakePassword), len(fakePassword))
+}
+
+// Values for test cases pulled from argon2 command line tool.
+// To generate run:
+//    echo "password" | argon2 "aaaaaaaaaaaaaaaa" -id -t <t> -m <m> -p <p> -l 32
+// where costs.Time = <t>, costs.Memory = 2^<m>, and costs.Parallelism = <p>.
+type hashTestCase struct {
+	costs   *HashingCosts
+	hexHash string
+}
+
+var hashTestCases = []hashTestCase{
+	{
+		costs:   &HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1},
+		hexHash: "a66f5398e33761bf161fdf1273e99b148f07d88d12d85b7673fddd723f95ec34",
+	},
+	{
+		costs:   &HashingCosts{Time: 10, Memory: 1 << 10, Parallelism: 1},
+		hexHash: "5fa2cb89db1f7413ba1776258b7c8ee8c377d122078d28fe1fd645c353787f50",
+	},
+	{
+		costs:   &HashingCosts{Time: 1, Memory: 1 << 15, Parallelism: 1},
+		hexHash: "f474a213ed14d16ead619568000939b938ddfbd2ac4a82d253afa81b5ebaef84",
+	},
+	{
+		costs:   &HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 10},
+		hexHash: "b7c3d7a0be222680b5ea3af3fb1a0b7b02b92cbd7007821dc8b84800c86c7783",
+	},
+}
+
 // Checks that len(array) == expected
 func lengthCheck(name string, array []byte, expected int) error {
 	if len(array) != expected {
-		return util.InvalidLengthError(name, expected, len(array))
+		return fmt.Errorf("length of %s should be %d", name, expected)
 	}
 	return nil
 }
@@ -320,7 +357,7 @@ func TestWrapTwiceDistinct(t *testing.T) {
 }
 
 // Attempts to Unwrap data with key after altering tweek, should fail
-func testFailWithTweek(key *Key, data *metadata.WrappedKeyData, tweek []byte) error {
+func testFailWithTweek(key *Key, data *WrappedKeyData, tweek []byte) error {
 	tweek[0]++
 	_, err := Unwrap(key, data)
 	tweek[0]--
@@ -351,6 +388,69 @@ func TestUnwrapWrongData(t *testing.T) {
 	}
 	if testFailWithTweek(fakeWrappingKey, data, data.Hmac) == nil {
 		t.Error("changing HMAC should make unwrap fail")
+	}
+}
+
+// Run our test cases for passphrase hashing
+func TestPassphraseHashing(t *testing.T) {
+	for i, testCase := range hashTestCases {
+		pk, err := fakePassphraseKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pk.Wipe()
+
+		hash, err := PassphraseHash(pk, fakeSalt, testCase.costs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer hash.Wipe()
+
+		actual := hex.EncodeToString(hash.data)
+		if actual != testCase.hexHash {
+			t.Errorf("Hash test %d: for costs=%+v expected hash of %q got %q",
+				i, testCase.costs, testCase.hexHash, actual)
+		}
+	}
+}
+
+func TestBadTime(t *testing.T) {
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	costs := *hashTestCases[0].costs
+	costs.Time = 0
+	_, err = PassphraseHash(pk, fakeSalt, &costs)
+	if err == nil {
+		t.Errorf("time cost of %d should be invalid", costs.Time)
+	}
+}
+
+func TestBadMemory(t *testing.T) {
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	costs := *hashTestCases[0].costs
+	costs.Memory = 7
+	_, err = PassphraseHash(pk, fakeSalt, &costs)
+	if err == nil {
+		t.Errorf("memory cost of %d should be invalid", costs.Memory)
+	}
+}
+
+func TestBadParallelism(t *testing.T) {
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	costs := *hashTestCases[0].costs
+	costs.Parallelism = 1 << 24
+	costs.Memory = 1 << 27 // Running n threads requires at least 8*n memory
+	_, err = PassphraseHash(pk, fakeSalt, &costs)
+	if err == nil {
+		t.Errorf("parallelism cost of %d should be invalid", costs.Parallelism)
 	}
 }
 
@@ -390,4 +490,44 @@ func BenchmarkRandomWrapUnwrap(b *testing.B) {
 		wk.Wipe()
 		sk.Wipe()
 	}
+}
+
+func benchmarkPassphraseHashing(b *testing.B, costs *HashingCosts) {
+	for n := 0; n < b.N; n++ {
+		pk, err := fakePassphraseKey()
+		if err != nil {
+			b.Fatal(err)
+		}
+		defer pk.Wipe()
+		hash, err := PassphraseHash(pk, fakeSalt, costs)
+		hash.Wipe()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPassphraseHashing_1MB_1Thread(b *testing.B) {
+	benchmarkPassphraseHashing(b,
+		&HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1})
+}
+
+func BenchmarkPassphraseHashing_1GB_1Thread(b *testing.B) {
+	benchmarkPassphraseHashing(b,
+		&HashingCosts{Time: 1, Memory: 1 << 20, Parallelism: 1})
+}
+
+func BenchmarkPassphraseHashing_128MB_1Thread(b *testing.B) {
+	benchmarkPassphraseHashing(b,
+		&HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 1})
+}
+
+func BenchmarkPassphraseHashing_128MB_8Thread(b *testing.B) {
+	benchmarkPassphraseHashing(b,
+		&HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 8})
+}
+
+func BenchmarkPassphraseHashing_128MB_8Pass(b *testing.B) {
+	benchmarkPassphraseHashing(b,
+		&HashingCosts{Time: 8, Memory: 1 << 17, Parallelism: 1})
 }
