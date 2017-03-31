@@ -55,18 +55,31 @@ background. `fscrypt` has a [design document](https://goo.gl/55cCrI) that
 discusses many of the higher level design choices that were made.
 
 Specifically, `fscrypt` contains the following functionality:
-*   TODO
+*   Telling the time (but this is a stub program)
 
 ## Building
 
-<!-- TODO: Change git clone URL before public release -->
-Get the source by running `git clone [REDACTED] fscrypt`.
-You need to [setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH) and
-clone the repository into `$GOPATH/src/fscrypt`.
+`fscrypt` is written in Go, so to build the program you will need to
+[setup Go](https://golang.org/doc/install),
+[setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH), and clone the
+repository into the correct location by running
+```shell <!-- TODO: Change git clone URL before public release -->
+git clone [REDACTED] $GOPATH/src/fscrypt
+```
+You will also want to add `$GOPATH/bin` to your `$PATH`.
+
+Once this is setup, you can run `make fscrypt` to build the executable in
+`build/fscrypt`. The only other build dependencies are `make` and a C compiler.
+Pass `"LDFLAGS += -static"` to `make` to get a static executable. If a Go
+project contains C code, the go compiler produces a dynamically linked binary by
+default.
 
 ## Running and Installing
 
-TODO
+`fscrypt` is a standalone binary, and it currently has no runtime dependencies.
+Installing it just requires placing it in your path or running `make install`.
+Change `$GOBIN` to change the install location of `fscrypt`; by default it is
+installed to `$GOPATH/bin`.
 
 ## Example Usage
 
@@ -74,7 +87,21 @@ TODO
 
 ## Contributing
 
-TODO
+If you are making changes to the `fscrypt` component, you will need the
+following additional commands:
+*   `make go` - Checks that all the go files build and tests pass.
+*   `make format` - Formats all of the go code.
+*   `make lint` - Checks the code for style errors, requires
+    [`golint`](https://github.com/golang/lint) to be installed.
+*   `make all` - Does the above three commands and builds `fscrypt`.
+
+Make sure that `$GOPATH/bin` is in you `$PATH`. All the above dependencies can
+be installed with:
+```bash
+> go get -u github.com/golang/lint/golint
+```
+
+These commands should be run before submitting any changes.
 
 ## Known Issues
 
