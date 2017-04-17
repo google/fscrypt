@@ -1,0 +1,19 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "APDDi2ohrU7OkChQCekD9tSVUhs=",
+			"path": "github.com/golang/protobuf/jsonpb",
+			"revision": "2bba0603135d7d7f5cb73b2125beeda19c09f4ef",
+			"revisionTime": "2017-03-31T03:19:02Z"
+		},
+		{
+			"checksumSHA1": "kBeNcaKk56FguvPSUCEaH6AxpRc=",
+			"path": "github.com/golang/protobuf/proto",
+			"revision": "2bba0603135d7d7f5cb73b2125beeda19c09f4ef",
+			"revisionTime": "2017-03-31T03:19:02Z"
+		}
+	],
+	"rootPath": "fscrypt"
+}
