@@ -13,6 +13,11 @@
 			"path": "github.com/golang/protobuf/proto",
 			"revision": "2bba0603135d7d7f5cb73b2125beeda19c09f4ef",
 			"revisionTime": "2017-03-31T03:19:02Z"
+		},
+		{
+			"checksumSHA1": "KWagmSPuJfztcD7dcZekYeZJ6Fg=",
+			"path": "golang.org/x/sys/unix",
+			"revision": ""
 		}
 	],
 	"rootPath": "fscrypt"
