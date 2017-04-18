@@ -15,6 +15,12 @@
 			"revisionTime": "2017-03-31T03:19:02Z"
 		},
 		{
+			"checksumSHA1": "4D8hxMIaSDEW5pCQk22Xj4DcDh4=",
+			"path": "golang.org/x/crypto/hkdf",
+			"revision": "efac7f277b17c19894091e358c6130cb6bd51117",
+			"revisionTime": "2017-04-18T01:50:50Z"
+		},
+		{
 			"checksumSHA1": "KWagmSPuJfztcD7dcZekYeZJ6Fg=",
 			"path": "golang.org/x/sys/unix",
 			"revision": ""
