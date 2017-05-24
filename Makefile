@@ -16,18 +16,36 @@
 # the License.
 
 NAME = fscrypt
-BUILD_DIR = build
-CFLAGS += -O2 -Wall
+# VERSION is formatted as <major>.<minor>.<bugfix>
+# Bugfix releases resolve issues in existing features.
+# Minor releases introduce new features.
+# Major releases may introduce breaking changes to the API.
+VERSION = 0.1.0
+# Holds a formatted string of the build time
+BUILD_TIME = $(shell date)
 
+CFLAGS += -O2 -Wall
 CMD_DIR = $(NAME)/cmd/$(NAME)
 
-# So we don't have to put our flags in each go file. This also lets the caller
-# of the makefile change the build flags in the normal manner:
+# The code below lets the caller of the makefile change the build flags for
+# fscrypt in a familiar manner. For example, to force the program to statically
+# link its C components, run "make fscrypt" with:
 #	make fscrypt "LDFLAGS += -static"
+#
+# Similarly, to modify the flags passed to the C components, just modify CFLAGS
+# or LDFLAGS as you would with a C program. To modify the Go flags, either
+# modify GO_FLAGS or GO_LINK_FLAGS (as appropriate).
+
+# Set the C flags so we don't need to set C flags in each CGO file.
 export CGO_CFLAGS = $(CFLAGS)
-ifdef LDFLAGS
-	GOFLAGS += --ldflags '-extldflags "$(LDFLAGS)"'
-endif
+
+# Pass the version to the command line program
+VERSION_FLAG = -X "main.version=$(VERSION)"
+# Pass the current date and time to the command line program
+DATE_FLAG = -X "main.buildTime=$(BUILD_TIME)"
+# Pass the C linking flags into Go
+GO_LINK_FLAGS += -s -w $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
+GOFLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
 .PHONY: default all $(NAME) go update lint format install clean
 
@@ -35,12 +53,11 @@ default: $(NAME)
 all: update go format lint $(NAME)
 
 $(NAME):
-	@mkdir -p $(BUILD_DIR)
-	go build $(GOFLAGS) -o $(BUILD_DIR)/$(NAME) $(CMD_DIR)
+	go build $(GOFLAGS) -o $(NAME) $(CMD_DIR)
 
 # Makes sure go files build and tests pass
 go:
-	govendor generate $(GOFLAGS) +local
+	govendor generate +local
 	govendor build $(GOFLAGS) +local
 	govendor test $(GOFLAGS) +local
 
@@ -55,9 +72,10 @@ lint:
 
 format:
 	@govendor fmt +local
+	@find . -name "*.h" -o -name "*.c" -not -path "./vendor/*" | xargs clang-format -i -style=Google
 
 install:
 	govendor install $(GOFLAGS) +local
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(NAME)

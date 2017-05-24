@@ -54,9 +54,23 @@ more managed environment and handling more functionality in the
 background. `fscrypt` has a [design document](https://goo.gl/55cCrI) that
 discusses many of the higher level design choices that were made.
 
-<!-- TODO add in features when command-line interface is complete -->
 Specifically, `fscrypt` contains the following functionality:
-*   Telling the time (but this is a stub program)
+*   `fscrypt info` - Prints detailed application info
+*   `fscrypt setup global` - Initializes the `fscrypt.conf` file
+*   `fscrypt setup filesystem` - Gets a filesystem ready for use with fscrypt
+*   `fscrypt setup directory` - Sets up encryption for a directory
+*   `fscrypt unlock` - Unlocks an encrypted directory for use
+*   `fscrypt encrypt` - Shortcut for `fscrypt setup directory`+`fscrypt unlock`
+*   `fscrypt change` - Changes how a directory is protected
+*   `fscrypt status` - Gets the status of some component of fscrypt
+*   `fscrypt backup` - Manages backups of the fscrypt metadata
+*   `fscrypt recovery` - Manages recovery keys for fscrypt protectors
+*   `fscrypt cleanup` - Scans filesystem for unused policies
+*   `fscrypt purge` - Removes keys for a filesystem before unmounting.
+*   `fscrypt [protector|policy]` - Manages metadata directly
+
+See the example usage section below or run `fscrypt <command> --help` for more
+information about each of the commands.
 
 ## Building
 
@@ -82,9 +96,12 @@ You will also want to add `$GOPATH/bin` to your `$PATH`.
     > make
     > sudo make install
     ```
+*   Headers for `libblkid` (specifically `blkid/blkid.h`). This can be installed
+    with your appropriate package manager (`libblkid-dev` for APT,
+    `libblkid-devel` for RPM, should already be part of `util-linux` for Arch).
 
 Once this is setup, you can run `make fscrypt` to build the executable in
-`build/fscrypt`. Pass `"LDFLAGS += -static"` to `make` to get a static
+the root directory. Pass `"LDFLAGS += -static"` to `make` to get a static
 executable. If a Go project contains C code, the go compiler produces a
 dynamically linked binary by default.
 
@@ -95,6 +112,9 @@ dynamically linked binary by default.
     configuration and specific filesystem)
 *   `libargon2` (see the above installation instructions for Argon2), unless you
     built a static executable.
+*   `libblkid` and `libuuid` (these are dependancies for `util-linux` and
+    `e2fsprogs` so your system almost certainly has it), unless you built a
+    static executable.
 
 Installing it just requires placing it in your path or running `make install`.
 Change `$GOBIN` to change the install location of `fscrypt`. By default,
@@ -102,48 +122,30 @@ Change `$GOBIN` to change the install location of `fscrypt`. By default,
 
 ## Example Usage
 
-TODO
+```bash
+# Setup your global configuration and filesystem
+> sudo fscrypt setup global
+Created global config file at "/etc/fscrypt.conf".
+> fscrypt setup filesystem /mnt/disk/to/encrypt
+Setup "/mnt/disk/to/encrypt (/dev/sda1) for use with ext4 filesystem encryption.
+```
 
 ## Contributing
 
-If you are making changes to the `fscrypt` component, you will need to have
-[govendor](https://github.com/kardianos/govendor) installed, and you will want
-to use the following additional commands:
-*   `make update` - Updates the dependencies in the `vendor/` directory.
-*   `make go` - Generates, builds, and tests all the Go code. Requires
-    [protoc (v3.0 or later)](https://github.com/google/protobuf/releases) and
-    [protoc-gen-go](https://github.com/golang/protobuf).
-*   `make format` - Formats all of the go code.
-*   `make lint` - Checks the code for style errors. Requires
-    [`golint`](https://github.com/golang/lint).
-*   `make all` - Runs the above commands and builds `fscrypt`.
-
-These commands should be run before submitting any changes.
-
-Make sure that `$GOPATH/bin` is in you `$PATH`. All the above dependencies can
-be installed with:
-``` bash
-# Grab the latest version of protoc from github.com/google/protobuf/releases
-> curl -L <download_link_for_your_architecture> > protoc.zip
-> unzip protoc.zip -d protoc
-> sudo mv protoc/bin/protoc /usr/local/bin/
-> rm -rf protoc.zip protoc/
-# Grab the go packages in the standard manner
-> go get -u github.com/golang/protobuf/protoc-gen-go
-> go get -u github.com/kardianos/govendor
-> go get -u github.com/golang/lint/golint
-```
+We would love to accept your contributions to `fscrypt`. See the
+`CONTRIBUTING.md` file for more information about singing the CLA and submitting
+a pull request.
 
 ## Known Issues
 
 None so far!
 
-## License
+## Legal
 
-Copyright 2017 Google Inc.
+Copyright 2017 Google Inc. under the
+[Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0); see the
+`LICENSE` file for more information.
 
 Author: Joe Richey <joerichey@google.com>
 
-Distributed under the
-[Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0); see the
-`LICENSE` file for more information.
+This is not an official Google product.
