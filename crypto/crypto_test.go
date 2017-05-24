@@ -26,6 +26,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -106,6 +107,7 @@ func TestMakeKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key1.Wipe()
 	if !bytes.Equal(data, key1.data) {
 		t.Error("Key from reader contained incorrect data")
 	}
@@ -114,6 +116,7 @@ func TestMakeKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key2.Wipe()
 	if !bytes.Equal([]byte("1234\n6"), key2.data) {
 		t.Error("Fixed length key from reader contained incorrect data")
 	}
@@ -132,8 +135,9 @@ func TestWipe(t *testing.T) {
 
 // Making keys with negative length should fail
 func TestInvalidLength(t *testing.T) {
-	_, err := NewFixedLengthKeyFromReader(bytes.NewReader([]byte{1, 2, 3, 4}), -1)
+	key, err := NewFixedLengthKeyFromReader(ConstReader(1), -1)
 	if err == nil {
+		key.Wipe()
 		t.Error("Negative lengths should cause failure")
 	}
 }
@@ -144,6 +148,7 @@ func TestZeroLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key1.Wipe()
 	if key1.data != nil {
 		t.Error("FIxed length key from reader contained data")
 	}
@@ -152,21 +157,80 @@ func TestZeroLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key2.Wipe()
 	if key2.data != nil {
 		t.Error("Key from empty reader contained data")
 	}
 }
 
-// Test making keys long enough that the keys will have to resize
-func TestLongLength(t *testing.T) {
-	// Key will have to resize 3 times
-	data := bytes.Repeat([]byte{1}, os.Getpagesize()*5)
-	key, err := NewKeyFromReader(bytes.NewReader(data))
+// Test that enabling the disabling memory locking succeeds even if a key is
+// active when the variable changes.
+func TestEnableDisableMemoryLocking(t *testing.T) {
+	// Mlock on for creation, off for wiping
+	key, err := NewRandomKey(InternalKeyLen)
+	UseMlock = false
+	defer func() {
+		UseMlock = true
+	}()
+
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(data, key.data) {
-		t.Error("Key contained incorrect data")
+	if err := key.Wipe(); err != nil {
+		t.Error(err)
+	}
+}
+
+// Test that disabling then enabling memory locking succeeds even if a key is
+// active when the variable changes.
+func TestDisableEnableMemoryLocking(t *testing.T) {
+	// Mlock off for creation, on for wiping
+	UseMlock = false
+	key2, err := NewRandomKey(InternalKeyLen)
+	UseMlock = true
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := key2.Wipe(); err != nil {
+		t.Error(err)
+	}
+}
+
+// Test making keys long enough that the keys will have to resize
+func TestKeyResize(t *testing.T) {
+	// Key will have to resize once
+	r := io.LimitReader(ConstReader(1), int64(os.Getpagesize())+1)
+	key, err := NewKeyFromReader(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer key.Wipe()
+	for i, b := range key.data {
+		if b != 1 {
+			t.Fatalf("Byte %d contained invalid data %q", i, b)
+		}
+	}
+}
+
+// Test making keys so long that many resizes are necessary
+func TestKeyLargeResize(t *testing.T) {
+	// Key will have to resize 7 times
+	r := io.LimitReader(ConstReader(1), int64(os.Getpagesize())*65)
+
+	// Turn off Mlocking as the key will exceed the limit on some systems.
+	UseMlock = false
+	key, err := NewKeyFromReader(r)
+	UseMlock = true
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer key.Wipe()
+	for i, b := range key.data {
+		if b != 1 {
+			t.Fatalf("Byte %d contained invalid data %q", i, b)
+		}
 	}
 }
 
@@ -243,6 +307,8 @@ func TestKeysAndOutputsDistinct(t *testing.T) {
 	}
 
 	encKey, authKey := stretchKey(fakeWrappingKey)
+	defer encKey.Wipe()
+	defer authKey.Wipe()
 
 	if !buffersDistinct(fakeWrappingKey.data, fakeValidPolicyKey.data,
 		encKey.data, authKey.data, data.IV, data.EncryptedKey, data.Hmac) {
@@ -320,6 +386,7 @@ func TestDifferentLengthSecretKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer wk.Wipe()
 	for i := 0; i < 100; i++ {
 		sk, err := makeKey(2, i)
 		if err != nil {
@@ -359,7 +426,10 @@ func TestWrapTwiceDistinct(t *testing.T) {
 // Attempts to Unwrap data with key after altering tweek, should fail
 func testFailWithTweek(key *Key, data *WrappedKeyData, tweek []byte) error {
 	tweek[0]++
-	_, err := Unwrap(key, data)
+	key, err := Unwrap(key, data)
+	if err == nil {
+		key.Wipe()
+	}
 	tweek[0]--
 	return err
 }
@@ -419,6 +489,8 @@ func TestBadTime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer pk.Wipe()
+
 	costs := *hashTestCases[0].costs
 	costs.Time = 0
 	_, err = PassphraseHash(pk, fakeSalt, &costs)
@@ -432,6 +504,8 @@ func TestBadMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer pk.Wipe()
+
 	costs := *hashTestCases[0].costs
 	costs.Memory = 7
 	_, err = PassphraseHash(pk, fakeSalt, &costs)
@@ -445,6 +519,8 @@ func TestBadParallelism(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer pk.Wipe()
+
 	costs := *hashTestCases[0].costs
 	costs.Parallelism = 1 << 24
 	costs.Memory = 1 << 27 // Running n threads requires at least 8*n memory
@@ -461,22 +537,36 @@ func BenchmarkWrap(b *testing.B) {
 }
 
 func BenchmarkUnwrap(b *testing.B) {
+	b.StopTimer()
+
 	data, _ := Wrap(fakeWrappingKey, fakeValidPolicyKey)
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		Unwrap(fakeWrappingKey, data)
+		key, err := Unwrap(fakeWrappingKey, data)
+		if err != nil {
+			b.Fatal(err)
+		}
+		key.Wipe()
 	}
 }
 
 func BenchmarkUnwrapNolock(b *testing.B) {
+	b.StopTimer()
+
 	UseMlock = false
 	defer func() {
 		UseMlock = true
 	}()
 	data, _ := Wrap(fakeWrappingKey, fakeValidPolicyKey)
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		_, _ = Unwrap(fakeWrappingKey, data)
+		key, err := Unwrap(fakeWrappingKey, data)
+		if err != nil {
+			b.Fatal(err)
+		}
+		key.Wipe()
 	}
 }
 
@@ -493,12 +583,16 @@ func BenchmarkRandomWrapUnwrap(b *testing.B) {
 }
 
 func benchmarkPassphraseHashing(b *testing.B, costs *HashingCosts) {
+	b.StopTimer()
+
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer pk.Wipe()
+
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		pk, err := fakePassphraseKey()
-		if err != nil {
-			b.Fatal(err)
-		}
-		defer pk.Wipe()
 		hash, err := PassphraseHash(pk, fakeSalt, costs)
 		hash.Wipe()
 		if err != nil {

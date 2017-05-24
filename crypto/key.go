@@ -22,9 +22,10 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"encoding/base32"
-	"fmt"
 	"io"
+	"log"
 	"os"
 	"runtime"
 
@@ -101,7 +102,8 @@ func newBlankKey(length int) (*Key, error) {
 	if length == 0 {
 		return &Key{data: nil}, nil
 	} else if length < 0 {
-		return nil, util.InvalidInputF("requested key length %d is negative", length)
+		log.Printf("key length of %d is invalid", length)
+		return nil, ErrNegitiveLength
 	}
 
 	flags := keyMmapFlags
@@ -112,7 +114,8 @@ func newBlankKey(length int) (*Key, error) {
 	// See MAP_ANONYMOUS in http://man7.org/linux/man-pages/man2/mmap.2.html
 	data, err := unix.Mmap(-1, 0, length, keyProtection, flags)
 	if err != nil {
-		return nil, util.SystemErrorF("could not mmap() buffer: %v", err)
+		log.Printf("unix.Mmap() with length=%d failed: %v", length, err)
+		return nil, ErrKeyAlloc
 	}
 
 	key := &Key{data: data}
@@ -135,7 +138,8 @@ func (key *Key) Wipe() error {
 		}
 
 		if err := unix.Munmap(data); err != nil {
-			return util.SystemErrorF("could not munmap() buffer: %v", err)
+			log.Printf("unix.Munmap() failed: %v", err)
+			return ErrKeyFree
 		}
 	}
 	return nil
@@ -151,6 +155,12 @@ func (key *Key) Len() int {
 // wiped while being used.
 func (key *Key) UnsafeData() []byte {
 	return key.data
+}
+
+// Equals compares the contents of two keys, returning true if they have the same
+// key data. This function runs in constant time.
+func (key *Key) Equals(key2 *Key) bool {
+	return subtle.ConstantTimeCompare(key.data, key2.data) == 1
 }
 
 // resize returns a new key with size requestedSize and the appropriate data
@@ -219,8 +229,8 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 }
 
 // addPayloadToSessionKeyring adds the payload to the current session keyring as
-// type logon, returning the key's new ID.
-func addPayloadToSessionKeyring(payload []byte, description string) (int, error) {
+// type logon, returning an error on failure.
+func addPayloadToSessionKeyring(payload []byte, description string) error {
 	// We cannot add directly to KEY_SPEC_SESSION_KEYRING, as that will make
 	// a new session keyring if one does not exist, which will be garbage
 	// collected when the process terminates. Instead, we first get the ID
@@ -228,18 +238,25 @@ func addPayloadToSessionKeyring(payload []byte, description string) (int, error)
 	// keyring if a session keyring does not exist.
 	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, 0)
 	if err != nil {
-		return 0, err
+		log.Printf("unix.KeyctlGetKeyringID failed: %v", err)
+		log.Print("could not get keyring ID of KEY_SPEC_SESSION_KEYRING")
+		return ErrKeyringLocate
 	}
 
-	return unix.AddKey("logon", description, payload, keyringID)
+	if _, err = unix.AddKey("logon", description, payload, keyringID); err != nil {
+		log.Printf("unix.AddKey failed: %v", err)
+		log.Printf("could not insert %q into keyring (ID = %d)", description, keyringID)
+		return ErrKeyringInsert
+	}
+	return nil
 }
 
 // InsertPolicyKey puts the provided policy key into the kernel keyring with the
 // provided descriptor, provided service prefix, and type logon. The key and
 // descriptor must have the appropriate lengths.
 func InsertPolicyKey(key *Key, descriptor string, service string) error {
-	if key.Len() != PolicyKeyLen {
-		return util.InvalidLengthError("Policy Key", PolicyKeyLen, key.Len())
+	if key.Len() != metadata.PolicyKeyLen {
+		return util.InvalidLengthError("Policy Key", metadata.PolicyKeyLen, key.Len())
 	}
 
 	if len(descriptor) != metadata.DescriptorLen {
@@ -257,11 +274,11 @@ func InsertPolicyKey(key *Key, descriptor string, service string) error {
 	fscryptKey := (*unix.FscryptKey)(util.Ptr(payload.data))
 	// Mode is ignored by the kernel
 	fscryptKey.Mode = 0
-	fscryptKey.Size = PolicyKeyLen
+	fscryptKey.Size = metadata.PolicyKeyLen
 	copy(fscryptKey.Raw[:], key.data)
 
-	if _, err := addPayloadToSessionKeyring(payload.data, service+descriptor); err != nil {
-		return util.SystemErrorF("inserting key - %s: %v", descriptor, err)
+	if err := addPayloadToSessionKeyring(payload.data, service+descriptor); err != nil {
+		return err
 	}
 
 	return nil
@@ -272,7 +289,7 @@ var (
 	encoding      = base32.StdEncoding
 	blockSize     = 8
 	separator     = []byte("-")
-	encodedLength = encoding.EncodedLen(InternalKeyLen)
+	encodedLength = encoding.EncodedLen(metadata.PolicyKeyLen)
 	decodedLength = encoding.DecodedLen(encodedLength)
 	// RecoveryCodeLength is the number of bytes in every recovery code
 	RecoveryCodeLength = (encodedLength/blockSize)*(blockSize+len(separator)) - len(separator)
@@ -282,8 +299,8 @@ var (
 // WARNING: This recovery key is enough to derive the original key, so it must
 // be given the same level of protection as a raw cryptographic key.
 func WriteRecoveryCode(key *Key, writer io.Writer) error {
-	if key.Len() != InternalKeyLen {
-		return util.InvalidLengthError("key", InternalKeyLen, key.Len())
+	if key.Len() != metadata.PolicyKeyLen {
+		return util.InvalidLengthError("key", metadata.PolicyKeyLen, key.Len())
 	}
 
 	// We store the base32 encoded data (without separators) in a temp key
@@ -330,7 +347,8 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	for blockStart := blockSize; blockStart < encodedLength; blockStart += blockSize {
 		r.Read(inputSeparator)
 		if r.Err() == nil && !bytes.Equal(separator, inputSeparator) {
-			return nil, fmt.Errorf("invalid separator: %q", inputSeparator)
+			log.Printf("separator of %q is invalid", inputSeparator)
+			return nil, ErrRecoveryCode
 		}
 
 		blockEnd := util.MinInt(blockStart+blockSize, encodedLength)
@@ -339,7 +357,8 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 
 	// If any reads have failed, return the error
 	if r.Err() != nil {
-		return nil, r.Err()
+		log.Printf("error while reading recovery code: %v", r.Err())
+		return nil, ErrRecoveryCode
 	}
 
 	// Now we decode the key, resizing if necessary
@@ -349,7 +368,8 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	}
 	if _, err = encoding.Decode(decodedKey.data, encodedKey.data); err != nil {
 		decodedKey.Wipe()
-		return nil, err
+		log.Printf("error decoding recovery code: %v", err)
+		return nil, ErrRecoveryCode
 	}
-	return decodedKey.resize(InternalKeyLen)
+	return decodedKey.resize(metadata.PolicyKeyLen)
 }

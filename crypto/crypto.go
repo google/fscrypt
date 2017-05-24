@@ -29,6 +29,7 @@
 //		- key stretching (SHA256-based HKDF)
 //		- key wrapping/unwrapping (Encrypt then MAC)
 //		- passphrase-based key derivation (Argon2id)
+//		- descriptor computation (double SHA512)
 package crypto
 
 /*
@@ -43,38 +44,51 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
-	"fmt"
-	"io"
+	"crypto/sha512"
+	"encoding/hex"
+	"errors"
 	"unsafe"
 
 	"golang.org/x/crypto/hkdf"
-	"golang.org/x/sys/unix"
 
 	"fscrypt/metadata"
 	"fscrypt/util"
 )
 
-// Lengths for our keys and buffers used for crypto.
-const (
-	// We always use 256-bit keys internally (compared to 512-bit policy keys).
-	InternalKeyLen = 32
-	IVLen          = 16
-	SaltLen        = 16
-	// PolicyKeyLen is the length of all keys passed directly to the Keyring
-	PolicyKeyLen = unix.FS_MAX_KEY_SIZE
+// Crypto error values
+var (
+	ErrBadAuth          = errors.New("key authentication check failed")
+	ErrNegitiveLength   = errors.New("negative length requested for key")
+	ErrKeyAlloc         = util.SystemError("could not allocate memory for key")
+	ErrKeyFree          = util.SystemError("could not free memory of key")
+	ErrKeyringLocate    = util.SystemError("could not locate the session keyring")
+	ErrKeyringInsert    = util.SystemError("could not insert key into the session keyring")
+	ErrRecoveryCode     = errors.New("provided recovery code had incorrect format")
+	ErrLowEntropy       = util.SystemError("insufficient entropy in pool to generate random bytes")
+	ErrRandNotSupported = util.SystemError("getrandom() not implemented; kernel must be v3.17 or later")
+	ErrRandFailed       = util.SystemError("cannot get random bytes")
 )
 
-// checkInputLength panics if "name" has invalid length (expected != actual)
-func checkInputLength(name string, expected, actual int) {
+// panicInputLength panics if "name" has invalid length (expected != actual)
+func panicInputLength(name string, expected, actual int) {
 	if expected != actual {
 		util.NeverError(util.InvalidLengthError(name, expected, actual))
 	}
 }
 
+// checkWrappingKey returns an error if the wrapping key has the wrong length
+func checkWrappingKey(wrappingKey *Key) error {
+	l := wrappingKey.Len()
+	if l != metadata.InternalKeyLen {
+		return util.InvalidLengthError("wrapping key", metadata.InternalKeyLen, l)
+	}
+	return nil
+}
+
 // stretchKey stretches a key of length KeyLen using unsalted HKDF to make two
 // keys of length KeyLen.
 func stretchKey(key *Key) (encKey, authKey *Key) {
-	checkInputLength("hkdf key", InternalKeyLen, key.Len())
+	panicInputLength("hkdf key", metadata.InternalKeyLen, key.Len())
 
 	// The new hkdf function uses the hash and key to create a reader that
 	// can be used to securely initialize multiple keys. This means that
@@ -82,9 +96,9 @@ func stretchKey(key *Key) (encKey, authKey *Key) {
 	// also always have enough entropy to read two keys.
 	hkdf := hkdf.New(sha256.New, key.data, nil, nil)
 
-	encKey, err := NewFixedLengthKeyFromReader(hkdf, InternalKeyLen)
+	encKey, err := NewFixedLengthKeyFromReader(hkdf, metadata.InternalKeyLen)
 	util.NeverError(err)
-	authKey, err = NewFixedLengthKeyFromReader(hkdf, InternalKeyLen)
+	authKey, err = NewFixedLengthKeyFromReader(hkdf, metadata.InternalKeyLen)
 	util.NeverError(err)
 
 	return
@@ -94,9 +108,9 @@ func stretchKey(key *Key) (encKey, authKey *Key) {
 // function can be used to either encrypt or decrypt input of any size. Note
 // that input and output must be the same size.
 func aesCTR(key *Key, iv, input, output []byte) {
-	checkInputLength("aesCTR key", InternalKeyLen, key.Len())
-	checkInputLength("aesCTR iv", IVLen, len(iv))
-	checkInputLength("aesCTR output", len(input), len(output))
+	panicInputLength("aesCTR key", metadata.InternalKeyLen, key.Len())
+	panicInputLength("aesCTR iv", metadata.IVLen, len(iv))
+	panicInputLength("aesCTR output", len(input), len(output))
 
 	blockCipher, err := aes.NewCipher(key.data)
 	util.NeverError(err) // Key is checked to have correct length
@@ -107,7 +121,7 @@ func aesCTR(key *Key, iv, input, output []byte) {
 
 // getHMAC returns the SHA256-based HMAC of some data using the provided key.
 func getHMAC(key *Key, data ...[]byte) []byte {
-	checkInputLength("hmac key", InternalKeyLen, key.Len())
+	panicInputLength("hmac key", metadata.InternalKeyLen, key.Len())
 
 	mac := hmac.New(sha256.New, key.data)
 	for _, buffer := range data {
@@ -124,17 +138,15 @@ func getHMAC(key *Key, data ...[]byte) []byte {
 // and an HMAC to verify the wrapping key was correct. All of this is included
 // in the returned WrappedKeyData structure.
 func Wrap(wrappingKey, secretKey *Key) (*metadata.WrappedKeyData, error) {
-	if wrappingKey.Len() != InternalKeyLen {
-		return nil, util.InvalidLengthError("wrapping key", InternalKeyLen, wrappingKey.Len())
+	err := checkWrappingKey(wrappingKey)
+	if err != nil {
+		return nil, err
 	}
 
-	data := &metadata.WrappedKeyData{
-		IV:           make([]byte, IVLen),
-		EncryptedKey: make([]byte, secretKey.Len()),
-	}
+	data := &metadata.WrappedKeyData{EncryptedKey: make([]byte, secretKey.Len())}
 
 	// Get random IV
-	if _, err := io.ReadFull(RandReader, data.IV); err != nil {
+	if data.IV, err = NewRandomBuffer(metadata.IVLen); err != nil {
 		return nil, err
 	}
 
@@ -154,8 +166,8 @@ func Wrap(wrappingKey, secretKey *Key) (*metadata.WrappedKeyData, error) {
 // WrappedKeyData to get the unwrapped secret Key. The Wrapped Key data includes
 // an authentication check, so an error will be returned if that check fails.
 func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
-	if wrappingKey.Len() != InternalKeyLen {
-		return nil, util.InvalidLengthError("wrapping key", InternalKeyLen, wrappingKey.Len())
+	if err := checkWrappingKey(wrappingKey); err != nil {
+		return nil, err
 	}
 
 	// Stretch key for encryption and authentication (unsalted).
@@ -165,7 +177,7 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 
 	// Check validity of the HMAC
 	if !hmac.Equal(getHMAC(authKey, data.IV, data.EncryptedKey), data.Hmac) {
-		return nil, fmt.Errorf("key authentication check failed")
+		return nil, ErrBadAuth
 	}
 
 	secretKey, err := newBlankKey(len(data.EncryptedKey))
@@ -213,6 +225,16 @@ func newArgon2Context(hash, passphrase *Key,
 	return ctx
 }
 
+// ComputeDescriptor computes the descriptor for a given cryptographic key. In
+// keeping with the process used in e4crypt, this uses the initial bytes
+// (formatted as hexadecimal) of the double application of SHA512 on the key.
+func ComputeDescriptor(key *Key) string {
+	h1 := sha512.Sum512(key.data)
+	h2 := sha512.Sum512(h1[:])
+	length := hex.DecodedLen(metadata.DescriptorLen)
+	return hex.EncodeToString(h2[:length])
+}
+
 /*
 PassphraseHash uses Argon2id to produce a Key given the passphrase, salt, and
 hashing costs. This method is designed to take a long time and consume
@@ -227,12 +249,12 @@ use it in "id" mode to provide extra protection against side-channel
 attacks. For more info see: https://github.com/P-H-C/phc-winner-argon2
 */
 func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) (*Key, error) {
-	if len(salt) != SaltLen {
-		return nil, util.InvalidLengthError("salt", SaltLen, len(salt))
+	if len(salt) != metadata.SaltLen {
+		return nil, util.InvalidLengthError("salt", metadata.SaltLen, len(salt))
 	}
 
 	// This key will hold the hashing output
-	hash, err := newBlankKey(InternalKeyLen)
+	hash, err := newBlankKey(metadata.InternalKeyLen)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +267,7 @@ func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) 
 	if returnCode != C.ARGON2_OK {
 		hash.Wipe()
 		errorString := C.GoString(C.argon2_error_message(returnCode))
-		return nil, util.SystemErrorF("argon2: %s", errorString)
+		return nil, util.SystemError("argon2: " + errorString)
 	}
 
 	return hash, nil

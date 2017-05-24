@@ -23,12 +23,13 @@ package crypto
 import (
 	"bytes"
 	"fmt"
+	"fscrypt/metadata"
 	"testing"
 )
 
-const fakeSecretRecoveryCode = "EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTA===="
+const fakeSecretRecoveryCode = "EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJQ="
 
-var fakeSecretKey, _ = makeKey(38, InternalKeyLen)
+var fakeSecretKey, _ = makeKey(38, metadata.PolicyKeyLen)
 
 // Note that this function is INSECURE. FOR TESTING ONLY
 func getRecoveryCodeFromKey(key *Key) ([]byte, error) {
@@ -40,10 +41,11 @@ func getRecoveryCodeFromKey(key *Key) ([]byte, error) {
 }
 
 func getRandomRecoveryCodeBuffer() ([]byte, error) {
-	key, err := NewRandomKey(InternalKeyLen)
+	key, err := NewRandomKey(metadata.PolicyKeyLen)
 	if err != nil {
 		return nil, err
 	}
+	defer key.Wipe()
 	return getRecoveryCodeFromKey(key)
 }
 
@@ -63,6 +65,7 @@ func testKeyEncodeDecode(key *Key) error {
 	if err != nil {
 		return err
 	}
+	defer key2.Wipe()
 
 	if !bytes.Equal(key.data, key2.data) {
 		return fmt.Errorf("encoding then decoding %x didn't yield the same key", key.data)
@@ -77,6 +80,7 @@ func testRecoveryDecodeEncode(buf []byte) error {
 	if err != nil {
 		return err
 	}
+	defer key.Wipe()
 
 	buf2, err := getRecoveryCodeFromKey(key)
 	if err != nil {
@@ -112,10 +116,11 @@ func TestFakeSecretKey(t *testing.T) {
 }
 
 func TestEncodeDecode(t *testing.T) {
-	key, err := NewRandomKey(InternalKeyLen)
+	key, err := NewRandomKey(metadata.PolicyKeyLen)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key.Wipe()
 
 	if err = testKeyEncodeDecode(key); err != nil {
 		t.Error(err)
@@ -134,10 +139,11 @@ func TestDecodeEncode(t *testing.T) {
 }
 
 func TestWrongLengthError(t *testing.T) {
-	key, err := NewRandomKey(InternalKeyLen - 1)
+	key, err := NewRandomKey(metadata.PolicyKeyLen - 1)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer key.Wipe()
 
 	if _, err = getRecoveryCodeFromKey(key); err == nil {
 		t.Error("key with wrong length should have failed to encode")
@@ -146,28 +152,40 @@ func TestWrongLengthError(t *testing.T) {
 
 func TestBadCharacterError(t *testing.T) {
 	buf, err := getRandomRecoveryCodeBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Lowercase letters not allowed
 	buf[3] = 'k'
-	if _, err = getKeyFromRecoveryCode(buf); err == nil {
+	if key, err := getKeyFromRecoveryCode(buf); err == nil {
+		key.Wipe()
 		t.Error("lowercase letters should make decoding fail")
 	}
 }
 
 func TestBadEndCharacterError(t *testing.T) {
 	buf, err := getRandomRecoveryCodeBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Separator must be '-'
 	buf[blockSize] = '_'
-	if _, err = getKeyFromRecoveryCode(buf); err == nil {
+	if key, err := getKeyFromRecoveryCode(buf); err == nil {
+		key.Wipe()
 		t.Error("any separator that isn't '-' should make decoding fail")
 	}
 }
 
 func BenchmarkEncode(b *testing.B) {
-	key, err := NewRandomKey(InternalKeyLen)
+	b.StopTimer()
+
+	key, err := NewRandomKey(metadata.PolicyKeyLen)
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer key.Wipe()
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		if _, err = getRecoveryCodeFromKey(key); err != nil {
 			b.Fatal(err)
@@ -176,24 +194,33 @@ func BenchmarkEncode(b *testing.B) {
 }
 
 func BenchmarkDecode(b *testing.B) {
+	b.StopTimer()
+
 	buf, err := getRandomRecoveryCodeBuffer()
 	if err != nil {
 		b.Fatal(err)
 	}
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
-		if _, err = getKeyFromRecoveryCode(buf); err != nil {
+		key, err := getKeyFromRecoveryCode(buf)
+		if err != nil {
 			b.Fatal(err)
 		}
+		key.Wipe()
 	}
 }
 
 func BenchmarkEncodeDecode(b *testing.B) {
-	key, err := NewRandomKey(InternalKeyLen)
+	b.StopTimer()
+
+	key, err := NewRandomKey(metadata.PolicyKeyLen)
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer key.Wipe()
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		if err = testKeyEncodeDecode(key); err != nil {
 			b.Fatal(err)
@@ -202,11 +229,14 @@ func BenchmarkEncodeDecode(b *testing.B) {
 }
 
 func BenchmarkDecodeEncode(b *testing.B) {
+	b.StopTimer()
+
 	buf, err := getRandomRecoveryCodeBuffer()
 	if err != nil {
 		b.Fatal(err)
 	}
 
+	b.StartTimer()
 	for n := 0; n < b.N; n++ {
 		if err = testRecoveryDecodeEncode(buf); err != nil {
 			b.Fatal(err)

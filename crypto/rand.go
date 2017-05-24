@@ -21,25 +21,35 @@ package crypto
 
 import (
 	"io"
+	"log"
 
 	"golang.org/x/sys/unix"
-
-	"fscrypt/util"
 )
 
-/*
-RandReader uses the Linux Getrandom() syscall to read random bytes. If the
-operating system has insufficient randomness, the read will fail. This is an
-improvement over Go's built-in crypto/rand which will still return bytes if the
-system has insufficiency entropy (https://github.com/golang/go/issues/19274).
+// NewRandomBuffer uses the Linux Getrandom() syscall to create random bytes. If
+// the operating system has insufficient randomness, the buffer creation will
+// fail. This is an improvement over Go's built-in crypto/rand which will still
+// return bytes if the system has insufficiency entropy.
+// 	See: https://github.com/golang/go/issues/19274
+//
+// While this syscall was only introduced in Kernel v3.17, it predates the
+// introduction of filesystem encryption, so it introduces no additional
+// compatibility issues.
+func NewRandomBuffer(length int) ([]byte, error) {
+	buffer := make([]byte, length)
+	if _, err := io.ReadFull(randReader{}, buffer); err != nil {
+		return nil, err
+	}
+	return buffer, nil
+}
 
-While this syscall was only introduced in Kernel v3.17, it predates the
-introduction of filesystem encryption, so it introduces no additional
-compatibility issues.
-*/
-var RandReader io.Reader = randReader{}
+// NewRandomKey creates a random key of the specified length. This function uses
+// the same random number generation process a NewRandomBuffer.
+func NewRandomKey(length int) (*Key, error) {
+	return NewFixedLengthKeyFromReader(randReader{}, length)
+}
 
-// As we just call into Getrandom, no internal data is needed.
+// randReader just calls into Getrandom, so no internal data is needed.
 type randReader struct{}
 
 func (r randReader) Read(buffer []byte) (int, error) {
@@ -48,15 +58,11 @@ func (r randReader) Read(buffer []byte) (int, error) {
 	case nil:
 		return n, nil
 	case unix.EAGAIN:
-		return 0, util.SystemErrorF("entropy pool not yet initialized")
+		return 0, ErrLowEntropy
 	case unix.ENOSYS:
-		return 0, util.SystemErrorF("getrandom not implemented; kernel must be v3.17 or later")
+		return 0, ErrRandNotSupported
 	default:
-		return 0, util.SystemErrorF("cannot get randomness: %v", err)
+		log.Printf("unix.Getrandom failed: %v", err)
+		return 0, ErrRandFailed
 	}
-}
-
-// NewRandomKey creates a random key (from RandReader) of the specified length.
-func NewRandomKey(length int) (*Key, error) {
-	return NewFixedLengthKeyFromReader(RandReader, length)
 }
