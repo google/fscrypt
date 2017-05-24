@@ -44,7 +44,7 @@ func TestNeverErrorPanic(t *testing.T) {
 		}
 	}()
 
-	err := SystemErrorF("Hello")
+	err := SystemError("Hello")
 	NeverError(err)
 }
 
