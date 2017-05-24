@@ -20,6 +20,7 @@
 package metadata
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 )
@@ -42,27 +43,31 @@ var testConfigString = `{
 		"memory": "4096",
 		"parallelism": "8"
 	},
+	"compatibility": "",
 	"options": {
 		"padding": "32",
-		"contents_mode": "XTS",
-		"filenames_mode": "CTS"
+		"contents": "XTS",
+		"filenames": "CTS"
 	}
-}`
+}
+`
 
 // Makes sure that writing a config and reading it back gives the same thing.
 func TestWrite(t *testing.T) {
-	str, err := WriteConfig(testConfig)
+	var b bytes.Buffer
+	err := WriteConfig(testConfig, &b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("json encoded config:\n%s", str)
-	if str != testConfigString {
+	t.Logf("json encoded config:\n%s", b.String())
+	if b.String() != testConfigString {
 		t.Errorf("did not match: %s", testConfigString)
 	}
 }
 
 func TestRead(t *testing.T) {
-	cfg, err := ReadConfig(testConfigString)
+	buf := bytes.NewBufferString(testConfigString)
+	cfg, err := ReadConfig(buf)
 	if err != nil {
 		t.Fatal(err)
 	}

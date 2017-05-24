@@ -34,12 +34,13 @@ var goodPolicy = &PolicyData{
 	Options:       DefaultOptions,
 }
 
-// Creates a temporary directory in BASE_TEST_DIR for testing. Fails if the
-// base directory is not specified.
+// Creates a temporary directory in TEST_FILESYSTEM_ROOT for testing. Fails if
+// the root directory is not specified.
 func createTestDirectory() (directory string, err error) {
-	baseDirectory := os.Getenv("BASE_TEST_DIR")
+	baseDirectory := os.Getenv("TEST_FILESYSTEM_ROOT")
 	if s, err := os.Stat(baseDirectory); err != nil || !s.IsDir() {
-		return "", fmt.Errorf("invalid directory %q. Set BASE_TEST_DIR to be a valid directory", baseDirectory)
+		return "", fmt.Errorf("invalid directory %q: "+
+			"set TEST_FILESYSTEM_ROOT to be a valid directory", baseDirectory)
 	}
 
 	directoryPath := filepath.Join(baseDirectory, "test")

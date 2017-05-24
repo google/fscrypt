@@ -19,7 +19,7 @@
  */
 
 // Package metadata contains all of the on disk structures.
-// These structures are definied in meatadata.proto. The package also
+// These structures are defined in metadata.proto. The package also
 // contains functions for manipulating these structures, specifically:
 //    * Reading and Writing the Config file to disk
 //    * Getting and Setting Policies for directories
@@ -27,21 +27,48 @@
 package metadata
 
 //go:generate protoc --go_out=. metadata.proto
-import "github.com/golang/protobuf/jsonpb"
+import (
+	"io"
+	"strings"
+
+	"github.com/golang/protobuf/jsonpb"
+)
 
 // WriteConfig outputs the Config data as nicely formatted JSON
-func WriteConfig(config *Config) (string, error) {
+func WriteConfig(config *Config, out io.Writer) error {
 	m := jsonpb.Marshaler{
-		EmitDefaults: false,
+		EmitDefaults: true,
 		EnumsAsInts:  false,
 		Indent:       "\t",
 		OrigName:     true,
 	}
-	return m.MarshalToString(config)
+	if err := m.Marshal(out, config); err != nil {
+		return err
+	}
+
+	_, err := out.Write([]byte{'\n'})
+	return err
 }
 
 // ReadConfig writes the JSON data into the config structure
-func ReadConfig(input string) (*Config, error) {
+func ReadConfig(in io.Reader) (*Config, error) {
 	config := new(Config)
-	return config, jsonpb.UnmarshalString(input, config)
+	// Allow (and ignore) unknown fields for forwards compatibility.
+	u := jsonpb.Unmarshaler{
+		AllowUnknownFields: true,
+	}
+	return config, u.Unmarshal(in, config)
+}
+
+// HasCompatibilityOption returns true if the specified string is in the list of
+// compatibility options. This assumes the compatibility options are in a comma
+// separated string.
+func (c *Config) HasCompatibilityOption(option string) bool {
+	options := strings.Split(c.Compatibility, ",")
+	for _, o := range options {
+		if o == option {
+			return true
+		}
+	}
+	return false
 }

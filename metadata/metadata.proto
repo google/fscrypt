@@ -38,7 +38,7 @@ message WrappedKeyData {
 
 // Specifies the method in which an outside secret is obtained for a Protector
 enum SourceType {
-  none = 0;
+  default = 0;
   pam_passphrase = 1;
   custom_passphrase = 2;
   raw_key = 3;
@@ -47,10 +47,10 @@ enum SourceType {
 // The associated data for each protector
 message ProtectorData {
   string protector_descriptor = 1;
-  string name = 2;
-  SourceType source = 3;
+  SourceType source = 2;
 
   // These are only used by some of the protector types
+  string name = 3;
   HashingCosts costs = 4;
   bytes salt = 5;
   int64 uid = 6;
@@ -58,20 +58,21 @@ message ProtectorData {
   WrappedKeyData wrapped_key = 7;
 }
 
-// Type of encryption, should match the declarations of unix.FS_ENCRYPTION_MODE
-enum EncryptionMode {
-  default = 0;
-  XTS = 1;
-  GCM = 2;
-  CBC = 3;
-  CTS = 4;
-}
-
-// Encryption policy specifics, should match struct fscrypt_policy
+// Encryption policy specifics, corresponds to the fscrypt_policy struct
 message EncryptionOptions {
   int64 padding = 1;
-  EncryptionMode contents_mode = 2;
-  EncryptionMode filenames_mode = 3;
+
+  // Type of encryption; should match declarations of unix.FS_ENCRYPTION_MODE
+  enum Mode {
+    default = 0;
+    XTS = 1;
+    GCM = 2;
+    CBC = 3;
+    CTS = 4;
+  }
+
+  Mode contents = 2;
+  Mode filenames = 3;
 }
 
 message WrappedPolicyKey {

@@ -23,6 +23,8 @@ package metadata
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"log"
 	"os"
 	"unsafe"
 
@@ -31,16 +33,14 @@ import (
 	"fscrypt/util"
 )
 
-// DescriptorLen is the length of all Protector and Policy descriptors.
-const DescriptorLen = 2 * unix.FS_KEY_DESCRIPTOR_SIZE
-
 // Encryption specific errors
 var (
-	ErrEncryptionNotSupported = errors.New("filesystem encryption is not supported")
-	ErrEncryptionDisabled     = errors.New("filesystem encryption has been disabled in the kernel config")
-	ErrNotEncrypted           = errors.New("file or directory not encrypted")
-	ErrEncrypted              = errors.New("file or directory already encrypted")
-	ErrBadEncryptionOptions   = errors.New("invalid encryption options provided")
+	prefix                    = "filesystem encryption: "
+	ErrEncryptionNotSupported = errors.New(prefix + "not supported")
+	ErrEncryptionDisabled     = errors.New(prefix + "disabled in the kernel config")
+	ErrNotEncrypted           = errors.New(prefix + "file or directory not encrypted")
+	ErrEncrypted              = errors.New(prefix + "file or directory already encrypted")
+	ErrBadEncryptionOptions   = errors.New(prefix + "invalid options provided")
 )
 
 // policyIoctl is a wrapper for the ioctl syscall. If opens the file at the path
@@ -76,13 +76,6 @@ func policyIoctl(path string, request uintptr, policy *unix.FscryptPolicy) error
 	}
 }
 
-// DefaultOptions use the only supported encryption modes and maximum padding.
-var DefaultOptions = &EncryptionOptions{
-	Padding:       32,
-	ContentsMode:  EncryptionMode_XTS,
-	FilenamesMode: EncryptionMode_CTS,
-}
-
 // Maps EncryptionOptions.Padding <-> FscryptPolicy.Flags
 var (
 	paddingArray = []int64{4, 8, 16, 32}
@@ -101,17 +94,20 @@ func GetPolicy(path string) (*PolicyData, error) {
 
 	// Convert the padding flag into an amount of padding
 	paddingFlag := int64(policy.Flags & unix.FS_POLICY_FLAGS_PAD_MASK)
+
+	// This lookup should always succeed
 	padding, ok := util.Lookup(paddingFlag, flagsArray, paddingArray)
 	if !ok {
-		return nil, util.SystemErrorF("invalid padding flag: %x", paddingFlag)
+		log.Printf("padding flag of %x not found", paddingFlag)
+		util.NeverError(util.SystemError("invalid padding flag"))
 	}
 
 	return &PolicyData{
 		KeyDescriptor: hex.EncodeToString(policy.Master_key_descriptor[:]),
 		Options: &EncryptionOptions{
-			Padding:       padding,
-			ContentsMode:  EncryptionMode(policy.Contents_encryption_mode),
-			FilenamesMode: EncryptionMode(policy.Filenames_encryption_mode),
+			Padding:   padding,
+			Contents:  EncryptionOptions_Mode(policy.Contents_encryption_mode),
+			Filenames: EncryptionOptions_Mode(policy.Filenames_encryption_mode),
 		},
 	}, nil
 }
@@ -123,23 +119,25 @@ func SetPolicy(path string, data *PolicyData) error {
 	// Convert the padding value to a flag
 	paddingFlag, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
 	if !ok {
-		return util.InvalidInputF("padding of %d", data.Options.Padding)
+		return util.InvalidInput(fmt.Sprintf("padding of %d", data.Options.Padding))
 	}
 
 	// Convert the policyDescriptor to a byte array
 	if len(data.KeyDescriptor) != DescriptorLen {
-		return util.InvalidLengthError("policy descriptor", DescriptorLen, len(data.KeyDescriptor))
+		return util.InvalidLengthError(
+			"policy descriptor", DescriptorLen, len(data.KeyDescriptor))
 	}
 
 	descriptorBytes, err := hex.DecodeString(data.KeyDescriptor)
 	if err != nil {
-		return util.InvalidInputF("policy descriptor of %s: %v", data.KeyDescriptor, err)
+		return util.InvalidInput(
+			fmt.Sprintf("policy descriptor of %s: %v", data.KeyDescriptor, err))
 	}
 
 	policy := unix.FscryptPolicy{
 		Version:                   0, // Version must always be zero
-		Contents_encryption_mode:  uint8(data.Options.ContentsMode),
-		Filenames_encryption_mode: uint8(data.Options.FilenamesMode),
+		Contents_encryption_mode:  uint8(data.Options.Contents),
+		Filenames_encryption_mode: uint8(data.Options.Filenames),
 		Flags: uint8(paddingFlag),
 	}
 	copy(policy.Master_key_descriptor[:], descriptorBytes)
