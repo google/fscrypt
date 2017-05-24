@@ -15,8 +15,20 @@
 			"revisionTime": "2017-03-31T03:19:02Z"
 		},
 		{
+			"checksumSHA1": "i71WrschHLiBZP8tSp5XIHWaLs8=",
+			"path": "github.com/urfave/cli",
+			"revision": "637b607ddfd6f973c99874519a553613e960607d",
+			"revisionTime": "2017-05-06T03:23:19Z"
+		},
+		{
 			"checksumSHA1": "4D8hxMIaSDEW5pCQk22Xj4DcDh4=",
 			"path": "golang.org/x/crypto/hkdf",
+			"revision": "efac7f277b17c19894091e358c6130cb6bd51117",
+			"revisionTime": "2017-04-18T01:50:50Z"
+		},
+		{
+			"checksumSHA1": "xiderUuvye8Kpn7yX3niiJg32bE=",
+			"path": "golang.org/x/crypto/ssh/terminal",
 			"revision": "efac7f277b17c19894091e358c6130cb6bd51117",
 			"revisionTime": "2017-04-18T01:50:50Z"
 		},
