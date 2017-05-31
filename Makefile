@@ -30,7 +30,7 @@ CMD_DIR = $(NAME)/cmd/$(NAME)
 # The code below lets the caller of the makefile change the build flags for
 # fscrypt in a familiar manner. For example, to force the program to statically
 # link its C components, run "make fscrypt" with:
-#	make fscrypt "LDFLAGS += -static"
+#	make fscrypt "LDFLAGS += -static -luuid -ldl -laudit -lpthread"
 #
 # Similarly, to modify the flags passed to the C components, just modify CFLAGS
 # or LDFLAGS as you would with a C program. To modify the Go flags, either
@@ -59,7 +59,7 @@ $(NAME):
 go:
 	govendor generate +local
 	govendor build $(GOFLAGS) +local
-	govendor test $(GOFLAGS) +local
+	govendor test $(GOFLAGS) -p 1 +local
 
 update:
 	@govendor fetch +missing

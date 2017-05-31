@@ -22,7 +22,7 @@
 package filesystem
 
 /*
-#cgo LDFLAGS: -lblkid -luuid
+#cgo LDFLAGS: -lblkid
 #include <blkid/blkid.h> // blkid functions
 #include <stdlib.h>      // free()
 #include <mntent.h>      // setmntent, getmntent, endmntent

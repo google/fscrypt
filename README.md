@@ -101,7 +101,7 @@ You will also want to add `$GOPATH/bin` to your `$PATH`.
     `libblkid-devel` for RPM, should already be part of `util-linux` for Arch).
 
 Once this is setup, you can run `make fscrypt` to build the executable in
-the root directory. Pass `"LDFLAGS += -static"` to `make` to get a static
+the root directory. See the `Makefile` for instructions on building a static
 executable. If a Go project contains C code, the go compiler produces a
 dynamically linked binary by default.
 
