@@ -33,6 +33,8 @@ const char* read_mode = "r";
 
 // Helper function for freeing strings
 void string_free(char* str) { free(str); }
+
+// Helper function to lookup tokens
 */
 import "C"
 
@@ -42,16 +44,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"fscrypt/metadata"
 )
 
 var (
-	// SupportedFilesystems is a map of the filesystems which support
-	// filesystem-level encryption.
-	SupportedFilesystems = map[string]bool{
-		"ext4":  true,
-		"f2fs":  true,
-		"ubifs": true,
-	}
 	// These maps hold data about the state of the system's mountpoints.
 	mountsByPath   map[string]*Mount
 	mountsByDevice map[string][]*Mount
@@ -121,12 +118,7 @@ func getMountInfo() error {
 		// filesystems are listed in mount order.
 		mountsByPath[mnt.Path] = &mnt
 
-		// Use libblkid to get the device name
-		cDeviceName := C.blkid_evaluate_spec(entry.mnt_fsname, &cache)
-		defer C.string_free(cDeviceName)
-
-		deviceName, err := cannonicalizePath(C.GoString(cDeviceName))
-
+		deviceName, err := cannonicalizePath(C.GoString(entry.mnt_fsname))
 		// Only use real valid devices (unlike cgroups, tmpfs, ...)
 		if err == nil && isDevice(deviceName) {
 			mnt.Device = deviceName
@@ -138,30 +130,38 @@ func getMountInfo() error {
 // checkSupport returns an error if the specified mount does not support
 // filesystem-level encryption.
 func checkSupport(mount *Mount) error {
-	if SupportedFilesystems[mount.Filesystem] {
+	// Getting a policy on a filesystem which supports encryption should
+	// either return the policy or say there isn't one. Anything else
+	// indicates a problem with support.
+	_, err := metadata.GetPolicy(mount.Path)
+	if err == nil || err == metadata.ErrNotEncrypted {
+		log.Printf("%s filesystem at %q supports encryption (got %v)",
+			mount.Filesystem, mount.Path, err)
 		return nil
 	}
-	log.Printf("filesystem %s does not support filesystem encryption", mount.Filesystem)
-	return ErrNoSupport
+
+	log.Printf("%s filesystem at %q probably doesn't support encryption (got %v)",
+		mount.Filesystem, mount.Path, err)
+	return err
 }
 
 // AllSupportedFilesystems lists all the Mounts which could support filesystem
 // encryption. This doesn't mean they necessarily do or that they are being used
 // with fscrypt.
-func AllSupportedFilesystems() (mounts []*Mount) {
+func AllSupportedFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	if err := getMountInfo(); err != nil {
-		log.Print(err)
-		return
+		return nil, err
 	}
 
+	var supportedMounts []*Mount
 	for _, mount := range mountsByPath {
 		if checkSupport(mount) == nil {
-			mounts = append(mounts, mount)
+			supportedMounts = append(supportedMounts, mount)
 		}
 	}
-	return
+	return supportedMounts, nil
 }
 
 // UpdateMountInfo updates the filesystem mountpoint maps with the current state
@@ -240,20 +240,27 @@ func GetMount(mountpoint string) (*Mount, error) {
 // filesystem has been updated since the last call to one of the mount
 // functions, run UpdateMountInfo to see the change.
 func getMountsFromLink(link string) ([]*Mount, error) {
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
+	// Use blkid_evaluate_spec to get the device name.
+	cLink := C.CString(link)
+	defer C.string_free(cLink)
+
+	cDeviceName := C.blkid_evaluate_spec(cLink, &cache)
+	defer C.string_free(cDeviceName)
+	deviceName := C.GoString(cDeviceName)
+
+	log.Printf("blkid_evaluate_spec(%q, <cache>) = %q", link, deviceName)
+
+	if deviceName == "" {
+		return nil, ErrNoLink
+	}
+	deviceName, err := cannonicalizePath(deviceName)
+	if err != nil {
 		return nil, err
 	}
 
-	// Use blkid to get the device
-	cLink := C.CString(link)
-	defer C.string_free(cLink)
-	cDeviceName := C.blkid_evaluate_spec(cLink, &cache)
-	defer C.string_free(cDeviceName)
-
-	deviceName, err := cannonicalizePath(C.GoString(cDeviceName))
-	if err != nil {
+	mountMutex.Lock()
+	defer mountMutex.Unlock()
+	if err := getMountInfo(); err != nil {
 		return nil, err
 	}
 
@@ -261,7 +268,6 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 		return mnts, nil
 	}
 
-	log.Printf("link %q does not refer to a device", link)
 	return nil, ErrNoLink
 }
 
@@ -269,23 +275,29 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 // value for the Mount's device according to libblkid. An error is returned if
 // the device/token pair has no value.
 func makeLink(mnt *Mount, token string) (string, error) {
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
-		return "", err
-	}
-
-	cToken := C.CString(token)
-	defer C.string_free(cToken)
+	// The blkid cache may not always hold the canonical device path. To
+	// solve this we first use blkid_evaluate_spec to find the right entry
+	// in the cache. Then that name is used to get the token value.
 	cDevice := C.CString(mnt.Device)
 	defer C.string_free(cDevice)
 
-	cValue := C.blkid_get_tag_value(cache, cToken, cDevice)
-	if cValue == nil {
-		log.Printf("filesystem at %q has no %s", mnt.Path, token)
+	cDeviceEntry := C.blkid_evaluate_spec(cDevice, &cache)
+	defer C.string_free(cDeviceEntry)
+	deviceEntry := C.GoString(cDeviceEntry)
+
+	log.Printf("blkid_evaluate_spec(%q, <cache>) = %q", mnt.Device, deviceEntry)
+
+	cToken := C.CString(token)
+	defer C.string_free(cToken)
+
+	cValue := C.blkid_get_tag_value(cache, cToken, cDeviceEntry)
+	defer C.string_free(cValue)
+	value := C.GoString(cValue)
+
+	log.Printf("blkid_get_tag_value(<cache>, %s, %s) = %s", token, deviceEntry, value)
+
+	if value == "" {
 		return "", ErrCannotLink
 	}
-	defer C.string_free(cValue)
-
 	return fmt.Sprintf("%s=%s", token, C.GoString(cValue)), nil
 }

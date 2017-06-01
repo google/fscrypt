@@ -110,6 +110,13 @@ type Mount struct {
 	Device     string
 }
 
+// PathSorter allows mounts to be sorted by Path.
+type PathSorter []*Mount
+
+func (p PathSorter) Len() int           { return len(p) }
+func (p PathSorter) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p PathSorter) Less(i, j int) bool { return p[i].Path < p[j].Path }
+
 const (
 	// Names of the various directories used in fscrypt
 	baseDirName       = ".fscrypt"
@@ -127,6 +134,13 @@ const (
 	// the user that created them
 	filePermissions = 0644
 )
+
+func (m *Mount) String() string {
+	return fmt.Sprintf(`%s
+	Filsystem: %s
+	Options:    %v
+	Device:      %s`, m.Path, m.Filesystem, m.Options, m.Device)
+}
 
 // baseDir returns the path of the base fscrypt directory on this filesystem.
 func (m *Mount) baseDir() string {
@@ -183,15 +197,18 @@ func (m *Mount) err(err error) error {
 	}
 }
 
-// IsSetup returns true if all the fscrypt metadata directories exist. Will log
-// any unexpected errors, or if any permissions are incorrect.
-func (m *Mount) IsSetup() bool {
+// CheckSetup returns an error if all the fscrypt metadata directories exist.
+// Will log any unexpected errors, or if any permissions are incorrect.
+func (m *Mount) CheckSetup() error {
 	// Run all the checks so we will always get all the warnings
 	baseGood := isDirCheckPerm(m.baseDir(), basePermissions)
 	policyGood := isDirCheckPerm(m.policyDir(), dirPermissions)
 	protectorGood := isDirCheckPerm(m.protectorDir(), dirPermissions)
 
-	return baseGood && policyGood && protectorGood
+	if baseGood && policyGood && protectorGood {
+		return nil
+	}
+	return m.err(ErrNotSetup)
 }
 
 // makeDirectories creates the three metadata directories with the correct
@@ -217,10 +234,9 @@ func (m *Mount) makeDirectories() error {
 // the filesystem's feature flags. This operation is atomic, it either succeeds
 // or no files in the baseDir are created.
 func (m *Mount) Setup() error {
-	if m.IsSetup() {
+	if m.CheckSetup() == nil {
 		return m.err(ErrAlreadySetup)
 	}
-
 	// We build the directories under a temp Mount and then move into place.
 	temp, err := m.tempMount()
 	if err != nil {
@@ -247,10 +263,9 @@ func (m *Mount) Setup() error {
 // WARNING: Will cause data loss if the metadata is used to encrypt
 // directories (this could include directories on other filesystems).
 func (m *Mount) RemoveAllMetadata() error {
-	if !m.IsSetup() {
-		return m.err(ErrNotSetup)
+	if err := m.CheckSetup(); err != nil {
+		return err
 	}
-
 	// temp will hold the old metadata temporarily
 	temp, err := m.tempMount()
 	if err != nil {
@@ -267,32 +282,28 @@ func (m *Mount) RemoveAllMetadata() error {
 func (m *Mount) writeDataAtomic(path string, data []byte) error {
 	// Write the file to a temporary file then move into place so that the
 	// operation will be atomic.
-	tmpFile, err := ioutil.TempFile(filepath.Dir(path), tempPrefix)
+	tempPath := filepath.Join(filepath.Dir(path), tempPrefix+filepath.Base(path))
+	// We use O_SYNC so the write actually gets to stable storage.
+	tempFile, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_SYNC, filePermissions)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tempPath)
 
-	// Make sure the write actually gets to stable storage.
-	if _, err = tmpFile.Write(data); err != nil {
+	if _, err = tempFile.Write(data); err != nil {
+		tempFile.Close()
 		return err
 	}
-	if err = tmpFile.Sync(); err != nil {
-		return err
-	}
-	if err = tmpFile.Close(); err != nil {
+	if err = tempFile.Close(); err != nil {
 		return err
 	}
 
-	return os.Rename(tmpFile.Name(), path)
+	return os.Rename(tempPath, path)
 }
 
 // addMetadata writes the metadata structure to the file with the specified
 // path this will overwrite any existing data. The operation is atomic.
 func (m *Mount) addMetadata(path string, md metadata.Metadata) error {
-	if !m.IsSetup() {
-		return ErrNotSetup
-	}
 	if !md.IsValid() {
 		return ErrInvalidMetadata
 	}
@@ -309,10 +320,6 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata) error {
 // getMetadata reads the metadata structure from the file with the specified
 // path. Only reads normal metadata files, not linked metadata.
 func (m *Mount) getMetadata(path string, md metadata.Metadata) error {
-	if !m.IsSetup() {
-		return ErrNotSetup
-	}
-
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -354,6 +361,9 @@ func (m *Mount) removeMetadata(path string) error {
 // will fail with ErrLinkedProtector if a linked protector with this descriptor
 // already exists on the filesystem.
 func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
+	if err := m.CheckSetup(); err != nil {
+		return err
+	}
 	if isRegularFile(m.linkedProtectorPath(data.ProtectorDescriptor)) {
 		return m.err(ErrLinkedProtector)
 	}
@@ -364,6 +374,9 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 // AddLinkedProtector adds a link in this filesystem to the protector metadata
 // in the dest filesystem.
 func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) error {
+	if err := m.CheckSetup(); err != nil {
+		return err
+	}
 	// Check that the link is good (descriptor exists, filesystem has UUID).
 	if _, err := dest.GetRegularProtector(descriptor); err != nil {
 		return err
@@ -382,19 +395,28 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) error {
 // GetRegularProtector looks up the protector metadata by descriptor. This will
 // fail with ErrNoMetadata if the descriptor is a linked protector.
 func (m *Mount) GetRegularProtector(descriptor string) (*metadata.ProtectorData, error) {
+	if err := m.CheckSetup(); err != nil {
+		return nil, err
+	}
 	data := new(metadata.ProtectorData)
 	path := m.protectorPath(descriptor)
 	return data, m.err(m.getMetadata(path, data))
 }
 
-// GetLinkedProtector returns the Mount of the filesystem containing the
-// information for a linked protector and that protector's data.
-func (m *Mount) GetLinkedProtector(descriptor string) (*Mount, *metadata.ProtectorData, error) {
+// GetProtector returns the Mount of the filesystem containing the information
+// and that protector's data. If the descriptor is a regular (not linked)
+// protector, the mount will return itself.
+func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData, error) {
+	if err := m.CheckSetup(); err != nil {
+		return nil, nil, err
+	}
 	// Get the link data from the link file
 	link, err := ioutil.ReadFile(m.linkedProtectorPath(descriptor))
 	if err != nil {
+		// If the link doesn't exist, try for a regular protector.
 		if os.IsNotExist(err) {
-			err = ErrNoMetadata
+			data, err := m.GetRegularProtector(descriptor)
+			return m, data, err
 		}
 		return nil, nil, m.err(err)
 	}
@@ -414,19 +436,12 @@ func (m *Mount) GetLinkedProtector(descriptor string) (*Mount, *metadata.Protect
 	return nil, nil, m.err(ErrOldLink)
 }
 
-// GetEitherProtector looks up the protector metadata by descriptor. It will
-// return the data for a linked protector or a regular protector.
-func (m *Mount) GetEitherProtector(descriptor string) (*metadata.ProtectorData, error) {
-	if isRegularFile(m.linkedProtectorPath(descriptor)) {
-		_, data, err := m.GetLinkedProtector(descriptor)
-		return data, err
-	}
-	return m.GetRegularProtector(descriptor)
-}
-
 // RemoveProtector deletes the protector metadata (or an link to another
 // filesystem's metadata) from the filesystem storage.
 func (m *Mount) RemoveProtector(descriptor string) error {
+	if err := m.CheckSetup(); err != nil {
+		return err
+	}
 	// We first try to remove the linkedProtector. If that metadata does not
 	// exist, we try to remove the normal protector.
 	err := m.removeMetadata(m.linkedProtectorPath(descriptor))
@@ -439,39 +454,51 @@ func (m *Mount) RemoveProtector(descriptor string) error {
 // ListProtectors lists the descriptors of all protectors on this filesystem.
 // This does not include linked protectors.
 func (m *Mount) ListProtectors() ([]string, error) {
+	if err := m.CheckSetup(); err != nil {
+		return nil, err
+	}
 	protectors, err := m.listDirectory(m.protectorDir())
 	return protectors, m.err(err)
 }
 
 // AddPolicy adds the policy metadata to the filesystem storage.
 func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
+	if err := m.CheckSetup(); err != nil {
+		return err
+	}
+
 	return m.err(m.addMetadata(m.policyPath(data.KeyDescriptor), data))
 }
 
 // GetPolicy looks up the policy metadata by descriptor.
 func (m *Mount) GetPolicy(descriptor string) (*metadata.PolicyData, error) {
+	if err := m.CheckSetup(); err != nil {
+		return nil, err
+	}
 	data := new(metadata.PolicyData)
 	return data, m.err(m.getMetadata(m.policyPath(descriptor), data))
 }
 
 // RemovePolicy deletes the policy metadata from the filesystem storage.
 func (m *Mount) RemovePolicy(descriptor string) error {
+	if err := m.CheckSetup(); err != nil {
+		return err
+	}
 	return m.err(m.removeMetadata(m.policyPath(descriptor)))
 }
 
 // ListPolicies lists the descriptors of all policies on this filesystem.
 func (m *Mount) ListPolicies() ([]string, error) {
+	if err := m.CheckSetup(); err != nil {
+		return nil, err
+	}
 	policies, err := m.listDirectory(m.policyDir())
 	return policies, m.err(err)
 }
 
 // listDirectory returns a list of descriptors for a metadata directory,
-// excluding files which are links to other filesystem's metadata.
+// including files which are links to other filesystem's metadata.
 func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
-	if !m.IsSetup() {
-		return nil, ErrNotSetup
-	}
-
 	log.Printf("listing descriptors in %q", directoryPath)
 	dir, err := os.Open(directoryPath)
 	if err != nil {
@@ -486,9 +513,8 @@ func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
 
 	var descriptors []string
 	for _, name := range names {
-		if !strings.HasSuffix(name, linkFileExtension) {
-			descriptors = append(descriptors, name)
-		}
+		// Be sure to include links as well
+		descriptors = append(descriptors, strings.TrimSuffix(name, linkFileExtension))
 	}
 
 	log.Printf("found %d descriptor(s)", len(descriptors))

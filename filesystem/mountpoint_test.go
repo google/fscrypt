@@ -27,10 +27,7 @@ import (
 func printMountInfo() {
 	fmt.Println("\nBy Mountpoint:")
 	for _, mnt := range mountsByPath {
-		fmt.Println("\t" + mnt.Path)
-		fmt.Println("\t\tFilesystem: " + mnt.Filesystem)
-		fmt.Printf("\t\tOptions:    %v\n", mnt.Options)
-		fmt.Println("\t\tDevice:     " + mnt.Device)
+		fmt.Println(mnt)
 	}
 
 	fmt.Println("\nBy Device:")
@@ -44,11 +41,9 @@ func printMountInfo() {
 
 func printSupportedMounts() {
 	fmt.Println("\nSupported Mountpoints:")
-	for _, mnt := range AllSupportedFilesystems() {
-		fmt.Println("\t" + mnt.Path)
-		fmt.Println("\t\tFilesystem: " + mnt.Filesystem)
-		fmt.Printf("\t\tOptions:    %v\n", mnt.Options)
-		fmt.Println("\t\tDevice:     " + mnt.Device)
+	mnts, _ := AllSupportedFilesystems()
+	for _, mnt := range mnts {
+		fmt.Println(mnt)
 	}
 }
 

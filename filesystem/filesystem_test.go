@@ -88,8 +88,8 @@ func TestSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !mnt.IsSetup() {
-		t.Error("filesystem is not setup")
+	if err := mnt.CheckSetup(); err != nil {
+		t.Error(err)
 	}
 
 	os.RemoveAll(mnt.baseDir())
@@ -283,7 +283,7 @@ func TestLinkedProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	retMnt, retProtector, err := fakeMnt.GetLinkedProtector(protector.ProtectorDescriptor)
+	retMnt, retProtector, err := fakeMnt.GetProtector(protector.ProtectorDescriptor)
 	if err != nil {
 		t.Fatal(err)
 	}
