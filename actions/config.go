@@ -34,10 +34,15 @@ import (
 	"fscrypt/util"
 )
 
+// LegacyConfig indicates that keys should be inserted into the keyring with the
+// legacy service prefixes. Needed for kernels before v4.8.
+const LegacyConfig = "legacy"
+
+// ConfigFileLocation is the location of fscrypt's global settings. This can be
+// overridden by the user of this package.
+var ConfigFileLocation = "/etc/fscrypt.conf"
+
 const (
-	// LegacyConfig indicates that keys should be inserted into the keyring
-	// with the legacy service prefixes. Needed for kernels before v4.8.
-	LegacyConfig = "legacy"
 	// Permissions of the config file (global readable)
 	configPermissions = 0644
 	// Config file should be created for writing and not already exist
@@ -45,19 +50,17 @@ const (
 )
 
 var (
-	// ConfigFileLocation is the location of fscrypt's global settings.
-	ConfigFileLocation = "/etc/fscrypt.conf"
-	timingPassphrase   = []byte("I am a fake passphrase")
-	timingSalt         = bytes.Repeat([]byte{42}, metadata.SaltLen)
+	timingPassphrase = []byte("I am a fake passphrase")
+	timingSalt       = bytes.Repeat([]byte{42}, metadata.SaltLen)
 )
 
-// NewConfigFile creates a new config file at the appropriate location with the
-// appropriate hashing costs and encryption parameters. This creation is
+// CreateConfigFile creates a new config file at the appropriate location with
+// the appropriate hashing costs and encryption parameters. This creation is
 // configurable in two ways. First, a time target must be specified. This target
 // will determine the hashing costs, by picking parameters that make the hashing
 // take as long as the specified target. Second, the config can include the
 // legacy option, which is needed for systems with kernels older than v4.8.
-func NewConfigFile(target time.Duration, useLegacy bool) error {
+func CreateConfigFile(target time.Duration, useLegacy bool) error {
 	// Create the config file before computing the hashing costs, so we fail
 	// immediately if the program has insufficient permissions.
 	configFile, err := os.OpenFile(ConfigFileLocation, createFlags, configPermissions)
@@ -88,8 +91,8 @@ func NewConfigFile(target time.Duration, useLegacy bool) error {
 
 // getConfig returns the current configuration struct. Any fields not specified
 // in the config file use the system defaults. An error is returned if the
-// config file hasn't been setup with NewConfigFile yet or the config contains
-// invalid data.
+// config file hasn't been setup with CreateConfigFile yet or the config
+// contains invalid data.
 func getConfig() (*metadata.Config, error) {
 	configFile, err := os.Open(ConfigFileLocation)
 	switch {

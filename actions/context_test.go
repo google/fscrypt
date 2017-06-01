@@ -31,7 +31,7 @@ var mountpoint = os.Getenv("TEST_FILESYSTEM_ROOT")
 // Makes a context using the testing locations for the filesystem and
 // configuration file.
 func makeContext() (*Context, error) {
-	if err := NewConfigFile(testTime, true); err != nil {
+	if err := CreateConfigFile(testTime, true); err != nil {
 		return nil, err
 	}
 

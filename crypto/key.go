@@ -36,18 +36,17 @@ import (
 	"fscrypt/util"
 )
 
-// Service Prefixes for keyring keys. As of kernel v4.8, all filesystems
-// supporting encryption will use FS_KEY_DESC_PREFIX to indicate that a key in
-// the keyring should be used with filesystem encryption. However, we also
-// include the older service prefixes for legacy compatibility.
 const (
-	ServiceDefault = unix.FS_KEY_DESC_PREFIX
-	// ServiceExt4 was used before v4.8 for ext4 filesystem encryption.
-	ServiceExt4 = "ext4:"
-	// ServiceExt4 was used before v4.6 for F2FS filesystem encryption.
-	ServiceF2FS = "f2fs:"
+	// DefaultService is the service which should be used for all encryption
+	// keys unless not possible for legacy reasons. For ext4 systems before
+	// v4.8 and f2fs systems before v4.6, filesystem specific services must
+	// be used (these legacy services will still work with later kernels).
+	DefaultService = unix.FS_KEY_DESC_PREFIX
 	// keyType is always logon as required by filesystem encryption
 	keyType = "logon"
+	// Keys need to readable and writable, but hidden from other processes.
+	keyProtection = unix.PROT_READ | unix.PROT_WRITE
+	keyMmapFlags  = unix.MAP_PRIVATE | unix.MAP_ANONYMOUS
 )
 
 /*
@@ -92,12 +91,6 @@ memory could be freed twice.
 type Key struct {
 	data []byte
 }
-
-const (
-	// Keys need to readable and writable, but hidden from other processes.
-	keyProtection = unix.PROT_READ | unix.PROT_WRITE
-	keyMmapFlags  = unix.MAP_PRIVATE | unix.MAP_ANONYMOUS
-)
 
 // newBlankKey constructs a blank key of a specified length and returns an error
 // if we are unable to allocate or lock the necessary memory.

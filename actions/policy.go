@@ -32,14 +32,125 @@ import (
 
 // Errors relating to Policies
 var (
-	ErrBadPolicyMetadata   = util.SystemError("policy metadata is inconsistent")
-	ErrPathWrongFilesystem = errors.New("provided path for policy is on the wrong filesystem")
-	ErrDifferentFilesystem = errors.New("policies may only protect files on the same filesystem")
-	ErrOnlyProtector       = errors.New("cannot remove the only protector for a policy")
-	ErrAlreadyProtected    = errors.New("this policy is already protected by this protector")
-	ErrNotProtected        = errors.New("this policy is not protected by this protector")
-	ErrInvalidIndex        = errors.New("policy callback returned an invalid index")
+	ErrMissingPolicyMetadata  = util.SystemError("policy for directory has no filesystem metadata; metadata may be corrupted")
+	ErrPolicyMetadataMismatch = util.SystemError("policy metadata is inconsistent; metadata may be corrupted")
+	ErrPathWrongFilesystem    = errors.New("provided path for policy is on the wrong filesystem")
+	ErrDifferentFilesystem    = errors.New("policies may only protect files on the same filesystem")
+	ErrOnlyProtector          = errors.New("cannot remove the only protector for a policy")
+	ErrAlreadyProtected       = errors.New("this policy is already protected by this protector")
+	ErrNotProtected           = errors.New("this policy is not protected by this protector")
 )
+
+// PolicyDescriptorForPath returns the policy descriptor for a file on the
+// filesystem. An error is returned if the metadata is inconsistent, the path is
+// for the wrong filesystem, or the path is not encrypted.
+func PolicyDescriptorForPath(ctx *Context, path string) (string, error) {
+	if err := ctx.checkContext(); err != nil {
+		return "", err
+	}
+	// Policies and their paths will always be on the same filesystem
+	if pathMount, err := filesystem.FindMount(path); err != nil {
+		return "", err
+	} else if pathMount != ctx.Mount {
+		return "", ErrPathWrongFilesystem
+	}
+	log.Printf("%q is on mountpoint %q", path, ctx.Mount.Path)
+
+	// We double check that the options agree for both the data we get from
+	// the path, and the data we get from the mountpoint.
+	pathData, err := metadata.GetPolicy(path)
+	if err != nil {
+		return "", err
+	}
+	descriptor := pathData.KeyDescriptor
+	log.Printf("found policy %s for %q", descriptor, path)
+
+	mountData, err := ctx.Mount.GetPolicy(descriptor)
+	if err != nil {
+		log.Printf("getting metadata for policy %s: %v", descriptor, err)
+		return "", ErrMissingPolicyMetadata
+	}
+	log.Printf("found data for policy %s on %q", descriptor, ctx.Mount.Path)
+
+	if !reflect.DeepEqual(pathData.Options, mountData.Options) {
+		log.Printf("options from path: %+v", pathData.Options)
+		log.Printf("options from mount: %+v", mountData.Options)
+		return "", ErrPolicyMetadataMismatch
+	}
+	log.Print("data from filesystem and path agree")
+
+	return descriptor, nil
+}
+
+// IsPolicyUnlocked returns a boolean indicating if the corresponding policy for
+// this filesystem has its key in the keyring, meaning files and directories
+// using this policy can be read and written.
+func IsPolicyUnlocked(ctx *Context, policyDescriptor string) bool {
+	_, err := crypto.FindPolicyKey(policyDescriptor, getService(ctx))
+	return err == nil
+}
+
+// LockPolicy removes a policy key from the keyring. This means after unmounting
+// and remounting the directory, files and directories using this policy will be
+// inaccessible.
+func LockPolicy(ctx *Context, policyDescriptor string) error {
+	if err := ctx.checkContext(); err != nil {
+		return err
+	}
+	return crypto.RemovePolicyKey(policyDescriptor, getService(ctx))
+}
+
+// PurgeAllPolicies removes all policy keys on the filesystem from the kernel
+// keyring. In order for this removal to have an effect, the filesystem should
+// also be unmounted.
+func PurgeAllPolicies(ctx *Context) error {
+	if err := ctx.checkContext(); err != nil {
+		return err
+	}
+	policies, err := ctx.Mount.ListPolicies()
+	if err != nil {
+		return err
+	}
+
+	for _, policy := range policies {
+		if err := LockPolicy(ctx, policy); err == crypto.ErrKeyringDelete {
+			// This means a policy key was present but we could not
+			// delete it. The other errors just indicate that the
+			// policy key was not present.
+			return err
+		}
+	}
+	return nil
+}
+
+// getService returns the keyring service for this context. We use the presence
+// of the LegacyConfig flag to determine if we should use the legacy services
+// (which are necessary for kernels before v4.8).
+func getService(ctx *Context) string {
+	if ctx.Config.HasCompatibilityOption(LegacyConfig) {
+		switch ctx.Mount.Filesystem {
+		case "ext4", "f2fs":
+			return ctx.Mount.Filesystem + ":"
+		}
+	}
+	return crypto.DefaultService
+}
+
+// getPolicyData creates a partially constructed policy by looking up
+// the descriptor on the appropriate filesystem. The policy returned will not
+// have its key initialized.
+func getPolicyData(ctx *Context, descriptor string) (*Policy, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
+	}
+	data, err := ctx.Mount.GetPolicy(descriptor)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("got data for %s from %q", descriptor, ctx.Mount.Path)
+
+	return &Policy{Context: ctx, data: data}, nil
+}
 
 // Policy represents an unlocked policy, so it contains the PolicyData as well
 // as the actual protector key. These unlocked Polices can then be applied to a
@@ -47,19 +158,18 @@ var (
 // allow encrypted files to be accessed). As with the key struct, a Policy
 // should be wiped after use.
 type Policy struct {
-	*Context
-	data *metadata.PolicyData
-	key  *crypto.Key
+	Context *Context
+	data    *metadata.PolicyData
+	key     *crypto.Key
 }
 
-// NewPolicy creates a Policy protected by given Protector and stores the
+// CreatePolicy creates a Policy protected by given Protector and stores the
 // appropriate data on the filesystem. On error, no data is changed on the
 // filesystem.
-func (ctx *Context) NewPolicy(protector *Protector) (*Policy, error) {
-	if !ctx.Config.IsValid() {
-		return nil, ErrBadConfig
+func CreatePolicy(ctx *Context, protector *Protector) (*Policy, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
 	}
-
 	// Randomly create the underlying policy key (and wipe if we fail)
 	key, err := crypto.NewRandomKey(metadata.PolicyKeyLen)
 	if err != nil {
@@ -83,107 +193,52 @@ func (ctx *Context) NewPolicy(protector *Protector) (*Policy, error) {
 	return policy, nil
 }
 
-// getPolicyData creates a partially constructed policy by looking up
-// the descriptor on the appropriate filesystem. The policy returned will not
-// have its key initialized.
-func (ctx *Context) getPolicyData(descriptor string) (*Policy, error) {
-	data, err := ctx.Mount.GetPolicy(descriptor)
+// GetPolicy retrieves a policy with a specific descriptor. As a Protector is
+// needed to unlock the policy, callbacks to select the policy and get the key
+// are needed. This method will retry the keyFn as necessary to get the correct
+// key for the selected protector.
+func GetPolicy(ctx *Context, descriptor string, optionFn OptionFunc, keyFn KeyFunc) (*Policy, error) {
+	policy, err := getPolicyData(ctx, descriptor)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("got data for %s from filesystem", descriptor)
-
-	return &Policy{Context: ctx, data: data}, nil
+	return policy, policy.unwrapPolicy(optionFn, keyFn)
 }
 
-// GetPolicyFromDescriptor retrieves a policy with a specific descriptor. As a
-// Protector is needed to unlock the policy, callbacks are necessary as well.
-func (ctx *Context) GetPolicyFromDescriptor(descriptor string, c1 PolicyCallback, c2 KeyCallback) (*Policy, error) {
-	if !ctx.Config.IsValid() {
-		return nil, ErrBadConfig
+// listOptions creates a slice of ProtectorOptions for the protectors protecting
+// this policy.
+func (policy *Policy) listOptions() []*ProtectorOption {
+	options := make([]*ProtectorOption, len(policy.data.WrappedPolicyKeys))
+	for i, wrappedPolicyKey := range policy.data.WrappedPolicyKeys {
+		options[i] = policy.Context.GetProtectorOption(wrappedPolicyKey.ProtectorDescriptor)
 	}
-
-	policy, err := ctx.getPolicyData(descriptor)
-	if err != nil {
-		return nil, err
-	}
-
-	return policy, policy.unwrapPolicy(c1, c2)
-}
-
-// GetPolicyFromPath returns the policy for a specific path on the same
-// filesystem as the Context. As a Protector is needed to unlock the policy,
-// callbacks are necessary as well.
-func (ctx *Context) GetPolicyFromPath(path string, c1 PolicyCallback, c2 KeyCallback) (*Policy, error) {
-	if !ctx.Config.IsValid() {
-		return nil, ErrBadConfig
-	}
-
-	// Policies and their paths will always be on the same filesystem
-	if pathMount, err := filesystem.FindMount(path); err != nil {
-		return nil, err
-	} else if pathMount != ctx.Mount {
-		return nil, ErrPathWrongFilesystem
-	}
-	log.Printf("using mountpoint %q for %q", ctx.Mount.Path, path)
-
-	// We double check that the options agree for both the data we get from
-	// the path, and the data we get from the mountpoint.
-	pathData, err := metadata.GetPolicy(path)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("found policy %s for %s", pathData.KeyDescriptor, path)
-
-	policy, err := ctx.getPolicyData(pathData.KeyDescriptor)
-	if err != nil {
-		return nil, err
-	}
-
-	if !reflect.DeepEqual(pathData.Options, policy.data.Options) {
-		log.Printf("options from path: %+v", pathData.Options)
-		log.Printf("options from mountpoint: %+v", policy.data.Options)
-		return nil, ErrBadPolicyMetadata
-	}
-	log.Print("data from filesystem and directory agree")
-
-	return policy, policy.unwrapPolicy(c1, c2)
+	return options
 }
 
 // unwrapPolicy initializes the policy key using the provided callbacks.
-// The policyCallback
-func (policy *Policy) unwrapPolicy(policyCallback PolicyCallback, keyCallback KeyCallback) error {
-	// Create a list of the ProtectorData structures and a corresponding
-	// list of the wrapped keys.
-	totalKeys := len(policy.data.WrappedPolicyKeys)
-	protectors := make([]ProtectorData, 0, totalKeys)
-	wrappedKeys := make([]*metadata.WrappedKeyData, 0, totalKeys)
+func (policy *Policy) unwrapPolicy(optionFn OptionFunc, keyFn KeyFunc) error {
+	// Create a list of the ProtectorOptions and a list of the wrapped keys.
+	options := policy.listOptions()
+	wrappedKeys := make([]*metadata.WrappedKeyData, len(policy.data.WrappedPolicyKeys))
 
-	// This loop excludes protectors that we cannot get from the mount.
-	for _, wrappedPolicyKey := range policy.data.WrappedPolicyKeys {
-		protector, err := policy.Mount.GetEitherProtector(wrappedPolicyKey.ProtectorDescriptor)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-		protectors = append(protectors, protector)
-		wrappedKeys = append(wrappedKeys, wrappedPolicyKey.WrappedKey)
+	for i, wrappedPolicyKey := range policy.data.WrappedPolicyKeys {
+		wrappedKeys[i] = wrappedPolicyKey.WrappedKey
 	}
-	log.Printf("%d of our %d protectors are available", len(protectors), totalKeys)
 
-	idx, err := policyCallback(policy.data.KeyDescriptor, protectors)
+	// The OptionFunc indicates which option and wrapped key we should use.
+	idx, err := optionFn(policy.data.KeyDescriptor, options)
 	if err != nil {
 		return err
 	}
-	if idx < 0 || idx >= len(protectors) {
-		return ErrInvalidIndex
+	option := options[idx]
+	if option.LoadError != nil {
+		return option.LoadError
 	}
 
-	protectorData := protectors[idx].(*metadata.ProtectorData)
 	wrappedPolicyKey := wrappedKeys[idx]
-	log.Printf("protector %s selected in callback", protectorData.ProtectorDescriptor)
+	log.Printf("protector %s selected in callback", option.Descriptor())
 
-	protectorKey, err := unwrapProtectorKey(protectorData, keyCallback)
+	protectorKey, err := unwrapProtectorKey(option.ProtectorInfo, keyFn)
 	if err != nil {
 		return err
 	}
@@ -199,16 +254,16 @@ func (policy *Policy) unwrapPolicy(policyCallback PolicyCallback, keyCallback Ke
 // returned, no data has been changed. If the policy and protector are on
 // different filesystems, a link will be created between them.
 func (policy *Policy) AddProtector(protector *Protector) error {
-	_, err := policy.findWrappedKeyIndex(protector)
+	_, err := policy.findWrappedKeyIndex(protector.data.ProtectorDescriptor)
 	if err == nil {
 		return ErrAlreadyProtected
 	}
 
 	// If the protector is on a different filesystem, we need to add a link
 	// to it on the policy's filesystem.
-	if policy.Mount != protector.Mount {
-		err = policy.Mount.AddLinkedProtector(
-			protector.data.ProtectorDescriptor, protector.Mount)
+	if policy.Context.Mount != protector.Context.Mount {
+		err = policy.Context.Mount.AddLinkedProtector(
+			protector.data.ProtectorDescriptor, protector.Context.Mount)
 		if err != nil {
 			return err
 		}
@@ -218,7 +273,6 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 	wrappedPolicyKey := &metadata.WrappedPolicyKey{
 		ProtectorDescriptor: protector.data.ProtectorDescriptor,
 	}
-
 	if wrappedPolicyKey.WrappedKey, err = crypto.Wrap(protector.key, policy.key); err != nil {
 		return err
 	}
@@ -239,8 +293,8 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 // is returned, no data has been changed. Note that w do not attempt to remove
 // any links (for the case where the protector and policy are on different
 // filesystems). This is because one protector may protect many polices.
-func (policy *Policy) RemoveProtector(protector *Protector) error {
-	idx, err := policy.findWrappedKeyIndex(protector)
+func (policy *Policy) RemoveProtector(protectorDescriptor string) error {
+	idx, err := policy.findWrappedKeyIndex(protectorDescriptor)
 	if err != nil {
 		return err
 	}
@@ -266,7 +320,7 @@ func (policy *Policy) RemoveProtector(protector *Protector) error {
 func (policy *Policy) Apply(path string) error {
 	if pathMount, err := filesystem.FindMount(path); err != nil {
 		return err
-	} else if pathMount != policy.Mount {
+	} else if pathMount != policy.Context.Mount {
 		return ErrDifferentFilesystem
 	}
 
@@ -276,22 +330,11 @@ func (policy *Policy) Apply(path string) error {
 // Unlock provisions the Policy key into the kernel keyring. This allows reading
 // and writing of files encrypted with this directory.
 func (policy *Policy) Unlock() error {
-	service := crypto.ServiceDefault
-
-	// For legacy configurations, we may need non-standard services
-	if policy.Config.HasCompatibilityOption(LegacyConfig) {
-		switch policy.Mount.Filesystem {
-		case "ext4":
-			service = crypto.ServiceExt4
-		case "f2fs":
-			service = crypto.ServiceF2FS
-		}
-	}
-
-	return crypto.InsertPolicyKey(policy.key, policy.data.KeyDescriptor, service)
+	return crypto.InsertPolicyKey(policy.key, policy.data.KeyDescriptor, getService(policy.Context))
 }
 
-// Wipe wipes a Policy's internal Key.
+// Wipe wipes a Policy's internal Key. It should always be called after using a
+// Policy. This is often done with a defer statement.
 func (policy *Policy) Wipe() error {
 	return policy.key.Wipe()
 }
@@ -299,20 +342,20 @@ func (policy *Policy) Wipe() error {
 // Destroy removes a policy from the filesystem. The internal key should still
 // be wiped with Wipe().
 func (policy *Policy) Destroy() error {
-	return policy.Mount.RemovePolicy(policy.data.KeyDescriptor)
+	return policy.Context.Mount.RemovePolicy(policy.data.KeyDescriptor)
 }
 
 // commitData writes the Policy's current data to the filesystem
 func (policy *Policy) commitData() error {
-	return policy.Mount.AddPolicy(policy.data)
+	return policy.Context.Mount.AddPolicy(policy.data)
 }
 
 // findWrappedPolicyKey returns the index of the wrapped policy key
 // corresponding to this policy and protector. An error is returned if no
 // wrapped policy key corresponds to the specified protector.
-func (policy *Policy) findWrappedKeyIndex(protector *Protector) (int, error) {
+func (policy *Policy) findWrappedKeyIndex(protectorDescriptor string) (int, error) {
 	for idx, wrappedPolicyKey := range policy.data.WrappedPolicyKeys {
-		if wrappedPolicyKey.ProtectorDescriptor == protector.data.ProtectorDescriptor {
+		if wrappedPolicyKey.ProtectorDescriptor == protectorDescriptor {
 			return idx, nil
 		}
 	}

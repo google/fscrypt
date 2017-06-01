@@ -95,3 +95,54 @@ func NewContextFromMountpoint(mountpoint string) (ctx *Context, err error) {
 		ctx.Mount.Path, ctx.Mount.Device)
 	return
 }
+
+// checkContext verifies that the context contains an valid config and a mount
+// which is being used with fscrypt.
+func (ctx *Context) checkContext() error {
+	if !ctx.Config.IsValid() {
+		return ErrBadConfig
+	}
+	return ctx.Mount.CheckSetup()
+}
+
+// GetProtectorOption returns the ProtectorOption for the protector on the
+// context's mountpoint with the specified descriptor.
+func (ctx *Context) GetProtectorOption(protectorDescriptor string) *ProtectorOption {
+	mnt, data, err := ctx.Mount.GetProtector(protectorDescriptor)
+	if err != nil {
+		return &ProtectorOption{ProtectorInfo{}, nil, err}
+	}
+
+	info := ProtectorInfo{data}
+	// No linked path if on the same mountpoint
+	if mnt == ctx.Mount {
+		return &ProtectorOption{info, nil, nil}
+	}
+	return &ProtectorOption{info, mnt, nil}
+}
+
+// ListProtectorOptions creates a slice of all the options for all of the
+// Protectors on the Context's mountpoint.
+func (ctx *Context) ListProtectorOptions() ([]*ProtectorOption, error) {
+	descriptors, err := ctx.Mount.ListProtectors()
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]*ProtectorOption, len(descriptors))
+	for i, descriptor := range descriptors {
+		options[i] = ctx.GetProtectorOption(descriptor)
+	}
+	return options, nil
+}
+
+// ListOptionsForPolicy creates a slice of the ProtectorOptions which protect
+// the policy specified by policyDescriptor.
+func (ctx *Context) ListOptionsForPolicy(policyDescriptor string) ([]*ProtectorOption, error) {
+	policy, err := getPolicyData(ctx, policyDescriptor)
+	if err != nil {
+		return nil, err
+	}
+
+	return policy.listOptions(), nil
+}

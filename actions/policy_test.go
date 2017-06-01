@@ -27,11 +27,11 @@ func makeAll() (ctx *Context, protector *Protector, policy *Policy, err error) {
 	if err != nil {
 		return
 	}
-	protector, err = ctx.NewProtector(testProtectorName, goodCallback)
+	protector, err = CreateProtector(ctx, testProtectorName, goodCallback)
 	if err != nil {
 		return
 	}
-	policy, err = ctx.NewPolicy(protector)
+	policy, err = CreatePolicy(ctx, protector)
 	return
 }
 
@@ -47,7 +47,7 @@ func cleanupAll(protector *Protector, policy *Policy) {
 }
 
 // Tests that we can make a policy/protector pair
-func TestNewPolicy(t *testing.T) {
+func TestCreatePolicy(t *testing.T) {
 	_, pro, pol, err := makeAll()
 	defer cleanupAll(pro, pol)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestPolicyGoodAddProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := ctx.NewProtector(testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestPolicyGoodRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := ctx.NewProtector(testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestPolicyGoodRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = pol.RemoveProtector(pro1)
+	err = pol.RemoveProtector(pro1.data.ProtectorDescriptor)
 	if err != nil {
 		t.Error(err)
 	}
@@ -121,17 +121,17 @@ func TestPolicyBadRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := ctx.NewProtector(testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer pro2.Wipe()
 
-	if pol.RemoveProtector(pro2) == nil {
+	if pol.RemoveProtector(pro2.data.ProtectorDescriptor) == nil {
 		t.Error("we should not be able to remove a protector we did not add")
 	}
 
-	if pol.RemoveProtector(pro1) == nil {
+	if pol.RemoveProtector(pro1.data.ProtectorDescriptor) == nil {
 		t.Error("we should not be able to remove all the protectors from a policy")
 	}
 }

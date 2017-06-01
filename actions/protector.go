@@ -35,34 +35,16 @@ var (
 	ErrDuplicateUID         = errors.New("there is already a login protector for this user")
 )
 
-// ListProtectorData creates a slice of all the data for Protectors on the
-// Context's mountpoint.
-func (ctx *Context) ListProtectorData() ([]ProtectorData, error) {
-	descriptors, err := ctx.Mount.ListProtectors()
-	if err != nil {
-		return nil, err
-	}
-
-	data := make([]ProtectorData, len(descriptors))
-	for i, descriptor := range descriptors {
-		data[i], err = ctx.Mount.GetRegularProtector(descriptor)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return data, err
-}
-
 // checkForProtectorWithName returns an error if there is already a protector
 // on the filesystem with a specific name (or if we cannot read the necessary
 // data).
-func (ctx *Context) checkForProtectorWithName(name string) error {
-	protectors, err := ctx.ListProtectorData()
+func checkForProtectorWithName(ctx *Context, name string) error {
+	options, err := ctx.ListProtectorOptions()
 	if err != nil {
 		return err
 	}
-	for _, protector := range protectors {
-		if protector.GetName() == name {
+	for _, option := range options {
+		if option.Name() == name {
 			return ErrDuplicateName
 		}
 	}
@@ -72,14 +54,13 @@ func (ctx *Context) checkForProtectorWithName(name string) error {
 // checkForProtectorWithUid returns an error if there is already a login
 // protector on the filesystem with a specific UID (or if we cannot read the
 // necessary data).
-func (ctx *Context) checkForProtectorWithUID(uid int64) error {
-	protectors, err := ctx.ListProtectorData()
+func checkForProtectorWithUID(ctx *Context, uid int64) error {
+	options, err := ctx.ListProtectorOptions()
 	if err != nil {
 		return err
 	}
-	for _, protector := range protectors {
-		if protector.GetSource() == metadata.SourceType_pam_passphrase &&
-			protector.GetUid() == uid {
+	for _, option := range options {
+		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
 			return ErrDuplicateUID
 		}
 	}
@@ -91,20 +72,19 @@ func (ctx *Context) checkForProtectorWithUID(uid int64) error {
 // to unlock policies and create new polices. As with the key struct, a
 // Protector should be wiped after use.
 type Protector struct {
-	*Context
-	data *metadata.ProtectorData
-	key  *crypto.Key
+	Context *Context
+	data    *metadata.ProtectorData
+	key     *crypto.Key
 }
 
-// NewProtector creates a protector with a given name (only for custom and raw
-// protector types) and uses the provided KeyCallback to get the Key. The
-// appropriate data is then stored on the filesystem. On error, nothing is
-// changed on the filesystem.
-func (ctx *Context) NewProtector(name string, callback KeyCallback) (*Protector, error) {
-	if !ctx.Config.IsValid() {
-		return nil, ErrBadConfig
+// CreateProtector creates a protector with a given name (only for custom and
+// raw protector types). The keyFn provided to create the Protector key will
+// only be called once. If an error is returned, no data has been changed on the
+// filesystem.
+func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
 	}
-
 	// Sanity checks for names
 	if ctx.Config.Source == metadata.SourceType_pam_passphrase {
 		// login protectors don't need a name (we use the username instead)
@@ -117,7 +97,7 @@ func (ctx *Context) NewProtector(name string, callback KeyCallback) (*Protector,
 			return nil, ErrMissingProtectorName
 		}
 		// we don't want to duplicate naming
-		if err := ctx.checkForProtectorWithName(name); err != nil {
+		if err := checkForProtectorWithName(ctx, name); err != nil {
 			return nil, err
 		}
 	}
@@ -138,7 +118,7 @@ func (ctx *Context) NewProtector(name string, callback KeyCallback) (*Protector,
 		// UID for this kind of source.
 		protector.data.Uid = int64(os.Getuid())
 		// Make sure we aren't duplicating protectors
-		if err := ctx.checkForProtectorWithUID(protector.data.Uid); err != nil {
+		if err := checkForProtectorWithUID(ctx, protector.data.Uid); err != nil {
 			return nil, err
 		}
 		fallthrough
@@ -157,7 +137,7 @@ func (ctx *Context) NewProtector(name string, callback KeyCallback) (*Protector,
 	}
 	protector.data.ProtectorDescriptor = crypto.ComputeDescriptor(protector.key)
 
-	if err := protector.Rewrap(callback); err != nil {
+	if err := protector.Rewrap(keyFn); err != nil {
 		protector.Wipe()
 		return nil, err
 	}
@@ -165,13 +145,13 @@ func (ctx *Context) NewProtector(name string, callback KeyCallback) (*Protector,
 	return protector, nil
 }
 
-// GetProtector retrieves a protector with a specific descriptor. As a key is
-// necessary to unlock this Protector, a KeyCallback must also be provided.
-func (ctx *Context) GetProtector(descriptor string, callback KeyCallback) (*Protector, error) {
-	if !ctx.Config.IsValid() {
-		return nil, ErrBadConfig
+// GetProtector retrieves a Protector with a specific descriptor. The keyFn
+// provided to unwrap the Protector key will be retied as necessary to get the
+// correct key.
+func GetProtector(ctx *Context, descriptor string, keyFn KeyFunc) (*Protector, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
 	}
-
 	var err error
 	protector := &Protector{Context: ctx}
 
@@ -179,16 +159,39 @@ func (ctx *Context) GetProtector(descriptor string, callback KeyCallback) (*Prot
 		return nil, err
 	}
 
-	protector.key, err = unwrapProtectorKey(protector.data, callback)
+	protector.key, err = unwrapProtectorKey(ProtectorInfo{protector.data}, keyFn)
+	return protector, err
+}
+
+// GetProtectorFromOption retrieves a protector based on a protector option.
+// If the option had a load error, this function returns that error. The
+// keyFn provided to unwrap the Protector key will be retied as necessary to
+// get the correct key.
+func GetProtectorFromOption(ctx *Context, option *ProtectorOption, keyFn KeyFunc) (*Protector, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
+	}
+	if option.LoadError != nil {
+		return nil, option.LoadError
+	}
+
+	// Replace the context if this is a linked protector
+	if option.LinkedMount != nil {
+		ctx = &Context{ctx.Config, option.LinkedMount}
+	}
+	var err error
+	protector := &Protector{Context: ctx, data: option.data}
+
+	protector.key, err = unwrapProtectorKey(option.ProtectorInfo, keyFn)
 	return protector, err
 }
 
 // Rewrap updates the data that is wrapping the Protector Key. This is useful if
-// a user's password has changed, for example. As a key is necessary to rewrap
-// this Protector, a KeyCallback must be provided. If an error is returned, no
-// data has been changed.
-func (protector *Protector) Rewrap(callback KeyCallback) error {
-	wrappingKey, err := getWrappingKey(protector.data, callback)
+// a user's password has changed, for example. The keyFn provided to rewrap
+// the Protector key will only be called once. If an error is returned, no data
+// has been changed on the filesystem.
+func (protector *Protector) Rewrap(keyFn KeyFunc) error {
+	wrappingKey, err := getWrappingKey(ProtectorInfo{protector.data}, keyFn, false)
 	if err != nil {
 		return err
 	}
@@ -206,10 +209,11 @@ func (protector *Protector) Rewrap(callback KeyCallback) error {
 		return err
 	}
 
-	return protector.Mount.AddProtector(protector.data)
+	return protector.Context.Mount.AddProtector(protector.data)
 }
 
-// Wipe wipes a Protector's internal Key
+// Wipe wipes a Protector's internal Key. It should always be called after using
+// a Protector. This is often done with a defer statement.
 func (protector *Protector) Wipe() error {
 	return protector.key.Wipe()
 }
@@ -217,5 +221,5 @@ func (protector *Protector) Wipe() error {
 // Destroy removes a protector from the filesystem. The internal key should
 // still be wiped with Wipe().
 func (protector *Protector) Destroy() error {
-	return protector.Mount.RemoveProtector(protector.data.ProtectorDescriptor)
+	return protector.Context.Mount.RemoveProtector(protector.data.ProtectorDescriptor)
 }

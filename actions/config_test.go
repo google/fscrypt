@@ -39,13 +39,13 @@ func init() {
 func TestMakeConfig(t *testing.T) {
 	defer os.RemoveAll(ConfigFileLocation)
 
-	err := NewConfigFile(testTime, true)
+	err := CreateConfigFile(testTime, true)
 	if err != nil {
 		t.Error(err)
 	}
 	os.RemoveAll(ConfigFileLocation)
 
-	err = NewConfigFile(testTime, false)
+	err = CreateConfigFile(testTime, false)
 	if err != nil {
 		t.Error(err)
 	}

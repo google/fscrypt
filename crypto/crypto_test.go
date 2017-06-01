@@ -236,7 +236,7 @@ func TestKeyLargeResize(t *testing.T) {
 
 // Adds and removes a key with various services.
 func TestAddRemoveKeys(t *testing.T) {
-	for _, service := range []string{ServiceDefault, ServiceExt4, ServiceF2FS} {
+	for _, service := range []string{DefaultService, "ext4:", "f2fs:"} {
 		if err := InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, service); err != nil {
 			t.Error(err)
 		}
@@ -248,12 +248,12 @@ func TestAddRemoveKeys(t *testing.T) {
 
 // Makes sure a key fails with bad descriptor, policy, or service
 func TestBadAddKeys(t *testing.T) {
-	if InsertPolicyKey(fakeInvalidPolicyKey, fakeValidDescriptor, ServiceDefault) == nil {
-		RemovePolicyKey(fakeValidDescriptor, ServiceDefault)
+	if InsertPolicyKey(fakeInvalidPolicyKey, fakeValidDescriptor, DefaultService) == nil {
+		RemovePolicyKey(fakeValidDescriptor, DefaultService)
 		t.Error("InsertPolicyKey should fail with bad policy key")
 	}
-	if InsertPolicyKey(fakeValidPolicyKey, fakeInvalidDescriptor, ServiceDefault) == nil {
-		RemovePolicyKey(fakeInvalidDescriptor, ServiceDefault)
+	if InsertPolicyKey(fakeValidPolicyKey, fakeInvalidDescriptor, DefaultService) == nil {
+		RemovePolicyKey(fakeInvalidDescriptor, DefaultService)
 		t.Error("InsertPolicyKey should fail with bad descriptor")
 	}
 	if InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, "ext4") == nil {

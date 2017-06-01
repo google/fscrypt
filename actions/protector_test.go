@@ -32,23 +32,23 @@ const testProtectorName2 = testProtectorName + "2"
 
 var errCallback = errors.New("bad callback")
 
-func goodCallback(data ProtectorData) (*Key, error) {
+func goodCallback(info ProtectorInfo, retry bool) (*Key, error) {
 	return NewFixedLengthKeyFromReader(bytes.NewReader(timingPassphrase), len(timingPassphrase))
 }
 
-func badCallback(data ProtectorData) (*Key, error) {
+func badCallback(info ProtectorInfo, retry bool) (*Key, error) {
 	return nil, errCallback
 }
 
 // Tests that we can create a valid protector.
-func TestNewProtector(t *testing.T) {
+func TestCreateProtector(t *testing.T) {
 	ctx, err := makeContext()
 	defer cleaupContext()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	p, err := ctx.NewProtector(testProtectorName, goodCallback)
+	p, err := CreateProtector(ctx, testProtectorName, goodCallback)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -64,7 +64,7 @@ func TestBadCallback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := ctx.NewProtector(testProtectorName, badCallback)
+	p, err := CreateProtector(ctx, testProtectorName, badCallback)
 	if err == nil {
 		p.Wipe()
 	}
