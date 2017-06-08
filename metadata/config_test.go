@@ -46,8 +46,8 @@ var testConfigString = `{
 	"compatibility": "",
 	"options": {
 		"padding": "32",
-		"contents": "XTS",
-		"filenames": "CTS"
+		"contents": "AES_256_XTS",
+		"filenames": "AES_256_CTS"
 	}
 }
 `

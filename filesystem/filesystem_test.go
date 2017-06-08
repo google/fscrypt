@@ -173,7 +173,7 @@ func TestAddPolicy(t *testing.T) {
 	if mnt.AddPolicy(policy) == nil {
 		t.Error("encryption mode not set should make metadata invalid")
 	}
-	policy.Options.Filenames = EncryptionOptions_CTS
+	policy.Options.Filenames = EncryptionOptions_AES_256_CTS
 
 	// Use a bad wrapped key
 	policy.WrappedPolicyKeys[0].WrappedKey = wrappedProtectorKey

@@ -35,12 +35,11 @@ import (
 
 // Encryption specific errors
 var (
-	prefix                    = "filesystem encryption: "
-	ErrEncryptionNotSupported = errors.New(prefix + "not supported")
-	ErrEncryptionDisabled     = errors.New(prefix + "disabled in the kernel config")
-	ErrNotEncrypted           = errors.New(prefix + "file or directory not encrypted")
-	ErrEncrypted              = errors.New(prefix + "file or directory already encrypted")
-	ErrBadEncryptionOptions   = errors.New(prefix + "invalid options provided")
+	ErrEncryptionNotSupported = errors.New("filesystem encryption not supported")
+	ErrEncryptionDisabled     = errors.New("filesystem encryption disabled in the kernel config")
+	ErrNotEncrypted           = errors.New("file or directory not encrypted")
+	ErrEncrypted              = errors.New("file or directory already encrypted")
+	ErrBadEncryptionOptions   = util.SystemError("invalid encryption options provided")
 )
 
 // policyIoctl is a wrapper for the ioctl syscall. If opens the file at the path

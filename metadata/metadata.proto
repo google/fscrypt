@@ -65,10 +65,10 @@ message EncryptionOptions {
   // Type of encryption; should match declarations of unix.FS_ENCRYPTION_MODE
   enum Mode {
     default = 0;
-    XTS = 1;
-    GCM = 2;
-    CBC = 3;
-    CTS = 4;
+    AES_256_XTS = 1;
+    AES_256_GCM = 2;
+    AES_256_CBC = 3;
+    AES_256_CTS = 4;
   }
 
   Mode contents = 2;

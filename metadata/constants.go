@@ -43,8 +43,8 @@ var (
 	// DefaultOptions use the supported encryption modes and max padding.
 	DefaultOptions = &EncryptionOptions{
 		Padding:   32,
-		Contents:  EncryptionOptions_XTS,
-		Filenames: EncryptionOptions_CTS,
+		Contents:  EncryptionOptions_AES_256_XTS,
+		Filenames: EncryptionOptions_AES_256_CTS,
 	}
 	// DefaultSource is the source we use if none is specified.
 	DefaultSource = SourceType_custom_passphrase
