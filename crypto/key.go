@@ -45,6 +45,8 @@ const (
 	ServiceExt4 = "ext4:"
 	// ServiceExt4 was used before v4.6 for F2FS filesystem encryption.
 	ServiceF2FS = "f2fs:"
+	// keyType is always logon as required by filesystem encryption
+	keyType = "logon"
 )
 
 /*
@@ -237,16 +239,47 @@ func addPayloadToSessionKeyring(payload []byte, description string) error {
 	// of the KEY_SPEC_SESSION_KEYRING, which will return the user session
 	// keyring if a session keyring does not exist.
 	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, 0)
+	log.Printf("unix.KeyctlGetKeyringID(KEY_SPEC_SESSION_KEYRING) = %d, %v", keyringID, err)
 	if err != nil {
-		log.Printf("unix.KeyctlGetKeyringID failed: %v", err)
-		log.Print("could not get keyring ID of KEY_SPEC_SESSION_KEYRING")
 		return ErrKeyringLocate
 	}
 
-	if _, err = unix.AddKey("logon", description, payload, keyringID); err != nil {
-		log.Printf("unix.AddKey failed: %v", err)
-		log.Printf("could not insert %q into keyring (ID = %d)", description, keyringID)
+	keyID, err := unix.AddKey(keyType, description, payload, keyringID)
+	log.Printf("unix.AddKey(%s, %s, <payload>, %d) = %d, %v",
+		keyType, description, keyringID, keyID, err)
+	if err != nil {
 		return ErrKeyringInsert
+	}
+	return nil
+}
+
+// FindPolicyKey tries to locate a policy key in the kernel keyring with the
+// provided descriptor and service. The key id is returned if we can find the
+// key. An error is returned if the key does not exist.
+func FindPolicyKey(descriptor, service string) (int, error) {
+	description := service + descriptor
+	keyID, err := unix.KeyctlSearch(unix.KEY_SPEC_SESSION_KEYRING, keyType, description, 0)
+	log.Printf("unix.KeyctlSearch(KEY_SPEC_SESSION_KEYRING, %s, %s, 0) = %d, %v",
+		keyType, description, keyID, err)
+	if err != nil {
+		return 0, ErrKeyringSearch
+	}
+	return keyID, nil
+}
+
+// RemovePolicyKey tries to remove a policy key from the kernel keyring with the
+// provided descriptor and service. An error is returned if the key does not
+// exist.
+func RemovePolicyKey(descriptor, service string) error {
+	keyID, err := FindPolicyKey(descriptor, service)
+	if err != nil {
+		return err
+	}
+
+	err = unix.KeyctlUnlink(keyID, unix.KEY_SPEC_SESSION_KEYRING)
+	log.Printf("unix.KeyctlUnlink(%d, KEY_SPEC_SESSION_KEYRING) = %v", keyID, err)
+	if err != nil {
+		return ErrKeyringDelete
 	}
 	return nil
 }
@@ -254,7 +287,7 @@ func addPayloadToSessionKeyring(payload []byte, description string) error {
 // InsertPolicyKey puts the provided policy key into the kernel keyring with the
 // provided descriptor, provided service prefix, and type logon. The key and
 // descriptor must have the appropriate lengths.
-func InsertPolicyKey(key *Key, descriptor string, service string) error {
+func InsertPolicyKey(key *Key, descriptor, service string) error {
 	if key.Len() != metadata.PolicyKeyLen {
 		return util.InvalidLengthError("Policy Key", metadata.PolicyKeyLen, key.Len())
 	}

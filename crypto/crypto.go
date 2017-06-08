@@ -63,6 +63,8 @@ var (
 	ErrKeyFree          = util.SystemError("could not free memory of key")
 	ErrKeyringLocate    = util.SystemError("could not locate the session keyring")
 	ErrKeyringInsert    = util.SystemError("could not insert key into the session keyring")
+	ErrKeyringSearch    = util.SystemError("could not find key in the session keyring")
+	ErrKeyringDelete    = util.SystemError("could not delete key from the session keyring")
 	ErrRecoveryCode     = errors.New("provided recovery code had incorrect format")
 	ErrLowEntropy       = util.SystemError("insufficient entropy in pool to generate random bytes")
 	ErrRandNotSupported = util.SystemError("getrandom() not implemented; kernel must be v3.17 or later")
