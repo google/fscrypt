@@ -1,10 +1,11 @@
 # Building `sys/unix`
 
-The unix package provides access to the raw system call interface of the
-underlying operating system. Porting Go to a new architecture/OS combination
-or adding syscalls, types, or constants to an existing architecture/OS pair
-requires some manual effort; however, there are tools that automate much of the
-process.
+The sys/unix package provides access to the raw system call interface of the
+underlying operating system. See: https://godoc.org/golang.org/x/sys/unix
+
+Porting Go to a new architecture/OS combination or adding syscalls, types, or
+constants to an existing architecture/OS pair requires some manual effort;
+however, there are tools that automate much of the process.
 
 ## Build Systems
 

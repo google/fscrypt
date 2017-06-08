@@ -99,27 +99,22 @@ type Rlimit struct {
 type _Gid_t uint32
 
 type Stat_t struct {
-	Dev       uint64
-	Pad1      [3]int32
-	Pad_cgo_0 [4]byte
-	Ino       uint64
-	Mode      uint32
-	Pad_cgo_1 [4]byte
-	Nlink     uint64
-	Uid       uint32
-	Gid       uint32
-	Rdev      uint64
-	Pad2      [3]uint32
-	Pad_cgo_2 [4]byte
-	Size      int64
-	Atim      Timespec
-	Mtim      Timespec
-	Ctim      Timespec
-	Blksize   int64
-	Pad4      uint32
-	Pad_cgo_3 [4]byte
-	Blocks    int64
-	Pad5      [14]int32
+	Dev     uint32
+	Pad1    [3]uint32
+	Ino     uint64
+	Mode    uint32
+	Nlink   uint32
+	Uid     uint32
+	Gid     uint32
+	Rdev    uint32
+	Pad2    [3]uint32
+	Size    int64
+	Atim    Timespec
+	Mtim    Timespec
+	Ctim    Timespec
+	Blksize uint32
+	Pad4    uint32
+	Blocks  int64
 }
 
 type Statfs_t struct {
@@ -173,8 +168,6 @@ type FscryptKey struct {
 	Raw  [64]uint8
 	Size uint32
 }
-
-const SizeofFscryptKey = 0x48
 
 type KeyctlDHParams struct {
 	Private int32
@@ -583,17 +576,13 @@ type InotifyEvent struct {
 const SizeofInotifyEvent = 0x10
 
 type PtraceRegs struct {
-	Regs        [102]uint64
-	U_tsize     uint64
-	U_dsize     uint64
-	U_ssize     uint64
-	Start_code  uint64
-	Start_data  uint64
-	Start_stack uint64
-	Signal      int64
-	U_ar0       uint64
-	Magic       uint64
-	U_comm      [32]int8
+	Regs     [32]uint64
+	Lo       uint64
+	Hi       uint64
+	Epc      uint64
+	Badvaddr uint64
+	Status   uint64
+	Cause    uint64
 }
 
 type FdSet struct {
@@ -669,6 +658,8 @@ const (
 type Sigset_t struct {
 	X__val [16]uint64
 }
+
+const RNDGETENTCNT = 0x40045200
 
 const _SC_PAGESIZE = 0x1e
 

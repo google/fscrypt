@@ -33,9 +33,10 @@
 			"revisionTime": "2017-04-18T01:50:50Z"
 		},
 		{
-			"checksumSHA1": "KWagmSPuJfztcD7dcZekYeZJ6Fg=",
+			"checksumSHA1": "PugQbLLjnbBSj+NOXRYBVRnLuuQ=",
 			"path": "golang.org/x/sys/unix",
-			"revision": ""
+			"revision": "b90f89a1e7a9c1f6b918820b3daa7f08488c8594",
+			"revisionTime": "2017-05-29T13:44:53Z"
 		}
 	],
 	"rootPath": "fscrypt"

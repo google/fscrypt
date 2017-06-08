@@ -28,6 +28,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 
@@ -238,7 +239,7 @@ func addPayloadToSessionKeyring(payload []byte, description string) error {
 	// collected when the process terminates. Instead, we first get the ID
 	// of the KEY_SPEC_SESSION_KEYRING, which will return the user session
 	// keyring if a session keyring does not exist.
-	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, 0)
+	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, false)
 	log.Printf("unix.KeyctlGetKeyringID(KEY_SPEC_SESSION_KEYRING) = %d, %v", keyringID, err)
 	if err != nil {
 		return ErrKeyringLocate
@@ -276,7 +277,7 @@ func RemovePolicyKey(descriptor, service string) error {
 		return err
 	}
 
-	err = unix.KeyctlUnlink(keyID, unix.KEY_SPEC_SESSION_KEYRING)
+	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, unix.KEY_SPEC_SESSION_KEYRING, 0, 0)
 	log.Printf("unix.KeyctlUnlink(%d, KEY_SPEC_SESSION_KEYRING) = %v", keyID, err)
 	if err != nil {
 		return ErrKeyringDelete
@@ -297,7 +298,7 @@ func InsertPolicyKey(key *Key, descriptor, service string) error {
 	}
 
 	// Create our payload (containing an FscryptKey)
-	payload, err := newBlankKey(unix.SizeofFscryptKey)
+	payload, err := newBlankKey(int(unsafe.Sizeof(unix.FscryptKey{})))
 	if err != nil {
 		return err
 	}

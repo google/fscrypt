@@ -36,6 +36,25 @@ func Creat(path string, mode uint32) (fd int, err error) {
 	return Open(path, O_CREAT|O_WRONLY|O_TRUNC, mode)
 }
 
+//sys	ioctl(fd int, req uint, arg uintptr) (err error)
+
+// ioctl itself should not be exposed directly, but additional get/set
+// functions for specific types are permissible.
+
+// IoctlSetInt performs an ioctl operation which sets an integer value
+// on fd, using the specified request number.
+func IoctlSetInt(fd int, req uint, value int) (err error) {
+	return ioctl(fd, req, uintptr(value))
+}
+
+// IoctlGetInt performs an ioctl operation which gets an integer value
+// from fd, using the specified request number.
+func IoctlGetInt(fd int, req uint) (int, error) {
+	var value int
+	err := ioctl(fd, req, uintptr(unsafe.Pointer(&value)))
+	return value, err
+}
+
 //sys	Linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags int) (err error)
 
 func Link(oldpath string, newpath string) (err error) {
@@ -755,111 +774,109 @@ func SetsockoptIPMreqn(fd, level, opt int, mreq *IPMreqn) (err error) {
 	return setsockopt(fd, level, opt, unsafe.Pointer(mreq), unsafe.Sizeof(*mreq))
 }
 
-// Keyctl Signatures
+// Keyctl Commands (http://man7.org/linux/man-pages/man2/keyctl.2.html)
 
-//sys	keyctlInt(cmd int, arg2 int, arg3 int, arg4 int, arg5 int) (err error) = SYS_KEYCTL
-//sys	keyctlIntRet(cmd int, arg2 int, arg3 int, arg4 int, arg5 int) (ret int, err error) = SYS_KEYCTL
-//sys	keyctlBuffer(cmd int, arg2 int, buf []byte, arg5 int) (err error) = SYS_KEYCTL
-//sys	keyctlBufferRet(cmd int, arg2 int, buf []byte, arg5 int) (ret int, err error) = SYS_KEYCTL
-//sys	keyctlJoin(cmd int, arg2 string) (ret int, err error) = SYS_KEYCTL
-//sys	keyctlSearch(cmd int, arg2 int, arg3 string, arg4 string, arg5 int) (ret int, err error) = SYS_KEYCTL
-//sys keyctlIOV(cmd int, arg2 int, payload []Iovec, arg5 int) (err error) = SYS_KEYCTL
-//sys keyctlDH(cmt int, arg2 *KeyctlDHParams, buf []byte) (ret int, err error) = SYS_KEYCTL
+// KeyctlInt calls keyctl commands in which each argument is an int.
+// These commands are KEYCTL_REVOKE, KEYCTL_CHOWN, KEYCTL_CLEAR, KEYCTL_LINK,
+// KEYCTL_UNLINK, KEYCTL_NEGATE, KEYCTL_SET_REQKEY_KEYRING, KEYCTL_SET_TIMEOUT,
+// KEYCTL_ASSUME_AUTHORITY, KEYCTL_SESSION_TO_PARENT, KEYCTL_REJECT,
+// KEYCTL_INVALIDATE, and KEYCTL_GET_PERSISTENT.
+//sys	KeyctlInt(cmd int, arg2 int, arg3 int, arg4 int, arg5 int) (ret int, err error) = SYS_KEYCTL
 
-// Keyctl Commands
+// KeyctlBuffer calls keyctl commands in which the third and fourth
+// arguments are a buffer and its length, respectively.
+// These commands are KEYCTL_UPDATE, KEYCTL_READ, and KEYCTL_INSTANTIATE.
+//sys	KeyctlBuffer(cmd int, arg2 int, buf []byte, arg5 int) (ret int, err error) = SYS_KEYCTL
 
-func KeyctlGetKeyringID(id int, create int) (ringid int, err error) {
-	return keyctlIntRet(KEYCTL_GET_KEYRING_ID, id, create, 0, 0)
+// KeyctlString calls keyctl commands which return a string.
+// These commands are KEYCTL_DESCRIBE and KEYCTL_GET_SECURITY.
+func KeyctlString(cmd int, id int) (string, error) {
+	// We must loop as the string data may change in between the syscalls.
+	// We could allocate a large buffer here to reduce the chance that the
+	// syscall needs to be called twice; however, this is unnecessary as
+	// the performance loss is negligible.
+	var buffer []byte
+	for {
+		// Try to fill the buffer with data
+		length, err := KeyctlBuffer(cmd, id, buffer, 0)
+		if err != nil {
+			return "", err
+		}
+
+		// Check if the data was written
+		if length <= len(buffer) {
+			// Exclude the null terminator
+			return string(buffer[:length-1]), nil
+		}
+
+		// Make a bigger buffer if needed
+		buffer = make([]byte, length)
+	}
 }
 
+// Keyctl commands with special signatures.
+
+// KeyctlGetKeyringID implements the KEYCTL_GET_KEYRING_ID command.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_get_keyring_ID.3.html
+func KeyctlGetKeyringID(id int, create bool) (ringid int, err error) {
+	createInt := 0
+	if create {
+		createInt = 1
+	}
+	return KeyctlInt(KEYCTL_GET_KEYRING_ID, id, createInt, 0, 0)
+}
+
+// KeyctlSetperm implements the KEYCTL_SETPERM command. The perm value is the
+// key handle permission mask as described in the "keyctl setperm" section of
+// http://man7.org/linux/man-pages/man1/keyctl.1.html.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_setperm.3.html
+func KeyctlSetperm(id int, perm uint32) error {
+	_, err := KeyctlInt(KEYCTL_SETPERM, id, int(perm), 0, 0)
+	return err
+}
+
+//sys	keyctlJoin(cmd int, arg2 string) (ret int, err error) = SYS_KEYCTL
+
+// KeyctlJoinSessionKeyring implements the KEYCTL_JOIN_SESSION_KEYRING command.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_join_session_keyring.3.html
 func KeyctlJoinSessionKeyring(name string) (ringid int, err error) {
 	return keyctlJoin(KEYCTL_JOIN_SESSION_KEYRING, name)
 }
 
-func KeyctlUpdate(id int, payload []byte) (err error) {
-	return keyctlBuffer(KEYCTL_UPDATE, id, payload, 0)
+//sys	keyctlSearch(cmd int, arg2 int, arg3 string, arg4 string, arg5 int) (ret int, err error) = SYS_KEYCTL
+
+// KeyctlSearch implements the KEYCTL_SEARCH command.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_search.3.html
+func KeyctlSearch(ringid int, keyType, description string, destRingid int) (id int, err error) {
+	return keyctlSearch(KEYCTL_SEARCH, ringid, keyType, description, destRingid)
 }
 
-func KeyctlRevoke(id int) (err error) {
-	return keyctlInt(KEYCTL_REVOKE, id, 0, 0, 0)
-}
+//sys	keyctlIOV(cmd int, arg2 int, payload []Iovec, arg5 int) (err error) = SYS_KEYCTL
 
-func KeyctlChown(id int, uid int, gid int) (err error) {
-	return keyctlInt(KEYCTL_CHOWN, id, uid, gid, 0)
-}
-
-func KeyctlSetperm(id int, perm uint32) (err error) {
-	return keyctlInt(KEYCTL_SETPERM, id, int(perm), 0, 0)
-}
-
-func KeyctlDescribe(id int, buffer []byte) (size int, err error) {
-	return keyctlBufferRet(KEYCTL_DESCRIBE, id, buffer, 0)
-}
-
-func KeyctlClear(ringid int) (err error) {
-	return keyctlInt(KEYCTL_CLEAR, ringid, 0, 0, 0)
-}
-
-func KeyctlLink(id int, ringid int) (err error) {
-	return keyctlInt(KEYCTL_LINK, id, ringid, 0, 0)
-}
-
-func KeyctlUnlink(id int, ringid int) (err error) {
-	return keyctlInt(KEYCTL_UNLINK, id, ringid, 0, 0)
-}
-
-func KeyctlSearch(ringid int, keytype string, description string, destringid int) (id int, err error) {
-	return keyctlSearch(KEYCTL_SEARCH, ringid, keytype, description, destringid)
-}
-
-func KeyctlRead(id int, buffer []byte) (data int, err error) {
-	return keyctlBufferRet(KEYCTL_READ, id, buffer, 0)
-}
-
-func KeyctlInstantiate(id int, payload []byte, ringid int) (err error) {
-	return keyctlBuffer(KEYCTL_INSTANTIATE, id, payload, ringid)
-}
-
-func KeyctlNegate(id int, timeout int, ringid int) (err error) {
-	return keyctlInt(KEYCTL_NEGATE, id, timeout, ringid, 0)
-}
-
-func KeyctlSetReqkeyKeyring(defl int) (ringid int, err error) {
-	return keyctlIntRet(KEYCTL_SET_REQKEY_KEYRING, defl, 0, 0, 0)
-}
-
-func KeyctlSetTimeout(id int, timeout int) (err error) {
-	return keyctlInt(KEYCTL_SET_TIMEOUT, id, timeout, 0, 0)
-}
-
-func KeyctlAssumeAuthority(id int) (authid int, err error) {
-	return keyctlIntRet(KEYCTL_ASSUME_AUTHORITY, id, 0, 0, 0)
-}
-
-func KeyctlGetSecurity(id int, buffer []byte) (size int, err error) {
-	return keyctlBufferRet(KEYCTL_GET_SECURITY, id, buffer, 0)
-}
-
-func KeyctlSessionToParent() (err error) {
-	return keyctlInt(KEYCTL_SESSION_TO_PARENT, 0, 0, 0, 0)
-}
-
-func KeyctlReject(id int, timeout int, reterr int, ringid int) (err error) {
-	return keyctlInt(KEYCTL_REJECT, id, timeout, reterr, ringid)
-}
-
-func KeyctlInstantiateIOV(id int, payload []Iovec, ringid int) (err error) {
+// KeyctlInstantiateIOV implements the KEYCTL_INSTANTIATE_IOV command. This
+// command is similar to KEYCTL_INSTANTIATE, except that the payload is a slice
+// of Iovec (each of which represents a buffer) instead of a single buffer.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_instantiate_iov.3.html
+func KeyctlInstantiateIOV(id int, payload []Iovec, ringid int) error {
 	return keyctlIOV(KEYCTL_INSTANTIATE_IOV, id, payload, ringid)
 }
 
-func KeyctlInvalidate(id int) (err error) {
-	return keyctlInt(KEYCTL_INVALIDATE, id, 0, 0, 0)
-}
+//sys	keyctlDH(cmd int, arg2 *KeyctlDHParams, buf []byte) (ret int, err error) = SYS_KEYCTL
 
-func KeyctlGetPersistent(uid int, id int) (ringid int, err error) {
-	return keyctlIntRet(KEYCTL_GET_PERSISTENT, uid, id, 0, 0)
-}
-
+// KeyctlDHCompute implements the KEYCTL_DH_COMPUTE command. This command
+// computes a Diffie-Hellman shared secret based on the provide params. The
+// secret is written to the provided buffer and the returned size is the number
+// of bytes written (returning an error if there is insufficient space in the
+// buffer). If a nil buffer is passed in, this function returns the minimum
+// buffer length needed to store the appropriate data. Note that this differs
+// from KEYCTL_READ's behavior which always returns the requested payload size.
+// See the full documentation at:
+// http://man7.org/linux/man-pages/man3/keyctl_dh_compute.3.html
 func KeyctlDHCompute(params *KeyctlDHParams, buffer []byte) (size int, err error) {
 	return keyctlDH(KEYCTL_DH_COMPUTE, params, buffer)
 }
@@ -1142,12 +1159,13 @@ func Mount(source string, target string, fstype string, flags uintptr, data stri
  * Direct access
  */
 //sys	Acct(path string) (err error)
-//sys	AddKey(keytype string, description string, payload []byte, ringid int) (id int, err error)
+//sys	AddKey(keyType string, description string, payload []byte, ringid int) (id int, err error)
 //sys	Adjtimex(buf *Timex) (state int, err error)
 //sys	Chdir(path string) (err error)
 //sys	Chroot(path string) (err error)
 //sys	ClockGettime(clockid int32, time *Timespec) (err error)
 //sys	Close(fd int) (err error)
+//sys	CopyFileRange(rfd int, roff *int64, wfd int, woff *int64, len int, flags int) (n int, err error)
 //sys	Dup(oldfd int) (fd int, err error)
 //sys	Dup3(oldfd int, newfd int, flags int) (err error)
 //sysnb	EpollCreate(size int) (fd int, err error)
@@ -1185,7 +1203,11 @@ func Getpgrp() (pid int) {
 //sysnb	InotifyRmWatch(fd int, watchdesc uint32) (success int, err error)
 //sysnb	Kill(pid int, sig syscall.Signal) (err error)
 //sys	Klogctl(typ int, buf []byte) (n int, err error) = SYS_SYSLOG
+//sys	Lgetxattr(path string, attr string, dest []byte) (sz int, err error)
 //sys	Listxattr(path string, dest []byte) (sz int, err error)
+//sys	Llistxattr(path string, dest []byte) (sz int, err error)
+//sys	Lremovexattr(path string, attr string) (err error)
+//sys	Lsetxattr(path string, attr string, data []byte, flags int) (err error)
 //sys	Mkdirat(dirfd int, path string, mode uint32) (err error)
 //sys	Mknodat(dirfd int, path string, mode uint32, dev int) (err error)
 //sys	Nanosleep(time *Timespec, leftover *Timespec) (err error)
@@ -1195,7 +1217,7 @@ func Getpgrp() (pid int) {
 //sys	read(fd int, p []byte) (n int, err error)
 //sys	Removexattr(path string, attr string) (err error)
 //sys	Renameat(olddirfd int, oldpath string, newdirfd int, newpath string) (err error)
-//sys	RequestKey(keytype string, description string, callback string, destringid int) (id int, err error)
+//sys	RequestKey(keyType string, description string, callback string, destRingid int) (id int, err error)
 //sys	Setdomainname(p []byte) (err error)
 //sys	Sethostname(p []byte) (err error)
 //sysnb	Setpgid(pid int, pgid int) (err error)
@@ -1313,15 +1335,10 @@ func Vmsplice(fd int, iovs []Iovec, flags int) (int, error) {
 // IoGetevents
 // IoSetup
 // IoSubmit
-// Ioctl
 // IoprioGet
 // IoprioSet
 // KexecLoad
-// Lgetxattr
-// Llistxattr
 // LookupDcookie
-// Lremovexattr
-// Lsetxattr
 // Mbind
 // MigratePages
 // Mincore
