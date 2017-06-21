@@ -22,12 +22,12 @@ package metadata
 
 import (
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"log"
+	"math"
 	"os"
 	"unsafe"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"fscrypt/util"
@@ -35,25 +35,18 @@ import (
 
 // Encryption specific errors
 var (
-	ErrEncryptionNotSupported = errors.New("filesystem encryption not supported")
-	ErrEncryptionDisabled     = errors.New("filesystem encryption disabled in the kernel config")
+	ErrEncryptionNotSupported = errors.New("encryption not supported")
+	ErrEncryptionNotEnabled   = errors.New("encryption not enabled")
 	ErrNotEncrypted           = errors.New("file or directory not encrypted")
 	ErrEncrypted              = errors.New("file or directory already encrypted")
 	ErrBadEncryptionOptions   = util.SystemError("invalid encryption options provided")
 )
 
-// policyIoctl is a wrapper for the ioctl syscall. If opens the file at the path
-// and passes the correct pointers and file descriptors to the IOCTL syscall.
-// This function also takes some of the unclear errors returned by the syscall
-// and translates then into more specific error strings.
-func policyIoctl(path string, request uintptr, policy *unix.FscryptPolicy) error {
-	file, err := os.Open(path)
-	if err != nil {
-		// For PathErrors, we just want the underlying error
-		return util.UnderlyingError(err)
-	}
-	defer file.Close()
-
+// policyIoctl is a wrapper for the ioctl syscall. It passes the correct
+// pointers and file descriptors to the IOCTL syscall. This function also takes
+// some of the unclear errors returned by the syscall and translates then into
+// more specific error strings.
+func policyIoctl(file *os.File, request uintptr, policy *unix.FscryptPolicy) error {
 	// The returned errno value can sometimes give strange errors, so we
 	// return encryption specific errors.
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), request, uintptr(unsafe.Pointer(policy)))
@@ -63,7 +56,7 @@ func policyIoctl(path string, request uintptr, policy *unix.FscryptPolicy) error
 	case unix.ENOTTY:
 		return ErrEncryptionNotSupported
 	case unix.EOPNOTSUPP:
-		return ErrEncryptionDisabled
+		return ErrEncryptionNotEnabled
 	case unix.ENODATA, unix.ENOENT:
 		// ENOENT was returned instead of ENODATA on some filesystems before v4.11.
 		return ErrNotEncrypted
@@ -86,9 +79,15 @@ var (
 // the KeyDescriptor and the encryption options). Returns an error if the
 // path is not encrypted or the policy couldn't be retrieved.
 func GetPolicy(path string) (*PolicyData, error) {
-	var policy unix.FscryptPolicy
-	if err := policyIoctl(path, unix.FS_IOC_GET_ENCRYPTION_POLICY, &policy); err != nil {
+	file, err := os.Open(path)
+	if err != nil {
 		return nil, err
+	}
+	defer file.Close()
+
+	var policy unix.FscryptPolicy
+	if err := policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY, &policy); err != nil {
+		return nil, errors.Wrapf(err, "get encryption policy %s", path)
 	}
 
 	// Convert the padding flag into an amount of padding
@@ -97,8 +96,7 @@ func GetPolicy(path string) (*PolicyData, error) {
 	// This lookup should always succeed
 	padding, ok := util.Lookup(paddingFlag, flagsArray, paddingArray)
 	if !ok {
-		log.Printf("padding flag of %x not found", paddingFlag)
-		util.NeverError(util.SystemError("invalid padding flag"))
+		log.Panicf("padding flag of %x not found", paddingFlag)
 	}
 
 	return &PolicyData{
@@ -115,22 +113,25 @@ func GetPolicy(path string) (*PolicyData, error) {
 // policy. Returns an error if we cannot set the policy for any reason (not a
 // directory, invalid options or KeyDescriptor, etc).
 func SetPolicy(path string, data *PolicyData) error {
-	// Convert the padding value to a flag
-	paddingFlag, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
-	if !ok {
-		return util.InvalidInput(fmt.Sprintf("padding of %d", data.Options.Padding))
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err := data.CheckValidity(); err != nil {
+		return errors.Wrap(err, "invalid policy")
 	}
 
-	// Convert the policyDescriptor to a byte array
-	if len(data.KeyDescriptor) != DescriptorLen {
-		return util.InvalidLengthError(
-			"policy descriptor", DescriptorLen, len(data.KeyDescriptor))
+	// This lookup should always succeed (as policy is valid)
+	paddingFlag, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
+	if !ok {
+		log.Panicf("padding of %d was not found", data.Options.Padding)
 	}
 
 	descriptorBytes, err := hex.DecodeString(data.KeyDescriptor)
 	if err != nil {
-		return util.InvalidInput(
-			fmt.Sprintf("policy descriptor of %s: %v", data.KeyDescriptor, err))
+		return errors.New("invalid descriptor: " + data.KeyDescriptor)
 	}
 
 	policy := unix.FscryptPolicy{
@@ -141,24 +142,50 @@ func SetPolicy(path string, data *PolicyData) error {
 	}
 	copy(policy.Master_key_descriptor[:], descriptorBytes)
 
-	if err = policyIoctl(path, unix.FS_IOC_SET_ENCRYPTION_POLICY, &policy); err != nil {
+	if err = policyIoctl(file, unix.FS_IOC_SET_ENCRYPTION_POLICY, &policy); err == unix.EINVAL {
 		// Before kernel v4.11, many different errors all caused unix.EINVAL to be returned.
 		// We try to disambiguate this error here. This disambiguation will not always give
 		// the correct error due to a potential race condition on path.
-		if err == unix.EINVAL {
+		if info, statErr := os.Stat(path); statErr != nil || !info.IsDir() {
 			// Checking if the path is not a directory
-			if info, err := os.Stat(path); err != nil || !info.IsDir() {
-				return unix.ENOTDIR
-			}
+			err = unix.ENOTDIR
+		} else if _, policyErr := GetPolicy(path); policyErr == nil {
 			// Checking if a policy is already set on this directory
-			if _, err := GetPolicy(path); err == nil {
-				return ErrEncrypted
-			}
-			// Could not get a more detailed error, return generic "bad options".
-			return ErrBadEncryptionOptions
+			err = ErrEncrypted
+		} else {
+			// Default to generic "bad options".
+			err = ErrBadEncryptionOptions
 		}
-		return err
 	}
 
-	return nil
+	return errors.Wrapf(err, "set encryption policy %s", path)
+}
+
+// CheckSupport returns an error if the filesystem containing path does not
+// support filesystem encryption. This can be for many reasons including an
+// incompatible kernel or filesystem or not enabling the right feature flags.
+func CheckSupport(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// On supported directories, giving a bad policy will return EINVAL
+	badPolicy := unix.FscryptPolicy{
+		Version:                   math.MaxUint8,
+		Contents_encryption_mode:  math.MaxUint8,
+		Filenames_encryption_mode: math.MaxUint8,
+		Flags: math.MaxUint8,
+	}
+
+	err = policyIoctl(file, unix.FS_IOC_SET_ENCRYPTION_POLICY, &badPolicy)
+	switch err {
+	case nil:
+		log.Panicf(`FS_IOC_SET_ENCRYPTION_POLICY succeeded when it should have failed.
+			Please open an issue, filesystem %q may be corrupted.`, path)
+	case unix.EINVAL, unix.EACCES:
+		return nil
+	}
+	return err
 }

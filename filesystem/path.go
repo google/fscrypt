@@ -23,6 +23,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/pkg/errors"
 )
 
 // We only check the unix permissions and the sticky bit
@@ -34,8 +36,14 @@ func cannonicalizePath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	path, err = filepath.EvalSymlinks(path)
 
-	return filepath.EvalSymlinks(path)
+	// Get a better error if we have an invalid path
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = errors.Wrap(pathErr.Err, pathErr.Path)
+	}
+
+	return path, err
 }
 
 // loggedStat runs os.Stat, but it logs the error if stat returns any error

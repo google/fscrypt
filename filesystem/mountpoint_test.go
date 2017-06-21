@@ -39,14 +39,6 @@ func printMountInfo() {
 	}
 }
 
-func printSupportedMounts() {
-	fmt.Println("\nSupported Mountpoints:")
-	mnts, _ := AllSupportedFilesystems()
-	for _, mnt := range mnts {
-		fmt.Println(mnt)
-	}
-}
-
 func TestLoadMountInfo(t *testing.T) {
 	if err := UpdateMountInfo(); err != nil {
 		t.Error(err)
@@ -56,7 +48,6 @@ func TestLoadMountInfo(t *testing.T) {
 func TestPrintMountInfo(t *testing.T) {
 	// Uncomment to see the mount info in the tests
 	// printMountInfo()
-	// printSupportedMounts()
 	// t.Fail()
 }
 

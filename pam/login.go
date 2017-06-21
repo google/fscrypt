@@ -31,10 +31,11 @@ package pam
 import "C"
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"unsafe"
+
+	"github.com/pkg/errors"
 
 	"fscrypt/crypto"
 	"fscrypt/util"
@@ -43,8 +44,9 @@ import (
 // Global state is needed for the PAM callback, so we guard this function with a
 // lock. tokenToCheck is only ever non-nil when loginLock is held.
 var (
-	loginLock    sync.Mutex
-	tokenToCheck *crypto.Key
+	ErrPamInternal = util.SystemError("internal pam error")
+	loginLock      sync.Mutex
+	tokenToCheck   *crypto.Key
 )
 
 // unexpectedMessage logs an error encountered in the PAM callback.
@@ -95,14 +97,14 @@ func IsUserLoginToken(username string, token *crypto.Key) (_ bool, err error) {
 	// Start the pam transaction with the desired conversation and handle.
 	returnCode := C.pam_start(C.fscrypt_service, cUsername, &conv, &handle)
 	if returnCode != C.PAM_SUCCESS {
-		return false, util.SystemError(fmt.Sprintf("pam_start returned %d", returnCode))
+		return false, errors.Wrapf(ErrPamInternal, "pam_start() = %d", returnCode)
 	}
 
 	defer func() {
 		// End the PAM transaction, setting the error if appropriate.
 		returnCode = C.pam_end(handle, returnCode)
 		if returnCode != C.PAM_SUCCESS && err == nil {
-			err = util.SystemError(fmt.Sprintf("pam_end returned %d", returnCode))
+			err = errors.Wrapf(ErrPamInternal, "pam_end() = %d", returnCode)
 		}
 	}()
 
@@ -115,6 +117,6 @@ func IsUserLoginToken(username string, token *crypto.Key) (_ bool, err error) {
 		return false, nil
 	default:
 		// PAM didn't give us an answer to the authentication question
-		return false, util.SystemError(fmt.Sprintf("pam_authenticate returned %d", returnCode))
+		return false, errors.Wrapf(ErrPamInternal, "pam_authenticate() = %d", returnCode)
 	}
 }

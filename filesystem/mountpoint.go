@@ -42,10 +42,11 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
-	"fscrypt/metadata"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -75,7 +76,8 @@ func getMountInfo() error {
 	// Load the mount information from mountpoints_filename
 	fileHandle := C.setmntent(C.mountpoints_filename, C.read_mode)
 	if fileHandle == nil {
-		return ErrBadLoad
+		return errors.Wrapf(ErrGlobalMountInfo, "could not read %q",
+			C.GoString(C.mountpoints_filename))
 	}
 	defer C.endmntent(fileHandle)
 
@@ -84,7 +86,7 @@ func getMountInfo() error {
 		C.blkid_put_cache(cache)
 	}
 	if C.blkid_get_cache(&cache, nil) != 0 {
-		return ErrBadLoad
+		return errors.Wrap(ErrGlobalMountInfo, "could not read blkid cache")
 	}
 
 	for {
@@ -105,11 +107,12 @@ func getMountInfo() error {
 		// Skip invalid mountpoints
 		var err error
 		if mnt.Path, err = cannonicalizePath(mnt.Path); err != nil {
-			log.Print(err)
+			log.Printf("getting mnt_dir: %v", err)
 			continue
 		}
 		// We can only use mountpoints that are directories for fscrypt.
 		if !isDir(mnt.Path) {
+			log.Printf("mnt_dir %v: not a directory", mnt.Path)
 			continue
 		}
 
@@ -127,41 +130,22 @@ func getMountInfo() error {
 	}
 }
 
-// checkSupport returns an error if the specified mount does not support
-// filesystem-level encryption.
-func checkSupport(mount *Mount) error {
-	// Getting a policy on a filesystem which supports encryption should
-	// either return the policy or say there isn't one. Anything else
-	// indicates a problem with support.
-	_, err := metadata.GetPolicy(mount.Path)
-	if err == nil || err == metadata.ErrNotEncrypted {
-		log.Printf("%s filesystem at %q supports encryption (got %v)",
-			mount.Filesystem, mount.Path, err)
-		return nil
-	}
-
-	log.Printf("%s filesystem at %q probably doesn't support encryption (got %v)",
-		mount.Filesystem, mount.Path, err)
-	return err
-}
-
-// AllSupportedFilesystems lists all the Mounts which could support filesystem
-// encryption. This doesn't mean they necessarily do or that they are being used
-// with fscrypt.
-func AllSupportedFilesystems() ([]*Mount, error) {
+// AllFilesystems lists all the Mounts on the current system ordered by path.
+// Use CheckSetup() to see if they are used with fscrypt.
+func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	if err := getMountInfo(); err != nil {
 		return nil, err
 	}
 
-	var supportedMounts []*Mount
-	for _, mount := range mountsByPath {
-		if checkSupport(mount) == nil {
-			supportedMounts = append(supportedMounts, mount)
-		}
+	mounts := make([]*Mount, len(mountsByPath))
+	for i, mount := range mountsByPath {
+		mounts[i] = mount
 	}
-	return supportedMounts, nil
+
+	sort.Sort(PathSorter(mounts))
+	return mounts, nil
 }
 
 // UpdateMountInfo updates the filesystem mountpoint maps with the current state
@@ -176,9 +160,9 @@ func UpdateMountInfo() error {
 // FindMount returns the corresponding Mount object for some path in a
 // filesystem. Note that in the case of a bind mounts there may be two Mount
 // objects for the same underlying filesystem. An error is returned if the path
-// is invalid, we cannot load the required mount data, or the filesystem does
-// not support filesystem encryption. If a filesystem has been updated since the
-// last call to one of the mount functions, run UpdateMountInfo to see changes.
+// is invalid or we cannot load the required mount data. If a filesystem has
+// been updated since the last call to one of the mount functions, run
+// UpdateMountInfo to see changes.
 func FindMount(path string) (*Mount, error) {
 	path, err := cannonicalizePath(path)
 	if err != nil {
@@ -194,23 +178,22 @@ func FindMount(path string) (*Mount, error) {
 	// Traverse up the directory tree until we find a mountpoint
 	for {
 		if mnt, ok := mountsByPath[path]; ok {
-			return mnt, checkSupport(mnt)
+			return mnt, nil
 		}
 
 		// Move to the parent directory unless we have reached the root.
 		parent := filepath.Dir(path)
 		if parent == path {
-			return nil, ErrRootNotMount
+			return nil, errors.Wrap(ErrNotAMountpoint, path)
 		}
 		path = parent
 	}
 }
 
 // GetMount returns the Mount object with a matching mountpoint. An error is
-// returned if the path is invalid, we cannot load the required mount data, or
-// the filesystem does not support filesystem encryption. If a filesystem has
-// been updated since the last call to one of the mount functions, run
-// UpdateMountInfo to see changes.
+// returned if the path is invalid or we cannot load the required mount data. If
+// a filesystem has been updated since the last call to one of the mount
+// functions, run UpdateMountInfo to see changes.
 func GetMount(mountpoint string) (*Mount, error) {
 	mountpoint, err := cannonicalizePath(mountpoint)
 	if err != nil {
@@ -224,11 +207,10 @@ func GetMount(mountpoint string) (*Mount, error) {
 	}
 
 	if mnt, ok := mountsByPath[mountpoint]; ok {
-		return mnt, checkSupport(mnt)
+		return mnt, nil
 	}
 
-	log.Printf("%q is not a filesystem mountpoint", mountpoint)
-	return nil, ErrInvalidMount
+	return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
 }
 
 // getMountsFromLink returns the Mount objects which match the provided link.
@@ -251,7 +233,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	log.Printf("blkid_evaluate_spec(%q, <cache>) = %q", link, deviceName)
 
 	if deviceName == "" {
-		return nil, ErrNoLink
+		return nil, errors.Wrapf(ErrFollowLink, "link %q is invalid", link)
 	}
 	deviceName, err := cannonicalizePath(deviceName)
 	if err != nil {
@@ -268,7 +250,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 		return mnts, nil
 	}
 
-	return nil, ErrNoLink
+	return nil, errors.Wrapf(ErrFollowLink, "device %q is invalid", deviceName)
 }
 
 // makeLink returns a link of the form <token>=<value> where value is the tag
@@ -297,7 +279,7 @@ func makeLink(mnt *Mount, token string) (string, error) {
 	log.Printf("blkid_get_tag_value(<cache>, %s, %s) = %s", token, deviceEntry, value)
 
 	if value == "" {
-		return "", ErrCannotLink
+		return "", errors.Wrapf(ErrMakeLink, "no %s", token)
 	}
 	return fmt.Sprintf("%s=%s", token, C.GoString(cValue)), nil
 }

@@ -46,9 +46,9 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
-	"errors"
 	"unsafe"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/hkdf"
 
 	"fscrypt/metadata"
@@ -57,34 +57,29 @@ import (
 
 // Crypto error values
 var (
-	ErrBadAuth          = errors.New("key authentication check failed")
-	ErrNegitiveLength   = errors.New("negative length requested for key")
-	ErrKeyAlloc         = util.SystemError("could not allocate memory for key")
-	ErrKeyFree          = util.SystemError("could not free memory of key")
-	ErrKeyringLocate    = util.SystemError("could not locate the session keyring")
-	ErrKeyringInsert    = util.SystemError("could not insert key into the session keyring")
-	ErrKeyringSearch    = util.SystemError("could not find key in the session keyring")
-	ErrKeyringDelete    = util.SystemError("could not delete key from the session keyring")
-	ErrRecoveryCode     = errors.New("provided recovery code had incorrect format")
-	ErrLowEntropy       = util.SystemError("insufficient entropy in pool to generate random bytes")
-	ErrRandNotSupported = util.SystemError("getrandom() not implemented; kernel must be v3.17 or later")
-	ErrRandFailed       = util.SystemError("cannot get random bytes")
+	ErrBadAuth        = errors.New("key authentication check failed")
+	ErrNegitiveLength = errors.New("keys cannot have negative lengths")
+	ErrRecoveryCode   = errors.New("invalid recovery code")
+	ErrGetrandomFail  = util.SystemError("getrandom() failed")
+	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
+	ErrKeyFree        = util.SystemError("could not free memory of key")
+	ErrKeyringLocate  = util.SystemError("could not locate the session keyring")
+	ErrKeyringInsert  = util.SystemError("could not insert key into the session keyring")
+	ErrKeyringSearch  = errors.New("could not find key with descriptor")
+	ErrKeyringDelete  = util.SystemError("could not delete key from the session keyring")
 )
 
 // panicInputLength panics if "name" has invalid length (expected != actual)
 func panicInputLength(name string, expected, actual int) {
-	if expected != actual {
-		util.NeverError(util.InvalidLengthError(name, expected, actual))
+	if err := util.CheckValidLength(expected, actual); err != nil {
+		panic(errors.Wrap(err, name))
 	}
 }
 
 // checkWrappingKey returns an error if the wrapping key has the wrong length
 func checkWrappingKey(wrappingKey *Key) error {
-	l := wrappingKey.Len()
-	if l != metadata.InternalKeyLen {
-		return util.InvalidLengthError("wrapping key", metadata.InternalKeyLen, l)
-	}
-	return nil
+	err := util.CheckValidLength(metadata.InternalKeyLen, wrappingKey.Len())
+	return errors.Wrap(err, "wrapping key")
 }
 
 // stretchKey stretches a key of length KeyLen using unsalted HKDF to make two
@@ -140,14 +135,14 @@ func getHMAC(key *Key, data ...[]byte) []byte {
 // and an HMAC to verify the wrapping key was correct. All of this is included
 // in the returned WrappedKeyData structure.
 func Wrap(wrappingKey, secretKey *Key) (*metadata.WrappedKeyData, error) {
-	err := checkWrappingKey(wrappingKey)
-	if err != nil {
+	if err := checkWrappingKey(wrappingKey); err != nil {
 		return nil, err
 	}
 
 	data := &metadata.WrappedKeyData{EncryptedKey: make([]byte, secretKey.Len())}
 
 	// Get random IV
+	var err error
 	if data.IV, err = NewRandomBuffer(metadata.IVLen); err != nil {
 		return nil, err
 	}
@@ -251,8 +246,11 @@ use it in "id" mode to provide extra protection against side-channel
 attacks. For more info see: https://github.com/P-H-C/phc-winner-argon2
 */
 func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) (*Key, error) {
-	if len(salt) != metadata.SaltLen {
-		return nil, util.InvalidLengthError("salt", metadata.SaltLen, len(salt))
+	if err := util.CheckValidLength(metadata.SaltLen, len(salt)); err != nil {
+		return nil, errors.Wrap(err, "passphrase hashing salt")
+	}
+	if err := costs.CheckValidity(); err != nil {
+		return nil, errors.Wrap(err, "passphrase hashing costs")
 	}
 
 	// This key will hold the hashing output

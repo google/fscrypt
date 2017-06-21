@@ -89,18 +89,12 @@ func (e *ErrWriter) Err() error {
 	return e.err
 }
 
-// InvalidInput is an error that should indicate either bad input from a caller
-// of a public package function.
-type InvalidInput string
-
-func (i InvalidInput) Error() string {
-	return "invalid input: " + string(i)
-}
-
-// InvalidLengthError indicates name should have had length expected.
-func InvalidLengthError(name string, expected int, actual int) InvalidInput {
-	message := fmt.Sprintf("length of %s: expected=%d, actual=%d", name, expected, actual)
-	return InvalidInput(message)
+// CheckValidLength returns an invalid length error if expected != actual
+func CheckValidLength(expected, actual int) error {
+	if expected == actual {
+		return nil
+	}
+	return fmt.Errorf("expected length of %d, got %d", expected, actual)
 }
 
 // SystemError is an error that should indicate something has gone wrong in the
@@ -119,20 +113,17 @@ func NeverError(err error) {
 	}
 }
 
-// UnderlyingError returns the underlying error for known os error types and
-// logs the full error. From: src/os/error.go
-func UnderlyingError(err error) error {
-	var newErr error
-	switch typedErr := err.(type) {
-	case *os.PathError:
-		newErr = typedErr.Err
-	case *os.LinkError:
-		newErr = typedErr.Err
-	case *os.SyscallError:
-		newErr = typedErr.Err
-	default:
-		return err
+// TestEnvVarName is the name on an environment variable that should be set to
+// an empty mountpoint. This is only used for integration tests.
+var TestEnvVarName = "TEST_FILESYSTEM_ROOT"
+
+// TestPath returns a the path specified by TestEnvVarName. The function
+// panics if the environment variable is not set. This function is only used for
+// integration tests.
+func TestPath() (string, error) {
+	path := os.Getenv(TestEnvVarName)
+	if path == "" {
+		return "", fmt.Errorf("%s: environment variable not set", TestEnvVarName)
 	}
-	log.Print(err)
-	return newErr
+	return path, nil
 }

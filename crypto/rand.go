@@ -21,8 +21,8 @@ package crypto
 
 import (
 	"io"
-	"log"
 
+	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
 
@@ -58,11 +58,10 @@ func (r randReader) Read(buffer []byte) (int, error) {
 	case nil:
 		return n, nil
 	case unix.EAGAIN:
-		return 0, ErrLowEntropy
+		return 0, errors.Wrap(ErrGetrandomFail, "insufficient entropy in pool")
 	case unix.ENOSYS:
-		return 0, ErrRandNotSupported
+		return 0, errors.Wrap(ErrGetrandomFail, "kernel must be v3.17 or later")
 	default:
-		log.Printf("unix.Getrandom failed: %v", err)
-		return 0, ErrRandFailed
+		return 0, errors.Wrap(ErrGetrandomFail, err.Error())
 	}
 }

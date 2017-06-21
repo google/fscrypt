@@ -20,178 +20,177 @@
 package metadata
 
 import (
-	"log"
-
 	"github.com/golang/protobuf/proto"
+	"github.com/pkg/errors"
 
 	"fscrypt/util"
 )
 
+var errNotInitialized = errors.New("not initialized")
+
 // Metadata is the interface to all of the protobuf structures that can be
-// checked with the IsValid method.
+// checked for validity.
 type Metadata interface {
-	IsValid() bool
+	CheckValidity() error
 	proto.Message
 }
 
-// checkValidLength returns true if expected == actual, otherwise it logs an
-// InvalidLengthError.
-func checkValidLength(name string, expected int, actual int) bool {
-	if expected != actual {
-		log.Print(util.InvalidLengthError(name, expected, actual))
-		return false
-	}
-	return true
-}
-
-// IsValid ensures the mode has a name and isn't empty.
-func (m EncryptionOptions_Mode) IsValid() bool {
-	if m.String() == "" {
-		log.Print("Encryption mode cannot be the empty string")
-		return false
-	}
+// CheckValidity ensures the mode has a name and isn't empty.
+func (m EncryptionOptions_Mode) CheckValidity() error {
 	if m == EncryptionOptions_default {
-		log.Print("Encryption mode must be set to a non-default value")
-		return false
+		return errNotInitialized
 	}
-	return true
+	if m.String() == "" {
+		return errors.Errorf("unknown %d", m)
+	}
+	return nil
 }
 
-// IsValid ensures the source has a name and isn't empty.
-func (s SourceType) IsValid() bool {
-	if s.String() == "" {
-		log.Print("SourceType cannot be the empty string")
-		return false
-	}
+// CheckValidity ensures the source has a name and isn't empty.
+func (s SourceType) CheckValidity() error {
 	if s == SourceType_default {
-		log.Print("SourceType must be set to a non-default value")
-		return false
+		return errNotInitialized
 	}
-	return true
+	if s.String() == "" {
+		return errors.Errorf("unknown %d", s)
+	}
+	return nil
 }
 
-// IsValid ensures the hash costs will be accepted by Argon2.
-func (h *HashingCosts) IsValid() bool {
+// CheckValidity ensures the hash costs will be accepted by Argon2.
+func (h *HashingCosts) CheckValidity() error {
 	if h == nil {
-		log.Print("HashingCosts not initialized")
-		return false
+		return errNotInitialized
 	}
-	if h.Time == 0 {
-		log.Print("Hashing time cost not initialized")
-		return false
+	if h.Time <= 0 {
+		return errors.Errorf("time=%d is not positive", h.Time)
 	}
-	if h.Parallelism == 0 {
-		log.Print("Hashing parallelism cost not initialized")
-		return false
+	if h.Parallelism <= 0 {
+		return errors.Errorf("parallelism=%d is not positive", h.Parallelism)
 	}
 	minMemory := 8 * h.Parallelism
 	if h.Memory < minMemory {
-		log.Printf("Hashing memory cost must be at least %d", minMemory)
-		return false
+		return errors.Errorf("memory=%d is less than minimum (%d)", h.Memory, minMemory)
 	}
-	return true
+	return nil
 }
 
-// IsValid ensures our buffers are the correct length (or just exist).
-func (w *WrappedKeyData) IsValid() bool {
+// CheckValidity ensures our buffers are the correct length.
+func (w *WrappedKeyData) CheckValidity() error {
 	if w == nil {
-		log.Print("WrappedKeyData not initialized")
-		return false
+		return errNotInitialized
 	}
 	if len(w.EncryptedKey) == 0 {
-		log.Print("EncryptedKey not initialized")
-		return false
+		return errors.Wrap(errNotInitialized, "encrypted key")
 	}
-	return checkValidLength("IV", IVLen, len(w.IV)) &&
-		checkValidLength("HMAC", HMACLen, len(w.Hmac))
+	if err := util.CheckValidLength(IVLen, len(w.IV)); err != nil {
+		return errors.Wrap(err, "IV")
+	}
+	return errors.Wrap(util.CheckValidLength(HMACLen, len(w.Hmac)), "HMAC")
 }
 
-// IsValid ensures our ProtectorData has the correct fields for its source.
-func (p *ProtectorData) IsValid() bool {
+// CheckValidity ensures our ProtectorData has the correct fields for its source.
+func (p *ProtectorData) CheckValidity() error {
 	if p == nil {
-		log.Print("ProtectorData not initialized")
-		return false
+		return errNotInitialized
+	}
+
+	if err := p.Source.CheckValidity(); err != nil {
+		return errors.Wrap(err, "protector source")
 	}
 
 	// Source specific checks
 	switch p.Source {
 	case SourceType_pam_passphrase:
 		if p.Uid < 0 {
-			log.Print("The UID should never be negative")
-			return false
+			return errors.Errorf("UID=%d is negative", p.Uid)
 		}
 		fallthrough
 	case SourceType_custom_passphrase:
-		if !p.Costs.IsValid() || !checkValidLength("Salt", SaltLen, len(p.Salt)) {
-			return false
+		if err := p.Costs.CheckValidity(); err != nil {
+			return errors.Wrap(err, "passphrase hashing costs")
+		}
+		if err := util.CheckValidLength(SaltLen, len(p.Salt)); err != nil {
+			return errors.Wrap(err, "passphrase hashing salt")
 		}
 	}
 
 	// Generic checks
-	return p.Source.IsValid() &&
-		p.WrappedKey.IsValid() &&
-		checkValidLength("EncryptedKey", InternalKeyLen, len(p.WrappedKey.EncryptedKey)) &&
-		checkValidLength("ProtectorDescriptor", DescriptorLen, len(p.ProtectorDescriptor))
+	if err := p.WrappedKey.CheckValidity(); err != nil {
+		return errors.Wrap(err, "wrapped protector key")
+	}
+	if err := util.CheckValidLength(DescriptorLen, len(p.ProtectorDescriptor)); err != nil {
+		return errors.Wrap(err, "protector descriptor")
 
+	}
+	err := util.CheckValidLength(InternalKeyLen, len(p.WrappedKey.EncryptedKey))
+	return errors.Wrap(err, "encrypted protector key")
 }
 
-// IsValid ensures each of the options is valid.
-func (e *EncryptionOptions) IsValid() bool {
+// CheckValidity ensures each of the options is valid.
+func (e *EncryptionOptions) CheckValidity() error {
 	if e == nil {
-		log.Print("EncryptionOptions not initialized")
-		return false
+		return errNotInitialized
 	}
 	if _, ok := util.Index(e.Padding, paddingArray); !ok {
-		log.Printf("Padding of %d is invalid", e.Padding)
-		return false
+		return errors.Errorf("padding of %d is invalid", e.Padding)
 	}
-
-	return e.Contents.IsValid() && e.Filenames.IsValid()
+	if err := e.Contents.CheckValidity(); err != nil {
+		return errors.Wrap(err, "contents encryption mode")
+	}
+	return errors.Wrap(e.Filenames.CheckValidity(), "filenames encryption mode")
 }
 
-// IsValid ensures the fields are valid and have the correct lengths.
-func (w *WrappedPolicyKey) IsValid() bool {
+// CheckValidity ensures the fields are valid and have the correct lengths.
+func (w *WrappedPolicyKey) CheckValidity() error {
 	if w == nil {
-		log.Print("WrappedPolicyKey not initialized")
-		return false
+		return errNotInitialized
 	}
-	return w.WrappedKey.IsValid() &&
-		checkValidLength("EncryptedKey", PolicyKeyLen, len(w.WrappedKey.EncryptedKey)) &&
-		checkValidLength("ProtectorDescriptor", DescriptorLen, len(w.ProtectorDescriptor))
+	if err := w.WrappedKey.CheckValidity(); err != nil {
+		return errors.Wrap(err, "wrapped key")
+	}
+	if err := util.CheckValidLength(PolicyKeyLen, len(w.WrappedKey.EncryptedKey)); err != nil {
+		return errors.Wrap(err, "encrypted key")
+	}
+	err := util.CheckValidLength(DescriptorLen, len(w.ProtectorDescriptor))
+	return errors.Wrap(err, "wrapping protector descriptor")
 }
 
-// IsValid ensures the fields and each wrapped key are valid.
-func (p *PolicyData) IsValid() bool {
+// CheckValidity ensures the fields and each wrapped key are valid.
+func (p *PolicyData) CheckValidity() error {
 	if p == nil {
-		log.Print("PolicyData not initialized")
-		return false
+		return errNotInitialized
 	}
 	// Check each wrapped key
-	for _, w := range p.WrappedPolicyKeys {
-		if !w.IsValid() {
-			return false
+	for i, w := range p.WrappedPolicyKeys {
+		if err := w.CheckValidity(); err != nil {
+			return errors.Wrapf(err, "policy key slot %d", i)
 		}
 	}
-	return p.Options.IsValid() &&
-		checkValidLength("KeyDescriptor", DescriptorLen, len(p.KeyDescriptor))
+	if err := util.CheckValidLength(DescriptorLen, len(p.KeyDescriptor)); err != nil {
+		return errors.Wrap(err, "policy key descriptor")
+	}
+
+	return errors.Wrap(p.Options.CheckValidity(), "policy options")
 }
 
-// IsValid ensures the Config has all the necessary info for its Source.
-func (c *Config) IsValid() bool {
+// CheckValidity ensures the Config has all the necessary info for its Source.
+func (c *Config) CheckValidity() error {
 	// General checks
 	if c == nil {
-		log.Print("Config not initialized")
-		return false
+		return errNotInitialized
 	}
-	if !c.Source.IsValid() || !c.Options.IsValid() {
-		return false
+	if err := c.Source.CheckValidity(); err != nil {
+		return errors.Wrap(err, "default config source")
 	}
 
 	// Source specific checks
 	switch c.Source {
 	case SourceType_pam_passphrase, SourceType_custom_passphrase:
-		return c.HashCosts.IsValid()
-	default:
-		return true
+		if err := c.HashCosts.CheckValidity(); err != nil {
+			return errors.Wrap(err, "config hashing costs")
+		}
 	}
+
+	return errors.Wrap(c.Options.CheckValidity(), "config options")
 }

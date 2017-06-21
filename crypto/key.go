@@ -30,6 +30,8 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/pkg/errors"
+
 	"golang.org/x/sys/unix"
 
 	"fscrypt/metadata"
@@ -98,8 +100,7 @@ func newBlankKey(length int) (*Key, error) {
 	if length == 0 {
 		return &Key{data: nil}, nil
 	} else if length < 0 {
-		log.Printf("key length of %d is invalid", length)
-		return nil, ErrNegitiveLength
+		return nil, errors.Wrapf(ErrNegitiveLength, "length of %d requested", length)
 	}
 
 	flags := keyMmapFlags
@@ -123,9 +124,11 @@ func newBlankKey(length int) (*Key, error) {
 
 // Wipe destroys a Key by zeroing and freeing the memory. The data is zeroed
 // even if Wipe returns an error, which occurs if we are unable to unlock or
-// free the key memory. Calling Wipe() multiple times on a key has no effect.
+// free the key memory. Wipe does nothing if the key is already wiped or is nil.
 func (key *Key) Wipe() error {
-	if key.data != nil {
+	// We do nothing if key or key.data is nil so that Wipe() is idempotent
+	// and so Wipe() can be called on keys which have already been cleared.
+	if key != nil && key.data != nil {
 		data := key.data
 		key.data = nil
 
@@ -224,56 +227,50 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 	return key, nil
 }
 
-// addPayloadToSessionKeyring adds the payload to the current session keyring as
-// type logon, returning an error on failure.
-func addPayloadToSessionKeyring(payload []byte, description string) error {
-	// We cannot add directly to KEY_SPEC_SESSION_KEYRING, as that will make
-	// a new session keyring if one does not exist, which will be garbage
-	// collected when the process terminates. Instead, we first get the ID
-	// of the KEY_SPEC_SESSION_KEYRING, which will return the user session
-	// keyring if a session keyring does not exist.
+// getKeyring returns the id of the session keyring, or the id of the user
+// session keyring if session keyring does not exist. We cannot directly use
+// KEY_SPEC_SESSION_KEYRING, as that will make a new session keyring if one does
+// not exist, which will be garbage collected when the process terminates.
+func getKeyring() (int, error) {
 	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_SESSION_KEYRING, false)
 	log.Printf("unix.KeyctlGetKeyringID(KEY_SPEC_SESSION_KEYRING) = %d, %v", keyringID, err)
 	if err != nil {
-		return ErrKeyringLocate
+		return 0, errors.Wrap(ErrKeyringLocate, err.Error())
 	}
-
-	keyID, err := unix.AddKey(keyType, description, payload, keyringID)
-	log.Printf("unix.AddKey(%s, %s, <payload>, %d) = %d, %v",
-		keyType, description, keyringID, keyID, err)
-	if err != nil {
-		return ErrKeyringInsert
-	}
-	return nil
+	return keyringID, nil
 }
 
 // FindPolicyKey tries to locate a policy key in the kernel keyring with the
-// provided descriptor and service. The key id is returned if we can find the
-// key. An error is returned if the key does not exist.
-func FindPolicyKey(descriptor, service string) (int, error) {
-	description := service + descriptor
-	keyID, err := unix.KeyctlSearch(unix.KEY_SPEC_SESSION_KEYRING, keyType, description, 0)
-	log.Printf("unix.KeyctlSearch(KEY_SPEC_SESSION_KEYRING, %s, %s, 0) = %d, %v",
-		keyType, description, keyID, err)
+// provided descriptor and service. The keyring and key ids are returned if we
+// can find the key. An error is returned if the key does not exist.
+func FindPolicyKey(descriptor, service string) (keyringID, keyID int, err error) {
+	keyringID, err = getKeyring()
 	if err != nil {
-		return 0, ErrKeyringSearch
+		return
 	}
-	return keyID, nil
+
+	description := service + descriptor
+	keyID, err = unix.KeyctlSearch(keyringID, keyType, description, 0)
+	log.Printf("unix.KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, keyType, description, keyID, err)
+	if err != nil {
+		err = errors.Wrap(ErrKeyringSearch, err.Error())
+	}
+	return
 }
 
 // RemovePolicyKey tries to remove a policy key from the kernel keyring with the
 // provided descriptor and service. An error is returned if the key does not
 // exist.
 func RemovePolicyKey(descriptor, service string) error {
-	keyID, err := FindPolicyKey(descriptor, service)
+	keyringID, keyID, err := FindPolicyKey(descriptor, service)
 	if err != nil {
 		return err
 	}
 
-	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, unix.KEY_SPEC_SESSION_KEYRING, 0, 0)
-	log.Printf("unix.KeyctlUnlink(%d, KEY_SPEC_SESSION_KEYRING) = %v", keyID, err)
+	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
+	log.Printf("unix.KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
 	if err != nil {
-		return ErrKeyringDelete
+		return errors.Wrap(ErrKeyringDelete, err.Error())
 	}
 	return nil
 }
@@ -282,12 +279,11 @@ func RemovePolicyKey(descriptor, service string) error {
 // provided descriptor, provided service prefix, and type logon. The key and
 // descriptor must have the appropriate lengths.
 func InsertPolicyKey(key *Key, descriptor, service string) error {
-	if key.Len() != metadata.PolicyKeyLen {
-		return util.InvalidLengthError("Policy Key", metadata.PolicyKeyLen, key.Len())
+	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
+		return errors.Wrap(err, "policy key")
 	}
-
-	if len(descriptor) != metadata.DescriptorLen {
-		return util.InvalidLengthError("Descriptor", metadata.DescriptorLen, len(descriptor))
+	if err := util.CheckValidLength(metadata.DescriptorLen, len(descriptor)); err != nil {
+		return errors.Wrap(err, "descriptor")
 	}
 
 	// Create our payload (containing an FscryptKey)
@@ -304,10 +300,18 @@ func InsertPolicyKey(key *Key, descriptor, service string) error {
 	fscryptKey.Size = metadata.PolicyKeyLen
 	copy(fscryptKey.Raw[:], key.data)
 
-	if err := addPayloadToSessionKeyring(payload.data, service+descriptor); err != nil {
+	keyringID, err := getKeyring()
+	if err != nil {
 		return err
 	}
 
+	description := service + descriptor
+	keyID, err := unix.AddKey(keyType, description, payload.data, keyringID)
+	log.Printf("unix.AddKey(%s, %s, <payload>, %d) = %d, %v",
+		keyType, description, keyringID, keyID, err)
+	if err != nil {
+		return errors.Wrap(ErrKeyringInsert, err.Error())
+	}
 	return nil
 }
 
@@ -326,8 +330,8 @@ var (
 // WARNING: This recovery key is enough to derive the original key, so it must
 // be given the same level of protection as a raw cryptographic key.
 func WriteRecoveryCode(key *Key, writer io.Writer) error {
-	if key.Len() != metadata.PolicyKeyLen {
-		return util.InvalidLengthError("key", metadata.PolicyKeyLen, key.Len())
+	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
+		return errors.Wrap(err, "recovery key")
 	}
 
 	// We store the base32 encoded data (without separators) in a temp key
@@ -374,8 +378,8 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	for blockStart := blockSize; blockStart < encodedLength; blockStart += blockSize {
 		r.Read(inputSeparator)
 		if r.Err() == nil && !bytes.Equal(separator, inputSeparator) {
-			log.Printf("separator of %q is invalid", inputSeparator)
-			return nil, ErrRecoveryCode
+			err := errors.Wrapf(ErrRecoveryCode, "invalid seperator %q", inputSeparator)
+			return nil, err
 		}
 
 		blockEnd := util.MinInt(blockStart+blockSize, encodedLength)
@@ -384,8 +388,7 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 
 	// If any reads have failed, return the error
 	if r.Err() != nil {
-		log.Printf("error while reading recovery code: %v", r.Err())
-		return nil, ErrRecoveryCode
+		return nil, errors.Wrapf(ErrRecoveryCode, "read error %v", r.Err())
 	}
 
 	// Now we decode the key, resizing if necessary
@@ -394,9 +397,7 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 		return nil, err
 	}
 	if _, err = encoding.Decode(decodedKey.data, encodedKey.data); err != nil {
-		decodedKey.Wipe()
-		log.Printf("error decoding recovery code: %v", err)
-		return nil, ErrRecoveryCode
+		return nil, errors.Wrap(ErrRecoveryCode, err.Error())
 	}
 	return decodedKey.resize(metadata.PolicyKeyLen)
 }

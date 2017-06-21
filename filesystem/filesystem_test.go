@@ -20,14 +20,16 @@
 package filesystem
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/pkg/errors"
+
 	. "fscrypt/crypto"
 	. "fscrypt/metadata"
+	. "fscrypt/util"
 )
 
 var (
@@ -37,17 +39,14 @@ var (
 	wrappedPolicyKey, _    = Wrap(fakeProtectorKey, fakePolicyKey)
 )
 
-// Gets the mount corresponding to TEST_FILESYSTEM_ROOT
+// Gets the mount corresponding to the integration test path.
 func getTestMount() (*Mount, error) {
-	mountpoint := os.Getenv("TEST_FILESYSTEM_ROOT")
-	if mountpoint == "" {
-		return nil, fmt.Errorf("set TEST_FILESYSTEM_ROOT to a mountpoint")
+	mountpoint, err := TestPath()
+	if err != nil {
+		return nil, err
 	}
 	mnt, err := GetMount(mountpoint)
-	if err != nil {
-		return nil, fmt.Errorf("bad TEST_FILESYSTEM_ROOT: %s", err)
-	}
-	return mnt, nil
+	return mnt, errors.Wrapf(err, TestEnvVarName)
 }
 
 func getFakeProtector() *ProtectorData {
@@ -92,7 +91,7 @@ func TestSetup(t *testing.T) {
 		t.Error(err)
 	}
 
-	os.RemoveAll(mnt.baseDir())
+	os.RemoveAll(mnt.BaseDir())
 }
 
 // Tests that we can remove all of the metadata
@@ -106,7 +105,7 @@ func TestRemoveAllMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if isDir(mnt.baseDir()) {
+	if isDir(mnt.BaseDir()) {
 		t.Error("metadata was not removed")
 	}
 }
@@ -279,7 +278,7 @@ func TestLinkedProtector(t *testing.T) {
 
 	// Get the protector though the second system
 	_, err = fakeMnt.GetRegularProtector(protector.ProtectorDescriptor)
-	if err == nil || err.(FSError).Err != ErrNoMetadata {
+	if errors.Cause(err) != ErrNoMetadata {
 		t.Fatal(err)
 	}
 

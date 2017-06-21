@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	. "fscrypt/util"
 )
 
 const goodDescriptor = "0123456789abcdef"
@@ -34,13 +36,14 @@ var goodPolicy = &PolicyData{
 	Options:       DefaultOptions,
 }
 
-// Creates a temporary directory in TEST_FILESYSTEM_ROOT for testing. Fails if
-// the root directory is not specified.
+// Creates a temporary directory for testing.
 func createTestDirectory() (directory string, err error) {
-	baseDirectory := os.Getenv("TEST_FILESYSTEM_ROOT")
+	baseDirectory, err := TestPath()
+	if err != nil {
+		return
+	}
 	if s, err := os.Stat(baseDirectory); err != nil || !s.IsDir() {
-		return "", fmt.Errorf("invalid directory %q: "+
-			"set TEST_FILESYSTEM_ROOT to be a valid directory", baseDirectory)
+		return "", fmt.Errorf("%s: %q is not a valid directory", TestEnvVarName, baseDirectory)
 	}
 
 	directoryPath := filepath.Join(baseDirectory, "test")
