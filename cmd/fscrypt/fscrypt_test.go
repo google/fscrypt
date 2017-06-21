@@ -19,8 +19,6 @@
 
 package main
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestTrivial(t *testing.T) {}
