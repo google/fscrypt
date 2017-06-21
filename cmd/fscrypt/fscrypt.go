@@ -75,7 +75,7 @@ func main() {
 
 	// Initialize command list and setup all of the commands.
 	app.Action = defaultAction
-	app.Commands = []cli.Command{Setup, Encrypt, Unlock, Purge, Status}
+	app.Commands = []cli.Command{Setup, Encrypt, Unlock, Purge, Status, Metadata}
 	for i := range app.Commands {
 		setupCommand(&app.Commands[i])
 	}

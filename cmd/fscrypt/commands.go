@@ -408,3 +408,314 @@ func statusAction(c *cli.Context) error {
 	}
 	return nil
 }
+
+// Metadata is a collection of commands for manipulating the metadata files.
+var Metadata = cli.Command{
+	Name:  "metadata",
+	Usage: "[ADVANCED] manipulate the policy or protector metadata",
+	Description: `These commands allow a user to directly create, delete, or
+		change the metadata files. It is important to note that using
+		these commands, especially the destructive ones, can make files
+		encrypted with fscrypt unavailable. For instance, deleting a
+		policy effectively deletes all the contents of the corresponding
+		directory. Some example use cases include:
+
+		(1) Directly creating protectors and policies using the "create"
+		subcommand. These can then be applied with "fscrypt encrypt".
+
+		(2) Changing the passphrase for a passphrase protector using the
+		"change-passphrase" subcommand.
+
+		(3) Creating a policy protected with multiple protectors using
+		the "create policy" and "add-protector-to-policy" subcommands.
+
+		(4) Changing the protector protecting a policy using the
+		"add-protector-to-policy" and "remove-protector-from-policy"
+		subcommands.`,
+	Subcommands: []cli.Command{createMetadata, destoryMetadata, changePassphrase, dumpMetadata},
+}
+
+var createMetadata = cli.Command{
+	Name:        "create",
+	ArgsUsage:   fmt.Sprintf("[protector | policy] %s", mountpointArg),
+	Usage:       "manually create new metadata on a filesystem",
+	Subcommands: []cli.Command{createProtector, createPolicy},
+}
+
+var createProtector = cli.Command{
+	Name:      "protector",
+	ArgsUsage: mountpointArg,
+	Usage:     "create a new protector on a filesystem",
+	Description: fmt.Sprintf(`This command creates a new protector on %s
+		that does not (yet) protect any policy. After creation, the user
+		can use %s with "fscrypt encrypt" to protect a directory with
+		this new protector. The creation process is identical to the
+		first step of "fscrypt encrypt" when the user has requested to
+		create a new passphrase. The user will be prompted for the
+		source, name, and secret data for the new protector (when
+		applicable). As with "fscrypt encrypt", these prompts can be
+		disabled with the appropriate flags.`, mountpointArg,
+		shortDisplay(protectorFlag)),
+	Flags:  []cli.Flag{sourceFlag, nameFlag, keyFileFlag},
+	Action: createProtectorAction,
+}
+
+func createProtectorAction(c *cli.Context) error {
+	if c.NArg() != 1 {
+		return expectedArgsErr(c, 1, false)
+	}
+
+	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	prompt := fmt.Sprintf("Create new protector on %q", ctx.Mount.Path)
+	if err := askConfirmation(prompt, true, ""); err != nil {
+		return newExitError(c, err)
+	}
+
+	protector, err := createProtectorFromContext(ctx)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	protector.Lock()
+
+	fmt.Fprintf(c.App.Writer, "Protector %s created on filesystem %q.\n",
+		protector.Descriptor(), ctx.Mount.Path)
+	return nil
+}
+
+var createPolicy = cli.Command{
+	Name:      "policy",
+	ArgsUsage: fmt.Sprintf("%s %s", mountpointArg, shortDisplay(protectorFlag)),
+	Usage:     "create a new protector on a filesystem",
+	Description: fmt.Sprintf(`This command creates a new protector on %s
+		that has not (yet) been applied to any directory. After
+		creation, the user can use %s with "fscrypt encrypt" to encrypt
+		a directory with this new policy. As all policies must be
+		protected with at least one protector, this command requires
+		specifying one with %s. To create a policy protected by many
+		protectors, use this command and "fscrypt metadata
+		add-protector-to-policy".`, mountpointArg,
+		shortDisplay(policyFlag), shortDisplay(protectorFlag)),
+	Flags:  []cli.Flag{protectorFlag, keyFileFlag},
+	Action: createPolicyAction,
+}
+
+func createPolicyAction(c *cli.Context) error {
+	if c.NArg() != 1 {
+		return expectedArgsErr(c, 1, false)
+	}
+
+	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
+		return err
+	}
+	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	if err := protector.Unlock(existingKeyFn); err != nil {
+		return newExitError(c, err)
+	}
+	defer protector.Lock()
+
+	prompt := fmt.Sprintf("Create new policy on %q", ctx.Mount.Path)
+	if err := askConfirmation(prompt, true, ""); err != nil {
+		return newExitError(c, err)
+	}
+
+	policy, err := actions.CreatePolicy(ctx, protector)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	policy.Lock()
+
+	fmt.Fprintf(c.App.Writer, "Policy %s created on filesystem %q.\n",
+		policy.Descriptor(), ctx.Mount.Path)
+	return nil
+}
+
+var destoryMetadata = cli.Command{
+	Name: "destroy",
+	ArgsUsage: fmt.Sprintf("[%s | %s | %s]", shortDisplay(protectorFlag),
+		shortDisplay(policyFlag), mountpointArg),
+	Usage: "delete a filesystem's, protector's, or policy's metadata",
+	Description: fmt.Sprintf(`This command can be used to perform three
+		different destructive operations. Note that in all of these
+		cases, data will usually be lost, so use with care.
+
+		(1) If used with %[1]s, this command deletes all the data
+		associated with that protector. This means all directories
+		protected with that protector will become PERMANENTLY
+		inaccessible (unless the policies were protected by multiple
+		protectors).
+
+		(2) If used with %[2]s, this command deletes all the data
+		associated with that policy. This means all directories (usually
+		just one) using this policy will become PERMANENTLY
+		inaccessible.
+
+		(3) If used with %[3]s, all the metadata on that filesystem will
+		be deleted, causing all directories on that filesystem using
+		fscrypt to become PERMANENTLY inaccessible. To start using this
+		directory again, "fscrypt setup %[3]s" will need to be rerun.`,
+		shortDisplay(protectorFlag), shortDisplay(policyFlag),
+		mountpointArg),
+	Flags:  []cli.Flag{protectorFlag, policyFlag, forceFlag},
+	Action: destoryMetadataAction,
+}
+
+func destoryMetadataAction(c *cli.Context) error {
+	switch c.NArg() {
+	case 0:
+		switch {
+		case protectorFlag.Value != "":
+			// Case (1) - protector destroy
+			protector, err := getProtectorFromFlag(protectorFlag.Value)
+			if err != nil {
+				return newExitError(c, err)
+			}
+
+			prompt := fmt.Sprintf("Destroy protector %s on %q?",
+				protector.Descriptor(), protector.Context.Mount.Path)
+			warning := "All files protected only with this protector will be lost!!"
+			if err := askConfirmation(prompt, false, warning); err != nil {
+				return newExitError(c, err)
+			}
+			if err := protector.Destroy(); err != nil {
+				return newExitError(c, err)
+			}
+
+			fmt.Fprintf(c.App.Writer, "Protector %s deleted from filesystem %q.\n",
+				protector.Descriptor(), protector.Context.Mount.Path)
+		case policyFlag.Value != "":
+			// Case (2) - policy destroy
+			policy, err := getPolicyFromFlag(policyFlag.Value)
+			if err != nil {
+				return newExitError(c, err)
+			}
+
+			prompt := fmt.Sprintf("Destroy policy %s on %q?",
+				policy.Descriptor(), policy.Context.Mount.Path)
+			warning := "All files using this policy will be lost!!"
+			if err := askConfirmation(prompt, false, warning); err != nil {
+				return newExitError(c, err)
+			}
+			if err := policy.Destroy(); err != nil {
+				return newExitError(c, err)
+			}
+
+			fmt.Fprintf(c.App.Writer, "Policy %s deleted from filesystem %q.\n",
+				policy.Descriptor(), policy.Context.Mount.Path)
+		default:
+			message := fmt.Sprintf("Must specify one of: %s, %s, or %s",
+				mountpointArg,
+				shortDisplay(protectorFlag),
+				shortDisplay(policyFlag))
+			return &usageError{c, message}
+		}
+	case 1:
+		// Case (3) - mountpoint destroy
+		path := c.Args().Get(0)
+		ctx, err := actions.NewContextFromMountpoint(path)
+		if err != nil {
+			return newExitError(c, err)
+		}
+
+		prompt := fmt.Sprintf("Destroy all the metadata on %q?", ctx.Mount.Path)
+		warning := "All the encrypted files on this filesystem will be lost!!"
+		if err := askConfirmation(prompt, false, warning); err != nil {
+			return newExitError(c, err)
+		}
+		if err := ctx.Mount.RemoveAllMetadata(); err != nil {
+			return newExitError(c, err)
+		}
+
+		fmt.Fprintf(c.App.Writer, "All metadata on %q deleted.\n", ctx.Mount.Path)
+	default:
+		return expectedArgsErr(c, 1, true)
+	}
+	return nil
+}
+
+var changePassphrase = cli.Command{
+	Name:      "change-passphrase",
+	ArgsUsage: shortDisplay(protectorFlag),
+	Usage:     "change the passphrase used for a protector",
+	Description: `This command takes a specified passphrase protector and
+		changes the corresponding passphrase. Note that this does not
+		create or destroy any protectors.`,
+	Flags:  []cli.Flag{protectorFlag},
+	Action: changePassphraseAction,
+}
+
+func changePassphraseAction(c *cli.Context) error {
+	if c.NArg() != 0 {
+		return expectedArgsErr(c, 0, false)
+	}
+	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
+		return err
+	}
+
+	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	if err := protector.Unlock(oldExistingKeyFn); err != nil {
+		return newExitError(c, err)
+	}
+	defer protector.Lock()
+	if err := protector.Rewrap(newCreateKeyFn); err != nil {
+		return newExitError(c, err)
+	}
+
+	fmt.Fprintf(c.App.Writer, "Passphrase for protector %s successfully changed.\n",
+		protector.Descriptor())
+	return nil
+}
+
+var dumpMetadata = cli.Command{
+	Name:      "dump",
+	ArgsUsage: fmt.Sprintf("[%s | %s]", shortDisplay(protectorFlag), shortDisplay(policyFlag)),
+	Usage:     "print debug data for a policy or protector",
+	Description: fmt.Sprintf(`This commands dumps all of the debug data for
+		a protector (if %s is used) or policy (if %s is used). This data
+		includes the data pulled from the %q config file, the
+		appropriate mountpoint data, and any options for the policy or
+		hashing costs for the protector. Any cryptographic keys are
+		wiped and are not printed out.`, shortDisplay(protectorFlag),
+		shortDisplay(policyFlag), actions.ConfigFileLocation),
+	Flags:  []cli.Flag{protectorFlag, policyFlag},
+	Action: dumpMetadataAction,
+}
+
+func dumpMetadataAction(c *cli.Context) error {
+	switch {
+	case protectorFlag.Value != "":
+		// Case (1) - protector print
+		protector, err := getProtectorFromFlag(protectorFlag.Value)
+		if err != nil {
+			return newExitError(c, err)
+		}
+		fmt.Fprintln(c.App.Writer, protector)
+	case policyFlag.Value != "":
+		// Case (2) - policy print
+		policy, err := getPolicyFromFlag(policyFlag.Value)
+		if err != nil {
+			return newExitError(c, err)
+		}
+		fmt.Fprintln(c.App.Writer, policy)
+	default:
+		message := fmt.Sprintf("Must specify one of: %s or %s",
+			shortDisplay(protectorFlag),
+			shortDisplay(policyFlag))
+		return &usageError{c, message}
+	}
+	return nil
+}

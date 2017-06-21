@@ -186,3 +186,15 @@ func expectedArgsErr(c *cli.Context, expectedArgs int, atMost bool) error {
 func onUsageError(c *cli.Context, err error, _ bool) error {
 	return &usageError{c, err.Error()}
 }
+
+// checkRequiredFlags makes sure that all of the specified string flags have
+// been given nonempty values. Returns a usage error on failure.
+func checkRequiredFlags(c *cli.Context, flags []*stringFlag) error {
+	for _, flag := range flags {
+		if flag.Value == "" {
+			message := fmt.Sprintf("required flag %s not provided", shortDisplay(flag))
+			return &usageError{c, message}
+		}
+	}
+	return nil
+}

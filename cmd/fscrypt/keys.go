@@ -43,8 +43,12 @@ const stdinFd = 0
 var (
 	// getting an existing key
 	existingKeyFn = makeKeyFunc(true, false, "")
+	// getting an existing key when changing passphrases
+	oldExistingKeyFn = makeKeyFunc(true, false, "old ")
 	// creating a new key
 	createKeyFn = makeKeyFunc(false, true, "")
+	// creating a new key when changing passphrases
+	newCreateKeyFn = makeKeyFunc(false, true, "new ")
 )
 
 // passphraseReader is an io.Reader intended for terminal passphrase input. The
