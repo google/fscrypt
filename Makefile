@@ -75,7 +75,15 @@ format:
 	@find . -name "*.h" -o -name "*.c" -not -path "./vendor/*" | xargs clang-format -i -style=Google
 
 install:
+	go install $(CMD_DIR)
+
+install_all:
 	govendor install $(GOFLAGS) +local
 
+TARBALL = $(NAME).$(shell date --iso-8601).tar.gz
+$(TARBALL):
+	git archive --format=tar.gz --output=$(TARBALL) HEAD
+tarball: $(TARBALL)
+
 clean:
-	rm -rf $(NAME)
+	rm -rf $(NAME) $(TARBALL)
