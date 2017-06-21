@@ -29,6 +29,7 @@ import (
 	"github.com/urfave/cli"
 
 	"fscrypt/actions"
+	"fscrypt/filesystem"
 	"fscrypt/metadata"
 )
 
@@ -292,5 +293,118 @@ func unlockAction(c *cli.Context) error {
 	}
 
 	fmt.Fprintf(c.App.Writer, "%q is now unlocked and ready for use.\n", path)
+	return nil
+}
+
+// Purge removes all the policy keys from the keyring (also need unmount).
+var Purge = cli.Command{
+	Name:      "purge",
+	ArgsUsage: mountpointArg,
+	Usage:     "[EXPERIMENTAL] remove a filesystem's keys",
+	Description: fmt.Sprintf(`EXPERIMENTAL: This command removes all the
+		policy keys for directories on %[1]s. This is intended to lock
+		all encrypted files and directories on %[1]s, in that unlocking
+		them for reading will require providing a key again. However,
+		this action is currently subject to two significant limitations:
+
+		(1) If "fscrypt purge" is run, but the filesystem has not yet
+		been unmounted, recently accessed encrypted directories and
+		files will remain accessible for some time. Because of this,
+		after purging a filesystem's keys, it is recommended to unmount
+		the filesystem. This limitation might be eliminated in a future
+		kernel version.
+
+		(2) Even after unmounting the filesystem, the kernel may keep
+		contents of encrypted files cached in memory. This means direct
+		memory access (either though physical compromise or a kernel
+		exploit) could compromise encrypted data. This weakness can be
+		eliminated by cycling the power or mitigated by using page cache
+		and slab cache poisoning.`, mountpointArg),
+	Flags:  []cli.Flag{forceFlag},
+	Action: purgeAction,
+}
+
+func purgeAction(c *cli.Context) error {
+	if c.NArg() != 1 {
+		return expectedArgsErr(c, 1, false)
+	}
+
+	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	err = askConfirmation(fmt.Sprintf(
+		"Purge all policy keys from %q?",
+		ctx.Mount.Path), false,
+		"Encrypted data on this filesystem will be inaccessible until unlocked again!!")
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	if err = actions.PurgeAllPolicies(ctx); err != nil {
+		return newExitError(c, err)
+	}
+
+	fmt.Fprintf(c.App.Writer, "All keys purged for %q.\n", ctx.Mount.Path)
+	fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	return nil
+}
+
+// Status is a command with three subcommands relating to printing out status.
+var Status = cli.Command{
+	Name:      "status",
+	ArgsUsage: fmt.Sprintf("[%s]", pathArg),
+	Usage:     "print the global, filesystem, or file status",
+	Description: fmt.Sprintf(`This command prints out the global,
+		per-filesystem, or per-file status.
+
+		(1) When used without %[1]s, print all of the currently visible
+		filesystems which support use with fscrypt. For each of
+		the filesystems, this command also notes if they are actually
+		being used by fscrypt. This command will fail if no there is no
+		support for fscrypt anywhere on the system.
+
+		(2) When %[1]s is a filesystem mountpoint, list information
+		about all the policies and protectors which exist on %[1]s. This
+		command will fail if %[1]s is not being used with fscrypt. For
+		each policy, this command also notes if the policy is currently
+		unlocked.
+
+		(3) When %[1]s is just a normal path, print information about
+		the policy being used on %[1]s and the protectors protecting
+		this file or directory. This command will fail if %[1]s is not
+		setup for encryption with fscrypt.`, pathArg),
+	Action: statusAction,
+}
+
+func statusAction(c *cli.Context) error {
+	var err error
+
+	switch c.NArg() {
+	case 0:
+		// Case (1) - global status
+		err = writeGlobalStatus(c.App.Writer)
+	case 1:
+		path := c.Args().Get(0)
+		ctx, mntErr := actions.NewContextFromMountpoint(path)
+
+		switch errors.Cause(mntErr) {
+		case nil:
+			// Case (2) - mountpoint status
+			err = writeFilesystemStatus(c.App.Writer, ctx)
+		case filesystem.ErrNotAMountpoint:
+			// Case (3) - file or directory status
+			err = writePathStatus(c.App.Writer, path)
+		default:
+			err = mntErr
+		}
+	default:
+		return expectedArgsErr(c, 1, true)
+	}
+
+	if err != nil {
+		return newExitError(c, err)
+	}
 	return nil
 }

@@ -1,0 +1,169 @@
+/*
+ * status.go - File which contains the functions for outputting the status of
+ * fscrypt, a filesystem, or a directory.
+ *
+ * Copyright 2017 Google Inc.
+ * Author: Joe Richey (joerichey@google.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+package main
+
+import (
+	"fmt"
+	"io"
+	"log"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/pkg/errors"
+
+	"fscrypt/actions"
+	"fscrypt/filesystem"
+	"fscrypt/metadata"
+)
+
+// Creates a writer which correctly aligns tabs with the specified header.
+// Must call Flush() when done.
+func makeTableWriter(w io.Writer, header string) *tabwriter.Writer {
+	tableWriter := tabwriter.NewWriter(w, 0, indentLength, indentLength, ' ', 0)
+	fmt.Fprintln(tableWriter, header)
+	return tableWriter
+}
+
+// statusString is what will be printed in the STATUS column. An empty string
+// means a status should not be printed.
+func statusString(mount *filesystem.Mount) string {
+	switch err := mount.CheckSetup(); errors.Cause(err) {
+	case nil:
+		return "setup with fscrypt"
+	case filesystem.ErrNotSetup:
+		return "not setup with fscrypt"
+	case metadata.ErrEncryptionNotEnabled:
+		return "encryption not enabled"
+	case metadata.ErrEncryptionNotSupported:
+		return ""
+	default:
+		log.Printf("Unexpected Error: %v", err)
+		return ""
+	}
+}
+
+func yesNoString(b bool) string {
+	if b {
+		return "Yes"
+	}
+	return "No"
+}
+
+// writeGlobalStatus prints all the filesystem that use (or could use) fscrypt.
+func writeGlobalStatus(w io.Writer) error {
+	mounts, err := filesystem.AllFilesystems()
+	if err != nil {
+		return err
+	}
+
+	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tSTATUS")
+	supportCount := 0
+	for _, mount := range mounts {
+		if status := statusString(mount); status != "" {
+			fmt.Fprintf(t, "%s\t%s\t%s\t%s\n",
+				mount.Path, mount.Device, mount.Filesystem, status)
+			supportCount++
+		}
+	}
+
+	fmt.Fprintf(w, "%s on this system support encryption\n\n", pluralize(supportCount, "filesystem"))
+	return t.Flush()
+}
+
+// writeOptions writes a table of the status for a slice of protector options.
+func writeOptions(w io.Writer, options []*actions.ProtectorOption) {
+	t := makeTableWriter(w, "PROTECTOR\tLINKED\tDESCRIPTION")
+	for _, option := range options {
+		if option.LoadError != nil {
+			fmt.Fprintf(t, "%s\t\tERROR: %v\n", option.Descriptor(), option.LoadError)
+			continue
+		}
+
+		// For linked protectors, indicate which filesystem.
+		isLinked := option.LinkedMount != nil
+		linkedText := yesNoString(isLinked)
+		if isLinked {
+			linkedText += fmt.Sprintf(" (%s)", option.LinkedMount.Path)
+		}
+		fmt.Fprintf(t, "%s\t%s\t%s\n", option.Descriptor(), linkedText,
+			formatInfo(option.ProtectorInfo))
+	}
+	t.Flush()
+}
+
+func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
+	options, err := ctx.ProtectorOptions()
+	if err != nil {
+		return err
+	}
+
+	policyDescriptors, err := ctx.Mount.ListPolicies()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.Filesystem, ctx.Mount.Path,
+		pluralize(len(options), "protector"), pluralize(len(policyDescriptors), "policy"))
+
+	if len(options) > 0 {
+		writeOptions(w, options)
+	}
+
+	if len(policyDescriptors) == 0 {
+		return nil
+	}
+
+	fmt.Fprintln(w)
+	t := makeTableWriter(w, "POLICY\tUNLOCKED\tPROTECTORS")
+	for _, descriptor := range policyDescriptors {
+		policy, err := actions.GetPolicy(ctx, descriptor)
+		if err != nil {
+			fmt.Fprintf(t, "%s\t\tERROR: %v\n", descriptor, err)
+			continue
+		}
+
+		fmt.Fprintf(t, "%s\t%s\t%s\n", descriptor, yesNoString(policy.IsProvisioned()),
+			strings.Join(policy.ProtectorDescriptors(), ", "))
+	}
+	return t.Flush()
+}
+
+func writePathStatus(w io.Writer, path string) error {
+	ctx, err := actions.NewContextFromPath(path)
+	if err != nil {
+		return err
+	}
+	policy, err := actions.GetPolicyFromPath(ctx, path)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(w, "%q is encrypted with fscrypt.\n", path)
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Policy:   %s\n", policy.Descriptor())
+	fmt.Fprintf(w, "Unlocked: %s\n", yesNoString(policy.IsProvisioned()))
+	fmt.Fprintln(w)
+
+	options := policy.ProtectorOptions()
+	fmt.Fprintf(w, "Protected with %s:\n", pluralize(len(options), "protector"))
+	writeOptions(w, options)
+	return nil
+}
