@@ -139,9 +139,9 @@ func AllFilesystems() ([]*Mount, error) {
 		return nil, err
 	}
 
-	mounts := make([]*Mount, len(mountsByPath))
-	for i, mount := range mountsByPath {
-		mounts[i] = mount
+	mounts := make([]*Mount, 0, len(mountsByPath))
+	for _, mount := range mountsByPath {
+		mounts = append(mounts, mount)
 	}
 
 	sort.Sort(PathSorter(mounts))

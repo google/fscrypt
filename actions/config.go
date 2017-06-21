@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"golang.org/x/sys/unix"
 
 	"fscrypt/crypto"
@@ -68,7 +70,7 @@ func CreateConfigFile(target time.Duration, useLegacy bool) error {
 	case os.IsExist(err):
 		return ErrConfigFileExists
 	case err != nil:
-		return util.UnderlyingError(err)
+		return err
 	}
 	defer configFile.Close()
 
@@ -99,15 +101,14 @@ func getConfig() (*metadata.Config, error) {
 	case os.IsNotExist(err):
 		return nil, ErrNoConfigFile
 	case err != nil:
-		return nil, util.UnderlyingError(err)
+		return nil, err
 	}
 	defer configFile.Close()
 
 	log.Printf("Reading config from %q\n", ConfigFileLocation)
 	config, err := metadata.ReadConfig(configFile)
 	if err != nil {
-		log.Printf("ReadConfig() = %v", err)
-		return nil, ErrBadConfigFile
+		return nil, errors.Wrap(ErrBadConfigFile, err.Error())
 	}
 
 	// Use system defaults if not specified
@@ -128,8 +129,8 @@ func getConfig() (*metadata.Config, error) {
 		log.Printf("Falling back to filenames mode of %q", config.Options.Filenames)
 	}
 
-	if !config.IsValid() {
-		return nil, ErrBadConfigFile
+	if err := config.CheckValidity(); err != nil {
+		return nil, errors.Wrap(ErrBadConfigFile, err.Error())
 	}
 
 	return config, nil
@@ -203,8 +204,8 @@ func ramLimit() int64 {
 	err := unix.Sysinfo(&info)
 	// The sysinfo syscall only fails if given a bad address
 	util.NeverError(err)
-	// Use half the RAM and convert to kB.
-	return int64(info.Totalram / 1000 / 2)
+	// Use half the RAM and convert to kiB.
+	return int64(info.Totalram / 1024 / 2)
 }
 
 // betweenCosts returns a cost between a and b. Specifically, it returns the
@@ -222,11 +223,23 @@ func timeHashingCosts(costs *metadata.HashingCosts) (time.Duration, error) {
 	}
 	defer passphrase.Wipe()
 
-	start := time.Now()
+	// Be sure to measure CPU time, not wall time (time.Now)
+	begin := cpuTimeInNanoseconds()
 	hash, err := crypto.PassphraseHash(passphrase, timingSalt, costs)
 	if err == nil {
 		hash.Wipe()
 	}
+	end := cpuTimeInNanoseconds()
 
-	return time.Since(start), err
+	return time.Duration(end - begin), nil
+}
+
+// cpuTimeInNanoseconds returns the nanosecond count based on the process's CPU usage.
+// This number has no absolute meaning, only relative meaning to other calls.
+func cpuTimeInNanoseconds() int64 {
+	var ts unix.Timespec
+	err := unix.ClockGettime(unix.CLOCK_PROCESS_CPUTIME_ID, &ts)
+	// ClockGettime fails if given a bad address or on a VERY old system.
+	util.NeverError(err)
+	return unix.TimespecToNsec(ts)
 }

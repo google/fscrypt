@@ -21,53 +21,54 @@ package actions
 
 import "testing"
 
-// Makes a context, protector, and policy
-func makeAll() (ctx *Context, protector *Protector, policy *Policy, err error) {
-	ctx, err = makeContext()
+// Makes a protector and policy
+func makeBoth() (*Protector, *Policy, error) {
+	protector, err := CreateProtector(testContext, testProtectorName, goodCallback)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
-	protector, err = CreateProtector(ctx, testProtectorName, goodCallback)
+	policy, err := CreatePolicy(testContext, protector)
 	if err != nil {
-		return
+		cleanupProtector(protector)
+		return nil, nil, err
 	}
-	policy, err = CreatePolicy(ctx, protector)
-	return
+	return protector, policy, nil
 }
 
-// Cleans up a context, protector, and policy
-func cleanupAll(protector *Protector, policy *Policy) {
-	if policy != nil {
-		policy.Wipe()
-	}
-	if protector != nil {
-		protector.Wipe()
-	}
-	cleaupContext()
+func cleanupProtector(protector *Protector) {
+	protector.Lock()
+	protector.Destroy()
+}
+
+func cleanupPolicy(policy *Policy) {
+	policy.Lock()
+	policy.Destroy()
 }
 
 // Tests that we can make a policy/protector pair
 func TestCreatePolicy(t *testing.T) {
-	_, pro, pol, err := makeAll()
-	defer cleanupAll(pro, pol)
+	pro, pol, err := makeBoth()
 	if err != nil {
 		t.Error(err)
 	}
+	cleanupPolicy(pol)
+	cleanupProtector(pro)
 }
 
 // Tests that we can add another protector to the policy
 func TestPolicyGoodAddProtector(t *testing.T) {
-	ctx, pro1, pol, err := makeAll()
-	defer cleanupAll(pro1, pol)
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pro2.Wipe()
+	defer cleanupProtector(pro2)
 
 	err = pol.AddProtector(pro2)
 	if err != nil {
@@ -77,8 +78,9 @@ func TestPolicyGoodAddProtector(t *testing.T) {
 
 // Tests that we cannot add a protector to a policy twice
 func TestPolicyBadAddProtector(t *testing.T) {
-	_, pro, pol, err := makeAll()
-	defer cleanupAll(pro, pol)
+	pro, pol, err := makeBoth()
+	defer cleanupProtector(pro)
+	defer cleanupPolicy(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,24 +92,25 @@ func TestPolicyBadAddProtector(t *testing.T) {
 
 // Tests that we can remove a protector we added
 func TestPolicyGoodRemoveProtector(t *testing.T) {
-	ctx, pro1, pol, err := makeAll()
-	defer cleanupAll(pro1, pol)
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pro2.Wipe()
+	defer cleanupProtector(pro2)
 
 	err = pol.AddProtector(pro2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = pol.RemoveProtector(pro1.data.ProtectorDescriptor)
+	err = pol.RemoveProtector(pro1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -115,23 +118,24 @@ func TestPolicyGoodRemoveProtector(t *testing.T) {
 
 // Tests various bad ways to remove protectors
 func TestPolicyBadRemoveProtector(t *testing.T) {
-	ctx, pro1, pol, err := makeAll()
-	defer cleanupAll(pro1, pol)
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(ctx, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pro2.Wipe()
+	defer cleanupProtector(pro2)
 
-	if pol.RemoveProtector(pro2.data.ProtectorDescriptor) == nil {
+	if pol.RemoveProtector(pro2) == nil {
 		t.Error("we should not be able to remove a protector we did not add")
 	}
 
-	if pol.RemoveProtector(pro1.data.ProtectorDescriptor) == nil {
+	if pol.RemoveProtector(pro1) == nil {
 		t.Error("we should not be able to remove all the protectors from a policy")
 	}
 }

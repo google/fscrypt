@@ -20,8 +20,11 @@
 package actions
 
 import (
-	"errors"
+	"fmt"
+	"log"
 	"os"
+
+	"github.com/pkg/errors"
 
 	"fscrypt/crypto"
 	"fscrypt/metadata"
@@ -31,21 +34,21 @@ import (
 var (
 	ErrProtectorName        = errors.New("login protectors do not need a name")
 	ErrMissingProtectorName = errors.New("custom protectors must have a name")
-	ErrDuplicateName        = errors.New("a protector with this name already exists")
-	ErrDuplicateUID         = errors.New("there is already a login protector for this user")
+	ErrDuplicateName        = errors.New("protector with this name already exists")
+	ErrDuplicateUID         = errors.New("login protector for this user already exists")
 )
 
 // checkForProtectorWithName returns an error if there is already a protector
 // on the filesystem with a specific name (or if we cannot read the necessary
 // data).
 func checkForProtectorWithName(ctx *Context, name string) error {
-	options, err := ctx.ListProtectorOptions()
+	options, err := ctx.ProtectorOptions()
 	if err != nil {
 		return err
 	}
 	for _, option := range options {
 		if option.Name() == name {
-			return ErrDuplicateName
+			return errors.Wrapf(ErrDuplicateName, "name %q", name)
 		}
 	}
 	return nil
@@ -55,13 +58,13 @@ func checkForProtectorWithName(ctx *Context, name string) error {
 // protector on the filesystem with a specific UID (or if we cannot read the
 // necessary data).
 func checkForProtectorWithUID(ctx *Context, uid int64) error {
-	options, err := ctx.ListProtectorOptions()
+	options, err := ctx.ProtectorOptions()
 	if err != nil {
 		return err
 	}
 	for _, option := range options {
 		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
-			return ErrDuplicateUID
+			return errors.Wrapf(ErrDuplicateUID, "uid %d", uid)
 		}
 	}
 	return nil
@@ -75,12 +78,13 @@ type Protector struct {
 	Context *Context
 	data    *metadata.ProtectorData
 	key     *crypto.Key
+	created bool
 }
 
-// CreateProtector creates a protector with a given name (only for custom and
-// raw protector types). The keyFn provided to create the Protector key will
-// only be called once. If an error is returned, no data has been changed on the
-// filesystem.
+// CreateProtector creates an unlocked protector with a given name (name only
+// needed for custom and raw protector types). The keyFn provided to create the
+// Protector key will only be called once. If an error is returned, no data has
+// been changed on the filesystem.
 func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, error) {
 	if err := ctx.checkContext(); err != nil {
 		return nil, err
@@ -109,6 +113,7 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 			Name:   name,
 			Source: ctx.Config.Source,
 		},
+		created: true,
 	}
 
 	// Extra data is needed for some SourceTypes
@@ -138,36 +143,34 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 	protector.data.ProtectorDescriptor = crypto.ComputeDescriptor(protector.key)
 
 	if err := protector.Rewrap(keyFn); err != nil {
-		protector.Wipe()
+		protector.Lock()
 		return nil, err
 	}
 
 	return protector, nil
 }
 
-// GetProtector retrieves a Protector with a specific descriptor. The keyFn
-// provided to unwrap the Protector key will be retied as necessary to get the
-// correct key.
-func GetProtector(ctx *Context, descriptor string, keyFn KeyFunc) (*Protector, error) {
-	if err := ctx.checkContext(); err != nil {
+// GetProtector retrieves a Protector with a specific descriptor. The Protector
+// is still locked in this case, so it must be unlocked before using certain
+// methods.
+func GetProtector(ctx *Context, descriptor string) (*Protector, error) {
+	log.Printf("Getting protector %s", descriptor)
+	err := ctx.checkContext()
+	if err != nil {
 		return nil, err
 	}
-	var err error
+
 	protector := &Protector{Context: ctx}
-
-	if protector.data, err = ctx.Mount.GetRegularProtector(descriptor); err != nil {
-		return nil, err
-	}
-
-	protector.key, err = unwrapProtectorKey(ProtectorInfo{protector.data}, keyFn)
+	protector.data, err = ctx.Mount.GetRegularProtector(descriptor)
 	return protector, err
 }
 
 // GetProtectorFromOption retrieves a protector based on a protector option.
 // If the option had a load error, this function returns that error. The
-// keyFn provided to unwrap the Protector key will be retied as necessary to
-// get the correct key.
-func GetProtectorFromOption(ctx *Context, option *ProtectorOption, keyFn KeyFunc) (*Protector, error) {
+// Protector is still locked in this case, so it must be unlocked before using
+// certain methods.
+func GetProtectorFromOption(ctx *Context, option *ProtectorOption) (*Protector, error) {
+	log.Printf("Getting protector %s from option", option.Descriptor())
 	if err := ctx.checkContext(); err != nil {
 		return nil, err
 	}
@@ -179,18 +182,62 @@ func GetProtectorFromOption(ctx *Context, option *ProtectorOption, keyFn KeyFunc
 	if option.LinkedMount != nil {
 		ctx = &Context{ctx.Config, option.LinkedMount}
 	}
-	var err error
-	protector := &Protector{Context: ctx, data: option.data}
+	return &Protector{Context: ctx, data: option.data}, nil
+}
 
-	protector.key, err = unwrapProtectorKey(option.ProtectorInfo, keyFn)
-	return protector, err
+// Descriptor returns the protector descriptor.
+func (protector *Protector) Descriptor() string {
+	return protector.data.ProtectorDescriptor
+}
+
+// Destroy removes a protector from the filesystem. The internal key should
+// still be wiped with Lock().
+func (protector *Protector) Destroy() error {
+	return protector.Context.Mount.RemoveProtector(protector.Descriptor())
+}
+
+// Revert destroys a protector if it was created, but does nothing if it was
+// just queried from the filesystem.
+func (protector *Protector) Revert() error {
+	if !protector.created {
+		return nil
+	}
+	return protector.Destroy()
+}
+
+func (protector *Protector) String() string {
+	return fmt.Sprintf("Protector: %s\nMountpoint: %s\nSource: %s\nName: %s\nCosts: %v\nUID: %d",
+		protector.Descriptor(), protector.Context.Mount, protector.data.Source,
+		protector.data.Name, protector.data.Costs, protector.data.Uid)
+}
+
+// Unlock unwraps the Protector's internal key. The keyFn provided to unwrap the
+// Protector key will be retried as necessary to get the correct key. Lock()
+// should be called after use. Does nothing if protector is already unlocked.
+func (protector *Protector) Unlock(keyFn KeyFunc) (err error) {
+	if protector.key != nil {
+		return
+	}
+	protector.key, err = unwrapProtectorKey(ProtectorInfo{protector.data}, keyFn)
+	return
+}
+
+// Lock wipes a Protector's internal Key. It should always be called after using
+// an unlocked Protector. This is often done with a defer statement. There is
+// no effect if called multiple times.
+func (protector *Protector) Lock() error {
+	err := protector.key.Wipe()
+	protector.key = nil
+	return err
 }
 
 // Rewrap updates the data that is wrapping the Protector Key. This is useful if
 // a user's password has changed, for example. The keyFn provided to rewrap
-// the Protector key will only be called once. If an error is returned, no data
-// has been changed on the filesystem.
+// the Protector key will only be called once. Requires unlocked Protector.
 func (protector *Protector) Rewrap(keyFn KeyFunc) error {
+	if protector.key == nil {
+		return ErrLocked
+	}
 	wrappingKey, err := getWrappingKey(ProtectorInfo{protector.data}, keyFn, false)
 	if err != nil {
 		return err
@@ -210,16 +257,4 @@ func (protector *Protector) Rewrap(keyFn KeyFunc) error {
 	}
 
 	return protector.Context.Mount.AddProtector(protector.data)
-}
-
-// Wipe wipes a Protector's internal Key. It should always be called after using
-// a Protector. This is often done with a defer statement.
-func (protector *Protector) Wipe() error {
-	return protector.key.Wipe()
-}
-
-// Destroy removes a protector from the filesystem. The internal key should
-// still be wiped with Wipe().
-func (protector *Protector) Destroy() error {
-	return protector.Context.Mount.RemoveProtector(protector.data.ProtectorDescriptor)
 }

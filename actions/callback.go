@@ -21,10 +21,13 @@
 package actions
 
 import (
+	"log"
+
+	"github.com/pkg/errors"
+
 	"fscrypt/crypto"
 	"fscrypt/filesystem"
 	"fscrypt/metadata"
-	"log"
 )
 
 // ProtectorInfo is the information a caller will receive about a Protector
@@ -91,7 +94,8 @@ func unwrapProtectorKey(info ProtectorInfo, keyFn KeyFunc) (*crypto.Key, error) 
 
 		protectorKey, err := crypto.Unwrap(wrappingKey, info.data.WrappedKey)
 		wrappingKey.Wipe()
-		switch err {
+
+		switch errors.Cause(err) {
 		case nil:
 			log.Printf("valid wrapping key for protector %s", info.Descriptor())
 			return protectorKey, nil

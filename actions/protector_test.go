@@ -21,8 +21,9 @@ package actions
 
 import (
 	"bytes"
-	"errors"
 	"testing"
+
+	"github.com/pkg/errors"
 
 	. "fscrypt/crypto"
 )
@@ -42,31 +43,21 @@ func badCallback(info ProtectorInfo, retry bool) (*Key, error) {
 
 // Tests that we can create a valid protector.
 func TestCreateProtector(t *testing.T) {
-	ctx, err := makeContext()
-	defer cleaupContext()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	p, err := CreateProtector(ctx, testProtectorName, goodCallback)
+	p, err := CreateProtector(testContext, testProtectorName, goodCallback)
 	if err != nil {
 		t.Error(err)
 	} else {
-		p.Wipe()
+		p.Lock()
+		p.Destroy()
 	}
 }
 
 // Tests that a failure in the callback is relayed back to the caller.
 func TestBadCallback(t *testing.T) {
-	ctx, err := makeContext()
-	defer cleaupContext()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	p, err := CreateProtector(ctx, testProtectorName, badCallback)
+	p, err := CreateProtector(testContext, testProtectorName, badCallback)
 	if err == nil {
-		p.Wipe()
+		p.Lock()
+		p.Destroy()
 	}
 	if err != errCallback {
 		t.Error("callback error was not relayed back to caller")

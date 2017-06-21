@@ -1,5 +1,5 @@
 /*
- * config_test.go - tests for setting up the config file
+ * hashing_test.go - tests for computing and benchmarking hashing costs
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
@@ -22,43 +22,17 @@ package actions
 import (
 	"io/ioutil"
 	"log"
-	"os"
 	"testing"
 	"time"
 )
-
-const testTime = 10 * time.Millisecond
-
-func init() {
-	// All our testing uses an alternative config file location, so we don't
-	// need root to run the tests
-	ConfigFileLocation = "fscrypt_test.conf"
-}
-
-// Tests that we can make the config files with and without legacy settings
-func TestMakeConfig(t *testing.T) {
-	defer os.RemoveAll(ConfigFileLocation)
-
-	err := CreateConfigFile(testTime, true)
-	if err != nil {
-		t.Error(err)
-	}
-	os.RemoveAll(ConfigFileLocation)
-
-	err = CreateConfigFile(testTime, false)
-	if err != nil {
-		t.Error(err)
-	}
-}
 
 // Tests that we can find valid hashing costs for various time targets and the
 // estimations are somewhat close to the targets.
 func TestCostsSearch(t *testing.T) {
 	for _, target := range []time.Duration{
-		100 * time.Microsecond,
-		1 * time.Millisecond,
-		10 * time.Millisecond,
+		20 * time.Millisecond,
 		100 * time.Millisecond,
+		500 * time.Millisecond,
 	} {
 		costs, err := getHashingCosts(target)
 		if err != nil {
@@ -69,14 +43,11 @@ func TestCostsSearch(t *testing.T) {
 			t.Error(err)
 		}
 
-		// Timing tests are only reliable for sufficiently long targets.
-		if target > time.Millisecond {
-			if actual*2 < target {
-				t.Errorf("actual=%v is too small (target=%v)", actual, target)
-			}
-			if target*2 < actual {
-				t.Errorf("actual=%v is too big (target=%v)", actual, target)
-			}
+		if actual*2 < target {
+			t.Errorf("actual=%v is too small (target=%v)", actual, target)
+		}
+		if target*2 < actual {
+			t.Errorf("actual=%v is too big (target=%v)", actual, target)
 		}
 	}
 }

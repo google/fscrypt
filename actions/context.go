@@ -29,21 +29,22 @@
 package actions
 
 import (
-	"errors"
-	"fmt"
 	"log"
 
+	"github.com/pkg/errors"
+
+	"fscrypt/crypto"
 	"fscrypt/filesystem"
 	"fscrypt/metadata"
-	"fscrypt/util"
 )
 
 // Errors relating to Config files or Config structures.
 var (
-	ErrNoConfigFile     = fmt.Errorf("config file %q does not exist", ConfigFileLocation)
-	ErrBadConfigFile    = fmt.Errorf("config file %q has invalid data", ConfigFileLocation)
-	ErrConfigFileExists = fmt.Errorf("config file %q already exists", ConfigFileLocation)
+	ErrNoConfigFile     = errors.New("global config file does not exist")
+	ErrBadConfigFile    = errors.New("global config file has invalid data")
+	ErrConfigFileExists = errors.New("global config file already exists")
 	ErrBadConfig        = errors.New("invalid Config structure provided")
+	ErrLocked           = errors.New("method needs a call to Unlock() first")
 )
 
 // Context contains the necessary global state to perform most of fscrypt's
@@ -61,12 +62,9 @@ type Context struct {
 // success, the Context contains a valid Config and Mount.
 func NewContextFromPath(path string) (ctx *Context, err error) {
 	ctx = new(Context)
-
 	if ctx.Mount, err = filesystem.FindMount(path); err != nil {
-		err = util.UnderlyingError(err)
 		return
 	}
-
 	if ctx.Config, err = getConfig(); err != nil {
 		return
 	}
@@ -81,12 +79,9 @@ func NewContextFromPath(path string) (ctx *Context, err error) {
 // success, the Context contains a valid Config and Mount.
 func NewContextFromMountpoint(mountpoint string) (ctx *Context, err error) {
 	ctx = new(Context)
-
 	if ctx.Mount, err = filesystem.GetMount(mountpoint); err != nil {
-		err = util.UnderlyingError(err)
 		return
 	}
-
 	if ctx.Config, err = getConfig(); err != nil {
 		return
 	}
@@ -99,15 +94,29 @@ func NewContextFromMountpoint(mountpoint string) (ctx *Context, err error) {
 // checkContext verifies that the context contains an valid config and a mount
 // which is being used with fscrypt.
 func (ctx *Context) checkContext() error {
-	if !ctx.Config.IsValid() {
-		return ErrBadConfig
+	if err := ctx.Config.CheckValidity(); err != nil {
+		return errors.Wrap(ErrBadConfig, err.Error())
 	}
 	return ctx.Mount.CheckSetup()
 }
 
-// GetProtectorOption returns the ProtectorOption for the protector on the
+// getService returns the keyring service for this context. We use the presence
+// of the LegacyConfig flag to determine if we should use the legacy services
+// (which are necessary for kernels before v4.8).
+func (ctx *Context) getService() string {
+	// For legacy configurations, we may need non-standard services
+	if ctx.Config.HasCompatibilityOption(LegacyConfig) {
+		switch ctx.Mount.Filesystem {
+		case "ext4", "f2fs":
+			return ctx.Mount.Filesystem + ":"
+		}
+	}
+	return crypto.DefaultService
+}
+
+// getProtectorOption returns the ProtectorOption for the protector on the
 // context's mountpoint with the specified descriptor.
-func (ctx *Context) GetProtectorOption(protectorDescriptor string) *ProtectorOption {
+func (ctx *Context) getProtectorOption(protectorDescriptor string) *ProtectorOption {
 	mnt, data, err := ctx.Mount.GetProtector(protectorDescriptor)
 	if err != nil {
 		return &ProtectorOption{ProtectorInfo{}, nil, err}
@@ -121,9 +130,12 @@ func (ctx *Context) GetProtectorOption(protectorDescriptor string) *ProtectorOpt
 	return &ProtectorOption{info, mnt, nil}
 }
 
-// ListProtectorOptions creates a slice of all the options for all of the
-// Protectors on the Context's mountpoint.
-func (ctx *Context) ListProtectorOptions() ([]*ProtectorOption, error) {
+// ProtectorOptions creates a slice of all the options for all of the Protectors
+// on the Context's mountpoint.
+func (ctx *Context) ProtectorOptions() ([]*ProtectorOption, error) {
+	if err := ctx.checkContext(); err != nil {
+		return nil, err
+	}
 	descriptors, err := ctx.Mount.ListProtectors()
 	if err != nil {
 		return nil, err
@@ -131,18 +143,7 @@ func (ctx *Context) ListProtectorOptions() ([]*ProtectorOption, error) {
 
 	options := make([]*ProtectorOption, len(descriptors))
 	for i, descriptor := range descriptors {
-		options[i] = ctx.GetProtectorOption(descriptor)
+		options[i] = ctx.getProtectorOption(descriptor)
 	}
 	return options, nil
-}
-
-// ListOptionsForPolicy creates a slice of the ProtectorOptions which protect
-// the policy specified by policyDescriptor.
-func (ctx *Context) ListOptionsForPolicy(policyDescriptor string) ([]*ProtectorOption, error) {
-	policy, err := getPolicyData(ctx, policyDescriptor)
-	if err != nil {
-		return nil, err
-	}
-
-	return policy.listOptions(), nil
 }
