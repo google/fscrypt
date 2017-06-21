@@ -432,7 +432,8 @@ var Metadata = cli.Command{
 		(4) Changing the protector protecting a policy using the
 		"add-protector-to-policy" and "remove-protector-from-policy"
 		subcommands.`,
-	Subcommands: []cli.Command{createMetadata, destoryMetadata, changePassphrase, dumpMetadata},
+	Subcommands: []cli.Command{createMetadata, destoryMetadata, changePassphrase,
+		addProtectorToPolicy, removeProtectorFromPolicy, dumpMetadata},
 }
 
 var createMetadata = cli.Command{
@@ -677,6 +678,110 @@ func changePassphraseAction(c *cli.Context) error {
 
 	fmt.Fprintf(c.App.Writer, "Passphrase for protector %s successfully changed.\n",
 		protector.Descriptor())
+	return nil
+}
+
+var addProtectorToPolicy = cli.Command{
+	Name:      "add-protector-to-policy",
+	ArgsUsage: fmt.Sprintf("%s %s", shortDisplay(protectorFlag), shortDisplay(policyFlag)),
+	Usage:     "start protecting a policy with some protector",
+	Description: `This command changes the specified policy to be
+		protected with the specified protector. This means that any
+		directories using this policy will now be accessible with this
+		protector. This command will fail if the policy is already
+		protected with this protector.`,
+	Flags:  []cli.Flag{protectorFlag, policyFlag, unlockWithFlag, keyFileFlag},
+	Action: addProtectorAction,
+}
+
+func addProtectorAction(c *cli.Context) error {
+	if c.NArg() != 0 {
+		return expectedArgsErr(c, 0, false)
+	}
+	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag, policyFlag}); err != nil {
+		return err
+	}
+
+	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	policy, err := getPolicyFromFlag(policyFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	// Sanity check before unlocking everything
+	if err := policy.AddProtector(protector); errors.Cause(err) != actions.ErrLocked {
+		return newExitError(c, err)
+	}
+
+	prompt := fmt.Sprintf("Protect policy %s with protector %s?",
+		policy.Descriptor(), protector.Descriptor())
+	warning := "All files using this policy will be accessible with this protector!!"
+	if err := askConfirmation(prompt, true, warning); err != nil {
+		return newExitError(c, err)
+	}
+
+	if err := protector.Unlock(existingKeyFn); err != nil {
+		return newExitError(c, err)
+	}
+	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
+		return newExitError(c, err)
+	}
+	if err := policy.AddProtector(protector); err != nil {
+		return newExitError(c, err)
+	}
+
+	fmt.Fprintf(c.App.Writer, "Protector %s now protecting policy %s.\n",
+		protector.Descriptor(), policy.Descriptor())
+	return nil
+}
+
+var removeProtectorFromPolicy = cli.Command{
+	Name:      "remove-protector-from-policy",
+	ArgsUsage: fmt.Sprintf("%s %s", shortDisplay(protectorFlag), shortDisplay(policyFlag)),
+	Usage:     "stop protecting a policy with some protector",
+	Description: `This command changes the specified policy to no longer be
+		protected with the specified protector. This means that any
+		directories using this policy will cannot be accessed with this
+		protector. This command will fail if the policy not already
+		protected with this protector or if it is the policy's only
+		protector.`,
+	Flags:  []cli.Flag{protectorFlag, policyFlag, forceFlag},
+	Action: removeProtectorAction,
+}
+
+func removeProtectorAction(c *cli.Context) error {
+	if c.NArg() != 0 {
+		return expectedArgsErr(c, 0, false)
+	}
+	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag, policyFlag}); err != nil {
+		return err
+	}
+
+	// We do not need to unlock anything for this operation
+	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	policy, err := getPolicyFromFlag(policyFlag.Value)
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	prompt := fmt.Sprintf("Stop protecting policy %s with protector %s?",
+		policy.Descriptor(), protector.Descriptor())
+	warning := "All files using this policy will NO LONGER be accessible with this protector!!"
+	if err := askConfirmation(prompt, false, warning); err != nil {
+		return newExitError(c, err)
+	}
+
+	if err := policy.RemoveProtector(protector); err != nil {
+		return newExitError(c, err)
+	}
+
+	fmt.Fprintf(c.App.Writer, "Protector %s no longer protecting policy %s.\n",
+		protector.Descriptor(), policy.Descriptor())
 	return nil
 }
 
