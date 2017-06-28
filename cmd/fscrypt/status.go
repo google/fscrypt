@@ -29,9 +29,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"fscrypt/actions"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
 )
 
 // Creates a writer which correctly aligns tabs with the specified header.

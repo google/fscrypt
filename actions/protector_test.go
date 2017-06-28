@@ -25,7 +25,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	. "fscrypt/crypto"
+	"github.com/google/fscrypt/crypto"
 )
 
 const testProtectorName = "my favorite protector"
@@ -33,11 +33,11 @@ const testProtectorName2 = testProtectorName + "2"
 
 var errCallback = errors.New("bad callback")
 
-func goodCallback(info ProtectorInfo, retry bool) (*Key, error) {
-	return NewFixedLengthKeyFromReader(bytes.NewReader(timingPassphrase), len(timingPassphrase))
+func goodCallback(info ProtectorInfo, retry bool) (*crypto.Key, error) {
+	return crypto.NewFixedLengthKeyFromReader(bytes.NewReader(timingPassphrase), len(timingPassphrase))
 }
 
-func badCallback(info ProtectorInfo, retry bool) (*Key, error) {
+func badCallback(info ProtectorInfo, retry bool) (*crypto.Key, error) {
 	return nil, errCallback
 }
 

@@ -28,12 +28,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	"golang.org/x/sys/unix"
 
-	"fscrypt/crypto"
-	"fscrypt/metadata"
-	"fscrypt/util"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // LegacyConfig indicates that keys should be inserted into the keyring with the

@@ -28,9 +28,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
-	"fscrypt/actions"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
 )
 
 // Setup is a command which can to global or per-filesystem initialization.

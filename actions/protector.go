@@ -26,8 +26,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"fscrypt/crypto"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/metadata"
 )
 
 // Errors relating to Protectors

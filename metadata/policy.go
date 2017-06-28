@@ -30,7 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	"fscrypt/util"
+	"github.com/google/fscrypt/util"
 )
 
 // Encryption specific errors

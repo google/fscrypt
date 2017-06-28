@@ -25,9 +25,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"fscrypt/crypto"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
 )
 
 // ProtectorInfo is the information a caller will receive about a Protector

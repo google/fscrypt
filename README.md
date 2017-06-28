@@ -4,7 +4,7 @@ fscrypt is a high-level tool [written in Go](https://golang.org) for the
 management of [Linux filesystem encryption](https://lwn.net/Articles/639427).
 This tool manages metadata, key generation, key wrapping, PAM integration, and
 provides a uniform interface for creating and modifying encrypted directories.
-For a small low-level tool that directly manipulates keys and policies, see
+For a small low-level tool that directly sets policies, see
 [fscryptctl](https://github.com/google/fscryptctl).
 
 To use fscrypt, you must have a filesystem with encryption enabled and a
@@ -36,7 +36,7 @@ filesystem metadata) is encrypted with this single key when using dm-crypt,
 while fscrypt only encrypts the filenames and file contents in a specified
 directory. Note that using both dm-crypt and fscrypt simultaneously will give
 the protections and benefits of both; however, this may cause a decrease in
-your performance, as files contents are encrypted twice.
+your performance, as file contents are encrypted twice.
 
 Once example of a reasonable setup could involve using dm-crypt with a TPM or
 Secure boot key, while using fscrypt for the contents of a home directory. This
@@ -45,7 +45,7 @@ user's personal documents to their passphrase.
 
 On the other hand, eCryptfs is another form of filesystem encryption on Linux;
 it encrypts a filesystem directory with some key or passphrase. eCryptfs sits on
-top of an existing filesystem. This make eCryptfs an alternative choice if your
+top of an existing filesystem. This makes eCryptfs an alternative choice if your
 filesystem or kernel does not support native filesystem encryption.
 
 Also note that fscrypt does not support or setup either eCryptfs or dm-crypt.
@@ -63,7 +63,7 @@ should be read to understand the full architecture of fscrypt.
 
 Briefly, fscrypt deals with protectors and policies. Protectors represent some
 secret or information used to protect the confidentiality of your data. The
-three currently supported protectors types are:
+three currently supported protector types are:
 1. Your login passphrase, through
     [PAM](http://www.linux-pam.org/Linux-PAM-html/) (see troubleshooting below)
 2. A custom passphrase
@@ -93,39 +93,25 @@ The following functionality is planned:
 *   `fscrypt backup` - Manages backups of the fscrypt metadata
 *   `fscrypt recovery` - Manages recovery keys for directories
 *   `fscrypt cleanup` - Scans filesystem for unused policies/protectors
-*   A PAM module to support changing of login passphrase
+*   A PAM module to support login passphrase changes (see below)
 
 See the example usage section below or run `fscrypt COMMAND --help` for more
 information about each of the commands.
 
 ## Building
 
-### Release build instructions
-
 fscrypt is written in Go, so to build the program you will need to
 [setup Go](https://golang.org/doc/install),
 [setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH), and clone the
 repository into the correct location by running:
 ```shell
-go get -u github.com/google/fscrypt
+go get github.com/google/fscrypt
 ```
 Alternatively, just copy or checkout the source into
 `$GOPATH/src/github.com/google/fscrypt` and run:
 ```shell
 go build github.com/google/fscrypt
 ```
-
-### Pre-release build instructions
-<!-- TODO(joerichey) remove these before release -->
-fscrypt is written in Go, so to build the program you will need to
-[setup Go](https://golang.org/doc/install),
-[setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH), and clone the
-repository into the correct location by running
-```shell
-git clone REPOSITORY $GOPATH/fscrypt
-```
-or by unpacking a source tar file into `$GOPATH/fscrypt`.
-
 You will also want to add `$GOPATH/bin` to your `$PATH`.
 
 fscrypt has the following build dependencies:
@@ -150,8 +136,8 @@ fscrypt has the following build dependencies:
 
 Once this is setup, you can run `make fscrypt` to build the executable in the
 current directory. See the `Makefile` for instructions on building a static
-executable. If a Go project contains C code, the go compiler produces a
-dynamically linked binary by default.
+executable. The C libraries used by fscrypt will be dynamically linked by
+default.
 
 ## Running and Installing
 
@@ -166,6 +152,14 @@ fscrypt has the following runtime dependencies:
 Installing it just requires placing it in your path or running `make install`.
 Change `$GOBIN` to change the install location of fscrypt. By default,
 fscrypt is installed to `$GOPATH/bin`.
+
+## Note about stability
+fscrypt follows [semantic versioning](http://semver.org). As such, all versions
+below `1.0.0` should be considered development versions. This means no
+guarantees are make about the stability of APIs or formats of config files. As
+the on-disk metadata structures use
+[Protocol Buffers](https://github.com/google/protobuf), we don't expect to break
+backwards compatibility for metadata, but we give no guarantees.
 
 ## Example Usage
 
@@ -515,7 +509,7 @@ running:
 fscrypt metadata change-passphrase --protector=MOUNTPOINT:ID
 ```
 
-#### I can still see Files/Filenames after running `fscrypt purge MOUNTPOINT`
+#### I can still see files or filenames after running `fscrypt purge MOUNTPOINT`
 
 You need to unmount `MOUNTPOINT` to clear the necessary caches. See
 `fscrypt purge --help` for more information

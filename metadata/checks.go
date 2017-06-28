@@ -23,7 +23,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
-	"fscrypt/util"
+	"github.com/google/fscrypt/util"
 )
 
 var errNotInitialized = errors.New("not initialized")

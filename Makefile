@@ -25,7 +25,7 @@ VERSION = 0.1.0
 BUILD_TIME = $(shell date)
 
 CFLAGS += -O2 -Wall
-CMD_DIR = $(NAME)/cmd/$(NAME)
+CMD_DIR = github.com/google/$(NAME)/cmd/$(NAME)
 
 # The code below lets the caller of the makefile change the build flags for
 # fscrypt in a familiar manner. For example, to force the program to statically
@@ -75,7 +75,7 @@ format:
 	@find . -name "*.h" -o -name "*.c" -not -path "./vendor/*" | xargs clang-format -i -style=Google
 
 install:
-	go install $(CMD_DIR)
+	go install $(GOFLAGS) $(CMD_DIR)
 
 install_all:
 	govendor install $(GOFLAGS) +local

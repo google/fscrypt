@@ -31,10 +31,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
-	"fscrypt/actions"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
-	"fscrypt/util"
+	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // failureExitCode is the value fscrypt will return on failure.

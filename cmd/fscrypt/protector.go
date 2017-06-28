@@ -23,9 +23,9 @@ package main
 import (
 	"log"
 
-	"fscrypt/actions"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
 )
 
 // createProtector makes a new protector on either ctx.Mount or if the requested

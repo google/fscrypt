@@ -21,12 +21,13 @@ package actions
 
 import (
 	"fmt"
-	"fscrypt/util"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/google/fscrypt/util"
 )
 
 const testTime = 10 * time.Millisecond

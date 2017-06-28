@@ -25,7 +25,7 @@ import (
 	"io"
 	"os"
 
-	"fscrypt/actions"
+	"github.com/google/fscrypt/actions"
 )
 
 // createGlobalConfig creates (or overwrites) the global config file

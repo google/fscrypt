@@ -27,43 +27,43 @@ import (
 
 	"github.com/pkg/errors"
 
-	. "fscrypt/crypto"
-	. "fscrypt/metadata"
-	. "fscrypt/util"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 var (
-	fakeProtectorKey, _    = NewRandomKey(InternalKeyLen)
-	fakePolicyKey, _       = NewRandomKey(PolicyKeyLen)
-	wrappedProtectorKey, _ = Wrap(fakeProtectorKey, fakeProtectorKey)
-	wrappedPolicyKey, _    = Wrap(fakeProtectorKey, fakePolicyKey)
+	fakeProtectorKey, _    = crypto.NewRandomKey(metadata.InternalKeyLen)
+	fakePolicyKey, _       = crypto.NewRandomKey(metadata.PolicyKeyLen)
+	wrappedProtectorKey, _ = crypto.Wrap(fakeProtectorKey, fakeProtectorKey)
+	wrappedPolicyKey, _    = crypto.Wrap(fakeProtectorKey, fakePolicyKey)
 )
 
 // Gets the mount corresponding to the integration test path.
 func getTestMount() (*Mount, error) {
-	mountpoint, err := TestPath()
+	mountpoint, err := util.TestPath()
 	if err != nil {
 		return nil, err
 	}
 	mnt, err := GetMount(mountpoint)
-	return mnt, errors.Wrapf(err, TestEnvVarName)
+	return mnt, errors.Wrapf(err, util.TestEnvVarName)
 }
 
-func getFakeProtector() *ProtectorData {
-	return &ProtectorData{
+func getFakeProtector() *metadata.ProtectorData {
+	return &metadata.ProtectorData{
 		ProtectorDescriptor: "fedcba9876543210",
 		Name:                "goodProtector",
-		Source:              SourceType_raw_key,
+		Source:              metadata.SourceType_raw_key,
 		WrappedKey:          wrappedProtectorKey,
 	}
 }
 
-func getFakePolicy() *PolicyData {
-	return &PolicyData{
+func getFakePolicy() *metadata.PolicyData {
+	return &metadata.PolicyData{
 		KeyDescriptor: "0123456789abcdef",
-		Options:       DefaultOptions,
-		WrappedPolicyKeys: []*WrappedPolicyKey{
-			&WrappedPolicyKey{
+		Options:       metadata.DefaultOptions,
+		WrappedPolicyKeys: []*metadata.WrappedPolicyKey{
+			&metadata.WrappedPolicyKey{
 				ProtectorDescriptor: "fedcba9876543210",
 				WrappedKey:          wrappedPolicyKey,
 			},
@@ -124,15 +124,15 @@ func TestAddProtector(t *testing.T) {
 	}
 
 	// Change the source to bad one, or one that requires hashing costs
-	protector.Source = SourceType_default
+	protector.Source = metadata.SourceType_default
 	if mnt.AddProtector(protector) == nil {
 		t.Error("bad source for a descriptor should make metadata invalid")
 	}
-	protector.Source = SourceType_custom_passphrase
+	protector.Source = metadata.SourceType_custom_passphrase
 	if mnt.AddProtector(protector) == nil {
 		t.Error("protectors using passphrases should require hashing costs")
 	}
-	protector.Source = SourceType_raw_key
+	protector.Source = metadata.SourceType_raw_key
 
 	// Use a bad wrapped key
 	protector.WrappedKey = wrappedPolicyKey
@@ -168,11 +168,11 @@ func TestAddPolicy(t *testing.T) {
 		t.Error("padding not a power of 2 should make metadata invalid")
 	}
 	policy.Options.Padding = 16
-	policy.Options.Filenames = EncryptionOptions_default
+	policy.Options.Filenames = metadata.EncryptionOptions_default
 	if mnt.AddPolicy(policy) == nil {
 		t.Error("encryption mode not set should make metadata invalid")
 	}
-	policy.Options.Filenames = EncryptionOptions_AES_256_CTS
+	policy.Options.Filenames = metadata.EncryptionOptions_AES_256_CTS
 
 	// Use a bad wrapped key
 	policy.WrappedPolicyKeys[0].WrappedKey = wrappedProtectorKey

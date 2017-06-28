@@ -44,8 +44,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
-	"fscrypt/metadata"
-	"fscrypt/util"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Filesystem error values

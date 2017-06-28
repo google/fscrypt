@@ -51,8 +51,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/hkdf"
 
-	"fscrypt/metadata"
-	"fscrypt/util"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Crypto error values

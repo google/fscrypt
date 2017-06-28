@@ -37,8 +37,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"fscrypt/crypto"
-	"fscrypt/util"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/util"
 )
 
 // Global state is needed for the PAM callback, so we guard this function with a

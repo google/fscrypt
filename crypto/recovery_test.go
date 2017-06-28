@@ -23,8 +23,9 @@ package crypto
 import (
 	"bytes"
 	"fmt"
-	"fscrypt/metadata"
 	"testing"
+
+	"github.com/google/fscrypt/metadata"
 )
 
 const fakeSecretRecoveryCode = "EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJRG-EYTCMJQ="

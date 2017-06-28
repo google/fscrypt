@@ -30,7 +30,7 @@ import (
 	"os"
 	"testing"
 
-	. "fscrypt/metadata"
+	"github.com/google/fscrypt/metadata"
 )
 
 // Reader that always returns the same byte
@@ -50,12 +50,12 @@ func makeKey(b byte, n int) (*Key, error) {
 
 var fakeValidDescriptor = "0123456789abcdef"
 var fakeInvalidDescriptor = "123456789abcdef"
-var fakeSalt = bytes.Repeat([]byte{'a'}, SaltLen)
+var fakeSalt = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
 var fakePassword = []byte("password")
 
-var fakeValidPolicyKey, _ = makeKey(42, PolicyKeyLen)
-var fakeInvalidPolicyKey, _ = makeKey(42, PolicyKeyLen-1)
-var fakeWrappingKey, _ = makeKey(17, InternalKeyLen)
+var fakeValidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen)
+var fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
+var fakeWrappingKey, _ = makeKey(17, metadata.InternalKeyLen)
 
 // As the passpharase hashing function clears the passphrase, we need to make
 // a new passphrase key for each test
@@ -68,25 +68,25 @@ func fakePassphraseKey() (*Key, error) {
 //    echo "password" | argon2 "aaaaaaaaaaaaaaaa" -id -t <t> -m <m> -p <p> -l 32
 // where costs.Time = <t>, costs.Memory = 2^<m>, and costs.Parallelism = <p>.
 type hashTestCase struct {
-	costs   *HashingCosts
+	costs   *metadata.HashingCosts
 	hexHash string
 }
 
 var hashTestCases = []hashTestCase{
 	{
-		costs:   &HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1},
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1},
 		hexHash: "a66f5398e33761bf161fdf1273e99b148f07d88d12d85b7673fddd723f95ec34",
 	},
 	{
-		costs:   &HashingCosts{Time: 10, Memory: 1 << 10, Parallelism: 1},
+		costs:   &metadata.HashingCosts{Time: 10, Memory: 1 << 10, Parallelism: 1},
 		hexHash: "5fa2cb89db1f7413ba1776258b7c8ee8c377d122078d28fe1fd645c353787f50",
 	},
 	{
-		costs:   &HashingCosts{Time: 1, Memory: 1 << 15, Parallelism: 1},
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 15, Parallelism: 1},
 		hexHash: "f474a213ed14d16ead619568000939b938ddfbd2ac4a82d253afa81b5ebaef84",
 	},
 	{
-		costs:   &HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 10},
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 10},
 		hexHash: "b7c3d7a0be222680b5ea3af3fb1a0b7b02b92cbd7007821dc8b84800c86c7783",
 	},
 }
@@ -167,7 +167,7 @@ func TestZeroLength(t *testing.T) {
 // active when the variable changes.
 func TestEnableDisableMemoryLocking(t *testing.T) {
 	// Mlock on for creation, off for wiping
-	key, err := NewRandomKey(InternalKeyLen)
+	key, err := NewRandomKey(metadata.InternalKeyLen)
 	UseMlock = false
 	defer func() {
 		UseMlock = true
@@ -186,7 +186,7 @@ func TestEnableDisableMemoryLocking(t *testing.T) {
 func TestDisableEnableMemoryLocking(t *testing.T) {
 	// Mlock off for creation, on for wiping
 	UseMlock = false
-	key2, err := NewRandomKey(InternalKeyLen)
+	key2, err := NewRandomKey(metadata.InternalKeyLen)
 	UseMlock = true
 
 	if err != nil {
@@ -332,7 +332,7 @@ func TestWrapSucceeds(t *testing.T) {
 	if err = lengthCheck("IV", data.IV, aes.BlockSize); err != nil {
 		t.Error(err)
 	}
-	if err = lengthCheck("Encrypted Key", data.EncryptedKey, PolicyKeyLen); err != nil {
+	if err = lengthCheck("Encrypted Key", data.EncryptedKey, metadata.PolicyKeyLen); err != nil {
 		t.Error(err)
 	}
 	if err = lengthCheck("HMAC", data.Hmac, sha256.Size); err != nil {
@@ -370,11 +370,11 @@ func TestWrapUnwrapEqual(t *testing.T) {
 // Check that Unwrap(Wrap(x)) == x with random keys
 func TestRandomWrapUnwrapEqual(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		wk, err := NewRandomKey(InternalKeyLen)
+		wk, err := NewRandomKey(metadata.InternalKeyLen)
 		if err != nil {
 			t.Fatal(err)
 		}
-		sk, err := NewRandomKey(InternalKeyLen)
+		sk, err := NewRandomKey(metadata.InternalKeyLen)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -388,7 +388,7 @@ func TestRandomWrapUnwrapEqual(t *testing.T) {
 
 // Check that Unwrap(Wrap(x)) == x with differing lengths of secret key
 func TestDifferentLengthSecretKey(t *testing.T) {
-	wk, err := makeKey(1, InternalKeyLen)
+	wk, err := makeKey(1, metadata.InternalKeyLen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +430,7 @@ func TestWrapTwiceDistinct(t *testing.T) {
 }
 
 // Attempts to Unwrap data with key after altering tweek, should fail
-func testFailWithTweek(key *Key, data *WrappedKeyData, tweek []byte) error {
+func testFailWithTweek(key *Key, data *metadata.WrappedKeyData, tweek []byte) error {
 	tweek[0]++
 	key, err := Unwrap(key, data)
 	if err == nil {
@@ -578,8 +578,8 @@ func BenchmarkUnwrapNolock(b *testing.B) {
 
 func BenchmarkRandomWrapUnwrap(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		wk, _ := NewRandomKey(InternalKeyLen)
-		sk, _ := NewRandomKey(InternalKeyLen)
+		wk, _ := NewRandomKey(metadata.InternalKeyLen)
+		sk, _ := NewRandomKey(metadata.InternalKeyLen)
 
 		testWrapUnwrapEqual(wk, sk)
 		// Must manually call wipe here, or test will use too much memory.
@@ -588,7 +588,7 @@ func BenchmarkRandomWrapUnwrap(b *testing.B) {
 	}
 }
 
-func benchmarkPassphraseHashing(b *testing.B, costs *HashingCosts) {
+func benchmarkPassphraseHashing(b *testing.B, costs *metadata.HashingCosts) {
 	b.StopTimer()
 
 	pk, err := fakePassphraseKey()
@@ -609,25 +609,25 @@ func benchmarkPassphraseHashing(b *testing.B, costs *HashingCosts) {
 
 func BenchmarkPassphraseHashing_1MB_1Thread(b *testing.B) {
 	benchmarkPassphraseHashing(b,
-		&HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1})
+		&metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1})
 }
 
 func BenchmarkPassphraseHashing_1GB_1Thread(b *testing.B) {
 	benchmarkPassphraseHashing(b,
-		&HashingCosts{Time: 1, Memory: 1 << 20, Parallelism: 1})
+		&metadata.HashingCosts{Time: 1, Memory: 1 << 20, Parallelism: 1})
 }
 
 func BenchmarkPassphraseHashing_128MB_1Thread(b *testing.B) {
 	benchmarkPassphraseHashing(b,
-		&HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 1})
+		&metadata.HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 1})
 }
 
 func BenchmarkPassphraseHashing_128MB_8Thread(b *testing.B) {
 	benchmarkPassphraseHashing(b,
-		&HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 8})
+		&metadata.HashingCosts{Time: 1, Memory: 1 << 17, Parallelism: 8})
 }
 
 func BenchmarkPassphraseHashing_128MB_8Pass(b *testing.B) {
 	benchmarkPassphraseHashing(b,
-		&HashingCosts{Time: 8, Memory: 1 << 17, Parallelism: 1})
+		&metadata.HashingCosts{Time: 8, Memory: 1 << 17, Parallelism: 1})
 }

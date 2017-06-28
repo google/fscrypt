@@ -28,8 +28,8 @@ import (
 	"strconv"
 	"strings"
 
-	"fscrypt/actions"
-	"fscrypt/metadata"
+	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/metadata"
 )
 
 const (

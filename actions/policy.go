@@ -26,10 +26,10 @@ import (
 
 	"github.com/pkg/errors"
 
-	"fscrypt/crypto"
-	"fscrypt/filesystem"
-	"fscrypt/metadata"
-	"fscrypt/util"
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Errors relating to Policies

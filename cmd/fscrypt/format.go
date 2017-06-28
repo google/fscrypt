@@ -32,7 +32,7 @@ import (
 	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"fscrypt/util"
+	"github.com/google/fscrypt/util"
 )
 
 var (

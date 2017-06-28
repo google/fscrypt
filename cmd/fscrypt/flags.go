@@ -24,13 +24,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"fscrypt/actions"
 	"log"
 	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/urfave/cli"
+
+	"github.com/google/fscrypt/actions"
 )
 
 // We define the types boolFlag, durationFlag, and stringFlag here instead of
