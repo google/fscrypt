@@ -1,7 +1,11 @@
 # fscrypt
 
-fscrypt is a high-level tool [written in Go](https://golang.org) for the
-management of [Linux filesystem encryption](https://lwn.net/Articles/639427).
+[![Go project version](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt.svg)](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt)
+[![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
+[![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
+
+fscrypt is a high-level tool for the management of
+[Linux filesystem encryption](https://lwn.net/Articles/639427).
 This tool manages metadata, key generation, key wrapping, PAM integration, and
 provides a uniform interface for creating and modifying encrypted directories.
 For a small low-level tool that directly sets policies, see
@@ -15,9 +19,10 @@ kernel that supports reading/writing from that filesystem. Currently,
 encryption. Ext4 has supported Linux filesystem encryption
 [since v4.1](https://lwn.net/Articles/639427), F2FS
 [added support in v4.2](https://lwn.net/Articles/649652), and UBIFS
-[added support in v4.10](https://lwn.net/Articles/707900). Note that only
-certain configurations of the Linux kernel enable encryption, and other
-filesystems may add support for encryption.
+[added support in v4.10](https://lwn.net/Articles/707900). Other filesystems
+may add support for native encryption in the future. Filesystems may
+additionally require certain kernel configuration options to be set to use
+native encryption.
 
 Most of the testing for fscrypt has been done with ext4 filesystems. However,
 the kernel uses a common userspace interface, so this tool should work with all
@@ -58,14 +63,13 @@ eCryptfs or [cryptsetup](https://linux.die.net/man/8/cryptsetup) for dm-crypt.
 fscrypt is intended to improve upon the work in
 [e4crypt](http://man7.org/linux/man-pages/man8/e4crypt.8.html) by providing a
 more managed environment and handling more functionality in the
-background. fscrypt has a [design document](https://goo.gl/55cCrI) which
-should be read to understand the full architecture of fscrypt.
+background. fscrypt has a [design document](https://goo.gl/55cCrI) specifying
+the full architecture of fscrypt.
 
 Briefly, fscrypt deals with protectors and policies. Protectors represent some
 secret or information used to protect the confidentiality of your data. The
 three currently supported protector types are:
-1. Your login passphrase, through
-    [PAM](http://www.linux-pam.org/Linux-PAM-html/) (see troubleshooting below)
+1. Your login passphrase, through [PAM](http://www.linux-pam.org/Linux-PAM-html)
 2. A custom passphrase
 3. A raw key file
 
@@ -79,7 +83,7 @@ enough to get the policy key and access the data. Which protectors protect a
 policy can also be changed. This allows a user to change how a directory is
 protected without needing to reencrypt the directory's contents.
 
-Specifically, fscrypt contains the following functionality:
+Concretely, fscrypt contains the following functionality:
 *   `fscrypt setup` - Initializes the `fscrypt.conf` file
     * This is the only functionality which requires root privileges
 *   `fscrypt setup MOUNTPOINT` - Gets a filesystem ready for use with fscrypt
@@ -105,14 +109,14 @@ fscrypt is written in Go, so to build the program you will need to
 [setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH), and clone the
 repository into the correct location by running:
 ```shell
-go get github.com/google/fscrypt
+go get -d github.com/google/fscrypt
 ```
 Alternatively, just copy or checkout the source into
-`$GOPATH/src/github.com/google/fscrypt` and run:
+`$GOPATH/src/github.com/google/fscrypt`. If you only want to install the fscrypt
+binary to `$GOPATH/bin`, it is enough to run:
 ```shell
-go build github.com/google/fscrypt
+go get github.com/google/fscrypt/cmd/fscrypt
 ```
-You will also want to add `$GOPATH/bin` to your `$PATH`.
 
 fscrypt has the following build dependencies:
 *   `make`
@@ -130,9 +134,9 @@ fscrypt has the following build dependencies:
 *   Headers for `libblkid` (specifically `blkid/blkid.h`) and `libpam`
     (specifically `security/pam_appl.h`). These can be installed with your
     appropriate package manager.
-        - `sudo apt-get install libblkid-dev libpam0g-dev`
-        - `sudo yum install libblkid-devel pam-devel`
-        - `pam` and `util-liux` packages for Arch
+    - `sudo apt-get install libblkid-dev libpam0g-dev`
+    - `sudo yum install libblkid-devel pam-devel`
+    - `pam` and `util-liux` packages for Arch
 
 Once this is setup, you can run `make fscrypt` to build the executable in the
 current directory. See the `Makefile` for instructions on building a static
@@ -163,7 +167,7 @@ backwards compatibility for metadata, but we give no guarantees.
 
 ## Example Usage
 
-All these examples assumes we have ext4 filesystems mounted at `/` and
+All these examples assume we have ext4 filesystems mounted at `/` and
 `/mnt/disk` which both support encryption and that `/mnt/disk` contains
 directories we want to encrypt.
 
@@ -498,6 +502,10 @@ We would love to accept your contributions to fscrypt. See the
 a pull request.
 
 ## Troubleshooting
+
+In general, if you are encountering issues with fscrypt,
+[open an issue](https://github.com/google/fscrypt/issues/new). We will try our
+best to help.
 
 #### I changed my login passphrase, now all my directories are inaccessible
 
