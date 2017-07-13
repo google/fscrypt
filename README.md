@@ -1,5 +1,9 @@
 # fscrypt
 
+[![Go project version](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt.svg)](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt)
+[![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
+[![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
+
 fscrypt is a high-level tool for the management of
 [Linux filesystem encryption](https://lwn.net/Articles/639427).
 This tool manages metadata, key generation, key wrapping, PAM integration, and
