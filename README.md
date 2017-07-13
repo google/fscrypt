@@ -1,6 +1,6 @@
 # fscrypt
 
-[![Go project version](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt.svg)](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt)
+[![GitHub version](https://badge.fury.io/gh/google%2Ffscrypt.svg)](https://github.com/google/fscrypt/releases)
 [![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
 
