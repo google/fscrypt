@@ -134,15 +134,14 @@ func encryptPath(path string) (err error) {
 	} else {
 		log.Printf("creating policy for %q", path)
 
-		var protector *actions.Protector
-		protector, err = selectOrCreateProtector(ctx)
+		protector, created, protErr := selectOrCreateProtector(ctx)
 		// Successfully created protector should be reverted on failure.
-		if err != nil {
-			return
+		if protErr != nil {
+			return protErr
 		}
 		defer func() {
 			protector.Lock()
-			if err != nil {
+			if err != nil && created {
 				protector.Revert()
 			}
 		}()
@@ -158,8 +157,8 @@ func encryptPath(path string) (err error) {
 	}
 	defer func() {
 		policy.Lock()
-		policy.Deprovision()
 		if err != nil {
+			policy.Deprovision()
 			policy.Revert()
 		}
 	}()
@@ -213,34 +212,38 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 }
 
 // selectOrCreateProtector uses user input (or flags) to either create a new
-// protector or select and existing one. The created return value is true if we
+// protector or select and existing one. The boolean return value is true if we
 // created a new protector.
-func selectOrCreateProtector(ctx *actions.Context) (*actions.Protector, error) {
+func selectOrCreateProtector(ctx *actions.Context) (*actions.Protector, bool, error) {
 	if protectorFlag.Value != "" {
-		return getProtectorFromFlag(protectorFlag.Value)
+		protector, err := getProtectorFromFlag(protectorFlag.Value)
+		return protector, false, err
 	}
 
 	options, err := expandedProtectorOptions(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Having no existing options to choose from or using creation-only
 	// flags indicates we should make a new protector.
 	if len(options) == 0 || nameFlag.Value != "" || sourceFlag.Value != "" {
-		return createProtectorFromContext(ctx)
+		protector, err := createProtectorFromContext(ctx)
+		return protector, true, err
 	}
 
-	created, err := askQuestion("Should we create a new protector?", false)
+	shouldCreate, err := askQuestion("Should we create a new protector?", false)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if created {
-		return createProtectorFromContext(ctx)
+	if shouldCreate {
+		protector, err := createProtectorFromContext(ctx)
+		return protector, true, err
 	}
 
 	log.Print("finding an existing protector to use")
-	return selectExistingProtector(ctx, options)
+	protector, err := selectExistingProtector(ctx, options)
+	return protector, false, err
 }
 
 // Unlock takes an encrypted directory and unlocks it for reading and writing.
