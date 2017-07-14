@@ -237,27 +237,36 @@ func TestKeyLargeResize(t *testing.T) {
 // Adds and removes a key with various services.
 func TestAddRemoveKeys(t *testing.T) {
 	for _, service := range []string{DefaultService, "ext4:", "f2fs:"} {
-		if err := InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, service); err != nil {
+		validDescription := service + fakeValidDescriptor
+		if err := InsertPolicyKey(fakeValidPolicyKey, validDescription); err != nil {
 			t.Error(err)
 		}
-		if err := RemovePolicyKey(fakeValidDescriptor, service); err != nil {
+		if err := RemovePolicyKey(validDescription); err != nil {
 			t.Error(err)
 		}
 	}
 }
 
-// Makes sure a key fails with bad descriptor, policy, or service
+// Adds a key twice (both should succeed)
+func TestAddTwice(t *testing.T) {
+	validDescription := DefaultService + fakeValidDescriptor
+	InsertPolicyKey(fakeValidPolicyKey, validDescription)
+	if InsertPolicyKey(fakeValidPolicyKey, validDescription) != nil {
+		t.Error("InsertPolicyKey should not fail if key already exists")
+	}
+	RemovePolicyKey(validDescription)
+}
+
+// Makes sure a key fails with bad policy or service
 func TestBadAddKeys(t *testing.T) {
-	if InsertPolicyKey(fakeInvalidPolicyKey, fakeValidDescriptor, DefaultService) == nil {
-		RemovePolicyKey(fakeValidDescriptor, DefaultService)
+	validDescription := DefaultService + fakeValidDescriptor
+	if InsertPolicyKey(fakeInvalidPolicyKey, validDescription) == nil {
+		RemovePolicyKey(validDescription)
 		t.Error("InsertPolicyKey should fail with bad policy key")
 	}
-	if InsertPolicyKey(fakeValidPolicyKey, fakeInvalidDescriptor, DefaultService) == nil {
-		RemovePolicyKey(fakeInvalidDescriptor, DefaultService)
-		t.Error("InsertPolicyKey should fail with bad descriptor")
-	}
-	if InsertPolicyKey(fakeValidPolicyKey, fakeValidDescriptor, "ext4") == nil {
-		RemovePolicyKey(fakeValidDescriptor, "ext4")
+	invalidDescription := "ext4" + fakeValidDescriptor
+	if InsertPolicyKey(fakeValidPolicyKey, invalidDescription) == nil {
+		RemovePolicyKey(invalidDescription)
 		t.Error("InsertPolicyKey should fail with bad service")
 	}
 }

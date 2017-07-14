@@ -56,7 +56,7 @@ func PurgeAllPolicies(ctx *Context) error {
 
 	for _, policyDescriptor := range policies {
 		service := ctx.getService()
-		err = crypto.RemovePolicyKey(policyDescriptor, service)
+		err = crypto.RemovePolicyKey(service + policyDescriptor)
 
 		switch errors.Cause(err) {
 		case nil, crypto.ErrKeyringSearch:
@@ -186,6 +186,12 @@ func (policy *Policy) ProtectorDescriptors() []string {
 // Descriptor returns the key descriptor for this policy.
 func (policy *Policy) Descriptor() string {
 	return policy.data.KeyDescriptor
+}
+
+// Description returns the description that will be used when the key for this
+// Policy is inserted into the keyring
+func (policy *Policy) Description() string {
+	return policy.Context.getService() + policy.Descriptor()
 }
 
 // Destroy removes a policy from the filesystem. The internal key should still
@@ -339,7 +345,7 @@ func (policy *Policy) Apply(path string) error {
 // IsProvisioned returns a boolean indicating if the policy has its key in the
 // keyring, meaning files and directories using this policy are accessible.
 func (policy *Policy) IsProvisioned() bool {
-	_, _, err := crypto.FindPolicyKey(policy.Descriptor(), policy.Context.getService())
+	_, _, err := crypto.FindPolicyKey(policy.Description())
 	return err == nil
 }
 
@@ -349,13 +355,13 @@ func (policy *Policy) Provision() error {
 	if policy.key == nil {
 		return ErrLocked
 	}
-	return crypto.InsertPolicyKey(policy.key, policy.Descriptor(), policy.Context.getService())
+	return crypto.InsertPolicyKey(policy.key, policy.Description())
 }
 
 // Deprovision removes the Policy key from the kernel keyring. This prevents
 // reading and writing to the directory once the caches are cleared.
 func (policy *Policy) Deprovision() error {
-	return crypto.RemovePolicyKey(policy.Descriptor(), policy.Context.getService())
+	return crypto.RemovePolicyKey(policy.Description())
 }
 
 // commitData writes the Policy's current data to the filesystem.

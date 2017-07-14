@@ -240,15 +240,14 @@ func getKeyring() (int, error) {
 }
 
 // FindPolicyKey tries to locate a policy key in the kernel keyring with the
-// provided descriptor and service. The keyring and key ids are returned if we
-// can find the key. An error is returned if the key does not exist.
-func FindPolicyKey(descriptor, service string) (keyringID, keyID int, err error) {
+// provided description. The keyring and key ids are returned if we can find the
+// key. An error is returned if the key does not exist.
+func FindPolicyKey(description string) (keyringID, keyID int, err error) {
 	keyringID, err = getKeyring()
 	if err != nil {
 		return
 	}
 
-	description := service + descriptor
 	keyID, err = unix.KeyctlSearch(keyringID, keyType, description, 0)
 	log.Printf("unix.KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, keyType, description, keyID, err)
 	if err != nil {
@@ -258,10 +257,9 @@ func FindPolicyKey(descriptor, service string) (keyringID, keyID int, err error)
 }
 
 // RemovePolicyKey tries to remove a policy key from the kernel keyring with the
-// provided descriptor and service. An error is returned if the key does not
-// exist.
-func RemovePolicyKey(descriptor, service string) error {
-	keyringID, keyID, err := FindPolicyKey(descriptor, service)
+// provided description. An error is returned if the key does not exist.
+func RemovePolicyKey(description string) error {
+	keyringID, keyID, err := FindPolicyKey(description)
 	if err != nil {
 		return err
 	}
@@ -275,14 +273,10 @@ func RemovePolicyKey(descriptor, service string) error {
 }
 
 // InsertPolicyKey puts the provided policy key into the kernel keyring with the
-// provided descriptor, provided service prefix, and type logon. The key and
-// descriptor must have the appropriate lengths.
-func InsertPolicyKey(key *Key, descriptor, service string) error {
+// provided description, and type logon. The key must be a policy key.
+func InsertPolicyKey(key *Key, description string) error {
 	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
 		return errors.Wrap(err, "policy key")
-	}
-	if err := util.CheckValidLength(metadata.DescriptorLen, len(descriptor)); err != nil {
-		return errors.Wrap(err, "descriptor")
 	}
 
 	// Create our payload (containing an FscryptKey)
@@ -304,7 +298,6 @@ func InsertPolicyKey(key *Key, descriptor, service string) error {
 		return err
 	}
 
-	description := service + descriptor
 	keyID, err := unix.AddKey(keyType, description, payload.data, keyringID)
 	log.Printf("unix.AddKey(%s, %s, <payload>, %d) = %d, %v",
 		keyType, description, keyringID, keyID, err)
