@@ -16,13 +16,6 @@
 # the License.
 
 NAME = fscrypt
-# VERSION is formatted as <major>.<minor>.<bugfix>
-# Bugfix releases resolve issues in existing features.
-# Minor releases introduce new features.
-# Major releases may introduce breaking changes to the API.
-VERSION = 0.1.0
-# Holds a formatted string of the build time
-BUILD_TIME = $(shell date)
 
 CFLAGS += -O2 -Wall
 CMD_DIR = github.com/google/$(NAME)/cmd/$(NAME)
@@ -39,10 +32,10 @@ CMD_DIR = github.com/google/$(NAME)/cmd/$(NAME)
 # Set the C flags so we don't need to set C flags in each CGO file.
 export CGO_CFLAGS = $(CFLAGS)
 
-# Pass the version to the command line program
-VERSION_FLAG = -X "main.version=$(VERSION)"
+# Pass the version to the command line program (pulled from tags)
+VERSION_FLAG = -X "main.version=$(shell git describe --tags)"
 # Pass the current date and time to the command line program
-DATE_FLAG = -X "main.buildTime=$(BUILD_TIME)"
+DATE_FLAG = -X "main.buildTime=$(shell date)"
 # Pass the C linking flags into Go
 GO_LINK_FLAGS += -s -w $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
 GOFLAGS += --ldflags '$(GO_LINK_FLAGS)'
