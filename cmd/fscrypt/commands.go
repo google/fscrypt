@@ -198,11 +198,12 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 		return errors.Wrap(ErrNotEmptyDir, path)
 	}
 
-	log.Printf("ensuring %s is not encrypted and filesystem is using fscrypt", path)
+	log.Printf("ensuring %s supports encryption and filesystem is using fscrypt", path)
 	switch _, err := actions.GetPolicyFromPath(ctx, path); errors.Cause(err) {
 	case metadata.ErrNotEncrypted:
-		// We are not encrypted
-		return nil
+		// We are not encrypted. Finally, we check that the filesystem
+		// supports encryption
+		return ctx.Mount.CheckSupport()
 	case nil:
 		// We are encrypted
 		return errors.Wrap(metadata.ErrEncrypted, path)
