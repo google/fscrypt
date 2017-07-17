@@ -248,6 +248,27 @@ func (policy *Policy) Unlock(optionFn OptionFunc, keyFn KeyFunc) error {
 	return err
 }
 
+// UnlockWithProtector uses an unlocked Protector to unlock a policy. An error
+// is returned if the Protector is not yet unlocked or does not protect the
+// policy. Does nothing if policy is already unlocked.
+func (policy *Policy) UnlockWithProtector(protector *Protector) error {
+	if policy.key != nil {
+		return nil
+	}
+	if protector.key == nil {
+		return ErrLocked
+	}
+	idx, ok := policy.findWrappedKeyIndex(protector.Descriptor())
+	if !ok {
+		return ErrNotProtected
+	}
+
+	var err error
+	wrappedPolicyKey := policy.data.WrappedPolicyKeys[idx].WrappedKey
+	policy.key, err = crypto.Unwrap(protector.key, wrappedPolicyKey)
+	return err
+}
+
 // Lock wipes a Policy's internal Key. It should always be called after using a
 // Policy. This is often done with a defer statement. There is no effect if
 // called multiple times.
