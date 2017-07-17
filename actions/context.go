@@ -44,7 +44,7 @@ var (
 	ErrBadConfigFile    = errors.New("global config file has invalid data")
 	ErrConfigFileExists = errors.New("global config file already exists")
 	ErrBadConfig        = errors.New("invalid Config structure provided")
-	ErrLocked           = errors.New("method needs a call to Unlock() first")
+	ErrLocked           = errors.New("key needs to be unlocked first")
 )
 
 // Context contains the necessary global state to perform most of fscrypt's
