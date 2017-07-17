@@ -19,7 +19,11 @@
 
 package actions
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/pkg/errors"
+)
 
 // Makes a protector and policy
 func makeBoth() (*Protector, *Policy, error) {
@@ -137,5 +141,74 @@ func TestPolicyBadRemoveProtector(t *testing.T) {
 
 	if pol.RemoveProtector(pro1) == nil {
 		t.Error("we should not be able to remove all the protectors from a policy")
+	}
+}
+
+// Tests that policy can be unlocked with a callback.
+func TestPolicyUnlockWithCallback(t *testing.T) {
+	// Our optionFunc just selects the first protector
+	optionFn := func(policyDescriptor string, options []*ProtectorOption) (int, error) {
+		return 0, nil
+	}
+
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := pol.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	if err := pol.Unlock(optionFn, goodCallback); err != nil {
+		t.Error(err)
+	}
+	if err := pol.Lock(); err != nil {
+		t.Error(err)
+	}
+}
+
+// Tests that policy can be unlock with an unlocked protector.
+func TestPolicyUnlockWithProtector(t *testing.T) {
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := pol.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	if err := pol.UnlockWithProtector(pro1); err != nil {
+		t.Error(err)
+	}
+	if err := pol.Lock(); err != nil {
+		t.Error(err)
+	}
+}
+
+// Tests that locked protectors cannot unlock a policy.
+func TestPolicyUnlockWithLockedProtector(t *testing.T) {
+	pro1, pol, err := makeBoth()
+	defer cleanupProtector(pro1)
+	defer cleanupPolicy(pol)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := pol.Lock(); err != nil {
+		t.Fatal(err)
+	}
+	if err := pro1.Lock(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := pol.UnlockWithProtector(pro1); errors.Cause(err) != ErrLocked {
+		t.Errorf("Expected a cause of %v got %v", ErrLocked, err)
+		if err == nil {
+			pol.Lock()
+		}
 	}
 }
