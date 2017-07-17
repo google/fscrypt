@@ -42,20 +42,18 @@ func makeTableWriter(w io.Writer, header string) *tabwriter.Writer {
 	return tableWriter
 }
 
-// statusString is what will be printed in the STATUS column. An empty string
-// means a status should not be printed.
-func statusString(mount *filesystem.Mount) string {
-	switch err := mount.CheckSetup(); errors.Cause(err) {
+// encryptionStatus will be printed in the ENCRYPTION column. An empty string
+// indicates the filesystem should not be printed.
+func encryptionStatus(err error) string {
+	switch errors.Cause(err) {
 	case nil:
-		return "setup with fscrypt"
-	case filesystem.ErrNotSetup:
-		return "not setup with fscrypt"
+		return "supported"
 	case metadata.ErrEncryptionNotEnabled:
-		return "encryption not enabled"
+		return "not enabled"
 	case metadata.ErrEncryptionNotSupported:
-		return ""
+		return "not supported"
 	default:
-		log.Printf("Unexpected Error: %v", err)
+		// Unknown error regarding support
 		return ""
 	}
 }
@@ -74,17 +72,38 @@ func writeGlobalStatus(w io.Writer) error {
 		return err
 	}
 
-	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tSTATUS")
 	supportCount := 0
+	useCount := 0
+
+	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
 	for _, mount := range mounts {
-		if status := statusString(mount); status != "" {
-			fmt.Fprintf(t, "%s\t%s\t%s\t%s\n",
-				mount.Path, mount.Device, mount.Filesystem, status)
+		// Only print mountpoints backed by devices or using fscrypt.
+		usingFscrypt := mount.CheckSetup() == nil
+		if !usingFscrypt && mount.Device == "" {
+			continue
+		}
+
+		// Only print a mountpoint if we can determine its support.
+		supportErr := mount.CheckSupport()
+		supportString := encryptionStatus(supportErr)
+		if supportString == "" {
+			log.Print(supportErr)
+			continue
+		}
+
+		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", mount.Path, mount.Device, mount.Filesystem,
+			supportString, yesNoString(usingFscrypt))
+
+		if supportErr == nil {
 			supportCount++
+		}
+		if usingFscrypt {
+			useCount++
 		}
 	}
 
-	fmt.Fprintf(w, "%s on this system support encryption\n\n", pluralize(supportCount, "filesystem"))
+	fmt.Fprintf(w, "filesystems supporting encryption: %d\n", supportCount)
+	fmt.Fprintf(w, "filesystems with fscrypt metadata: %d\n\n", useCount)
 	return t.Flush()
 }
 
@@ -93,7 +112,7 @@ func writeOptions(w io.Writer, options []*actions.ProtectorOption) {
 	t := makeTableWriter(w, "PROTECTOR\tLINKED\tDESCRIPTION")
 	for _, option := range options {
 		if option.LoadError != nil {
-			fmt.Fprintf(t, "%s\t\tERROR: %v\n", option.Descriptor(), option.LoadError)
+			fmt.Fprintf(t, "%s\t\t[%s]\n", option.Descriptor(), option.LoadError)
 			continue
 		}
 
@@ -136,7 +155,7 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 	for _, descriptor := range policyDescriptors {
 		policy, err := actions.GetPolicy(ctx, descriptor)
 		if err != nil {
-			fmt.Fprintf(t, "%s\t\tERROR: %v\n", descriptor, err)
+			fmt.Fprintf(t, "%s\t\t[%s]\n", descriptor, err)
 			continue
 		}
 
