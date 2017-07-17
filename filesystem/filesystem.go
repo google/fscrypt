@@ -171,13 +171,15 @@ func (m *Mount) err(err error) error {
 	return errors.Wrapf(err, "filesystem %s", m.Path)
 }
 
-// CheckSetup returns an error if this filesystem does not support fscrypt or
-// all the fscrypt metadata directories do not exist. Will log any unexpected
-// errors or incorrect permissions.
+// CheckSupport returns an error if this filesystem does not support filesystem
+// encryption.
+func (m *Mount) CheckSupport() error {
+	return m.err(metadata.CheckSupport(m.Path))
+}
+
+// CheckSetup returns an error if all the fscrypt metadata directories do not
+// exist. Will log any unexpected errors or incorrect permissions.
 func (m *Mount) CheckSetup() error {
-	if err := metadata.CheckSupport(m.Path); err != nil {
-		return m.err(err)
-	}
 	// Run all the checks so we will always get all the warnings
 	baseGood := isDirCheckPerm(m.BaseDir(), basePermissions)
 	policyGood := isDirCheckPerm(m.PolicyDir(), dirPermissions)
@@ -212,13 +214,8 @@ func (m *Mount) makeDirectories() error {
 // the filesystem's feature flags. This operation is atomic, it either succeeds
 // or no files in the baseDir are created.
 func (m *Mount) Setup() error {
-	switch err := m.CheckSetup(); errors.Cause(err) {
-	case ErrNotSetup:
-		break
-	case nil:
+	if m.CheckSetup() == nil {
 		return m.err(ErrAlreadySetup)
-	default:
-		return err
 	}
 	// We build the directories under a temp Mount and then move into place.
 	temp, err := m.tempMount()
