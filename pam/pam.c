@@ -79,7 +79,8 @@ static int conversation(int num_msg, const struct pam_message** msg,
   return PAM_SUCCESS;
 }
 
-const struct pam_conv conv = {conversation, NULL};
+static const struct pam_conv conv = {conversation, NULL};
+const struct pam_conv* goConv = &conv;
 
 void freeData(pam_handle_t* pamh, void* data, int error_status) { free(data); }
 

@@ -63,7 +63,7 @@ func getFakePolicy() *metadata.PolicyData {
 		KeyDescriptor: "0123456789abcdef",
 		Options:       metadata.DefaultOptions,
 		WrappedPolicyKeys: []*metadata.WrappedPolicyKey{
-			&metadata.WrappedPolicyKey{
+			{
 				ProtectorDescriptor: "fedcba9876543210",
 				WrappedKey:          wrappedPolicyKey,
 			},

@@ -282,7 +282,7 @@ func promptForProtector(options []*actions.ProtectorOption) (int, error) {
 	}
 
 	if numLoadErrors > 0 {
-		fmt.Printf(wrapText("NOTE: %d of the %d protectors failed to load. "+loadHelpText, 0))
+		fmt.Print(wrapText("NOTE: %d of the %d protectors failed to load. "+loadHelpText, 0))
 	}
 
 	for {

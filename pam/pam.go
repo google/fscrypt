@@ -65,22 +65,32 @@ func (h *Handle) getData(name string) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
+// ClearData remotes the PAM data with the specified name.
+func (h *Handle) ClearData(name string) error {
+	return h.setData(name, unsafe.Pointer(C.CString("")), C.CleanupFunc(C.freeData))
+}
+
+// SetSecret sets a copy of the C string secret into the PAM data with the
+// specified name. This copy will be held in locked memory until this PAM data
+// is cleared.
 func (h *Handle) SetSecret(name string, secret unsafe.Pointer) error {
 	return h.setData(name, C.copyIntoSecret(secret), C.CleanupFunc(C.freeSecret))
 }
 
+// GetSecret returns a pointer to the C string PAM data with the specified name.
+// This a pointer directory to the data, so it shouldn't be modified. It should
+// have been previously set with SetSecret().
 func (h *Handle) GetSecret(name string) (unsafe.Pointer, error) {
 	return h.getData(name)
 }
 
-func (h *Handle) ClearSecret(name string) error {
-	return h.setData(name, unsafe.Pointer(C.CString("")), C.CleanupFunc(C.freeData))
-}
-
+// SetString sets a string value for the PAM data with the specified name.
 func (h *Handle) SetString(name string, s string) error {
 	return h.setData(name, unsafe.Pointer(C.CString(s)), C.CleanupFunc(C.freeData))
 }
 
+// GetString gets a string value for the PAM data with the specified name. It
+// should have been previously set with SetString().
 func (h *Handle) GetString(name string) (string, error) {
 	data, err := h.getData(name)
 	if err != nil {
@@ -89,6 +99,7 @@ func (h *Handle) GetString(name string) (string, error) {
 	return C.GoString((*C.char)(data)), nil
 }
 
+// SetSlice sets a []string value for the PAM data with the specified name.
 func (h *Handle) SetSlice(name string, slice []string) error {
 	sliceLength := uintptr(len(slice))
 	memorySize := (sliceLength + 1) * unsafe.Sizeof(uintptr(0))
@@ -103,6 +114,8 @@ func (h *Handle) SetSlice(name string, slice []string) error {
 	return h.setData(name, data, C.CleanupFunc(C.freeArray))
 }
 
+// GetSlice gets a []string value for the PAM data with the specified name. It
+// should have been previously set with SetSlice().
 func (h *Handle) GetSlice(name string) ([]string, error) {
 	data, err := h.getData(name)
 	if err != nil {
@@ -166,7 +179,11 @@ func Start(service, username string) (*Transaction, error) {
 		handle: nil,
 		status: C.PAM_SUCCESS,
 	}
-	t.status = C.pam_start(cService, cUsername, &C.conv, &t.handle)
+	t.status = C.pam_start(
+		cService,
+		cUsername,
+		C.goConv,
+		&t.handle)
 	return t, (*Handle)(t).err()
 }
 

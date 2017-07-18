@@ -49,8 +49,6 @@ const (
 	directoryArg    = "DIRECTORY"
 	mountpointArg   = "MOUNTPOINT"
 	pathArg         = "PATH"
-	archiveArg      = "ARCHIVE_FILE"
-	recoveryCodeArg = "RECOVERY_CODE"
 	mountpointIDArg = mountpointArg + ":ID"
 )
 

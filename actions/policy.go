@@ -61,7 +61,6 @@ func PurgeAllPolicies(ctx *Context) error {
 		switch errors.Cause(err) {
 		case nil, crypto.ErrKeyringSearch:
 			// We don't care if the key has already been removed
-			break
 		default:
 			return err
 		}
