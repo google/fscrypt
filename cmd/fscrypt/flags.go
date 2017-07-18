@@ -51,7 +51,7 @@ func (b *boolFlag) GetArgName() string { return "" }
 func (b *boolFlag) GetUsage() string   { return b.Usage }
 
 func (b *boolFlag) String() string {
-	if b.Default == false {
+	if !b.Default {
 		return longDisplay(b)
 	}
 	return longDisplay(b, strconv.FormatBool(b.Default))

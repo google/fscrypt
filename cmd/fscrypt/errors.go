@@ -42,7 +42,6 @@ const failureExitCode = 1
 
 // Various errors used for the top level user interface
 var (
-	ErrReadingStdin       = util.SystemError("read from standard input failed")
 	ErrCanceled           = errors.New("operation canceled")
 	ErrNoDesctructiveOps  = errors.New("operation would be destructive")
 	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
