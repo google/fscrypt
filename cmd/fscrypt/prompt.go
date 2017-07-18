@@ -27,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
@@ -106,21 +108,31 @@ func askConfirmation(question string, defaultChoice bool, warning string) error 
 	return nil
 }
 
-// getUsername returns the username for the provided UID. If the UID does not
-// correspond to a user or the username is blank, "UID=<uid>" is returned.
-func getUsername(uid int64) string {
+// usernameFromID returns the username for the provided UID. If the UID does not
+// correspond to a user or the username is blank, an error is returned.
+func usernameFromID(uid int64) (string, error) {
 	u, err := user.LookupId(strconv.Itoa(int(uid)))
 	if err != nil || u.Username == "" {
-		return fmt.Sprintf("UID=%d", uid)
+		return "", errors.Wrapf(ErrUnknownUser, "uid %d", uid)
 	}
-	return u.Username
+	return u.Username, nil
+}
+
+// formatUsername either returns the username for the provided UID, or a string
+// containing the error for unknown UIDs.
+func formatUsername(uid int64) string {
+	username, err := usernameFromID(uid)
+	if err != nil {
+		return fmt.Sprintf("[%v]", err)
+	}
+	return username
 }
 
 // formatInfo gives a string description of metadata.ProtectorData.
 func formatInfo(data actions.ProtectorInfo) string {
 	switch data.Source() {
 	case metadata.SourceType_pam_passphrase:
-		return "login protector for " + getUsername(data.UID())
+		return "login protector for " + formatUsername(data.UID())
 	case metadata.SourceType_custom_passphrase:
 		return fmt.Sprintf("custom protector %q", data.Name())
 	case metadata.SourceType_raw_key:
