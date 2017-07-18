@@ -30,8 +30,8 @@ import (
 // estimations are somewhat close to the targets.
 func TestCostsSearch(t *testing.T) {
 	for _, target := range []time.Duration{
-		20 * time.Millisecond,
 		100 * time.Millisecond,
+		200 * time.Millisecond,
 		500 * time.Millisecond,
 	} {
 		costs, err := getHashingCosts(target)
