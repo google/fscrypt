@@ -21,13 +21,15 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "_cgo_export.h"  // for pamInput callback
+#include <security/pam_appl.h>
+#include <sys/mman.h>  // mlock/munlock
 
-const char* fscrypt_service = "fscrypt";
+#include "_cgo_export.h"  // for input callbacks
 
-static int pam_conv(int num_msg, const struct pam_message** msg,
-                    struct pam_response** resp, void* appdata_ptr) {
+static int conversation(int num_msg, const struct pam_message** msg,
+                        struct pam_response** resp, void* appdata_ptr) {
   if (num_msg <= 0 || num_msg > PAM_MAX_NUM_MSG) {
     return PAM_CONV_ERR;
   }
@@ -49,16 +51,14 @@ static int pam_conv(int num_msg, const struct pam_message** msg,
     // we just print the error messages or text info to standard output.
     switch (msg[i]->msg_style) {
       case PAM_PROMPT_ECHO_OFF:
-        callback_resp = pamInput(callback_msg);
+        callback_resp = passphraseInput(callback_msg);
         break;
       case PAM_PROMPT_ECHO_ON:
-        // We should never have a request for non-secret data
-        unexpectedMessage(callback_msg);
-        callback_resp = NULL;
+        callback_resp = userInput(callback_msg);
         break;
       case PAM_ERROR_MSG:
       case PAM_TEXT_INFO:
-        printf("%s\n", callback_msg);
+        fprintf(stderr, "%s\n", callback_msg);
         continue;
     }
 
@@ -69,12 +69,41 @@ static int pam_conv(int num_msg, const struct pam_message** msg,
         free((*resp)[i].resp);
       }
       free(*resp);
+      *resp = NULL;
       return PAM_CONV_ERR;
     }
 
     (*resp)[i].resp = callback_resp;
   }
+
   return PAM_SUCCESS;
 }
 
-void pam_init(struct pam_conv* conv) { conv->conv = pam_conv; }
+const struct pam_conv conv = {conversation, NULL};
+
+void freeData(pam_handle_t* pamh, void* data, int error_status) { free(data); }
+
+void freeArray(pam_handle_t* pamh, void** array, int error_status) {
+  int i;
+  for (i = 0; array[i]; ++i) {
+    free(array[i]);
+  }
+  free(array);
+}
+
+void* copyIntoSecret(void* data) {
+  size_t size = strlen(data) + 1;  // include null terminator
+  void* copy = malloc(size);
+  mlock(copy, size);
+  memcpy(copy, data, size);
+  return copy;
+}
+
+void freeSecret(pam_handle_t* pamh, char* data, int error_status) {
+  size_t size = strlen(data) + 1;  // Include null terminator
+  // Use volitile function pointer to actually clear the memory.
+  static void* (*const volatile memset_sec)(void*, int, size_t) = &memset;
+  memset_sec(data, 0, size);
+  munlock(data, size);
+  free(data);
+}
