@@ -17,66 +17,106 @@
 
 NAME = fscrypt
 
-CFLAGS += -O2 -Wall
-CMD_DIR = github.com/google/$(NAME)/cmd/$(NAME)
+INSTALL = install
+DESTDIR = /usr/local/bin
 
-# The code below lets the caller of the makefile change the build flags for
-# fscrypt in a familiar manner. For example, to force the program to statically
-# link its C components, run "make fscrypt" with:
-#	make fscrypt "LDFLAGS += -static -luuid -ldl -laudit -lpthread"
-#
-# Similarly, to modify the flags passed to the C components, just modify CFLAGS
-# or LDFLAGS as you would with a C program. To modify the Go flags, either
-# modify GO_FLAGS or GO_LINK_FLAGS (as appropriate).
+CMD_PKG = github.com/google/$(NAME)/cmd/$(NAME)
+
+SRC_FILES = $(shell find . -type f -name '*.go' -o -name "*.h" -o -name "*.c")
+GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
+C_FILES = $(shell find . -type f -name "*.h" -o -name "*.c" -not -path "./vendor/*")
+GO_PKGS = $(shell go list ./... | grep -v /vendor/)
+
+# The flags code below lets the caller of the makefile change the build flags
+# for fscrypt in a familiar manner.
+#	CFLAGS
+#		Change the flags passed to the C compiler. Default = "-O2 -Wall"
+#		For example:
+#			make fscrypt "CFLAGS = -O3 -Werror"
+#		builds the C code with high optimizations, and C warnings fail.
+#	LDFLAGS
+#		Change the flags passed to the C linker. Empty by default.
+#		For example:
+#			make fscrypt "LDFLAGS = -static -luuid -ldl -laudit -lpthread"
+#		will build a static binary.
+#	GO_FLAGS
+#		Change the flags passed to "go build". Empty by default.
+#		For example:
+#			make fscrypt "GO_FLAGS = -race"
+#		will build the Go code with race detection.
+#	GO_LINK_FLAGS
+#		Change the flags passed to the Go linker. Default = "-s -w"
+#		For example:
+#			make fscrypt GO_LINK_FLAGS=""
+#		will not strip the binary.
 
 # Set the C flags so we don't need to set C flags in each CGO file.
+CFLAGS ?= -O2 -Wall
 export CGO_CFLAGS = $(CFLAGS)
 
-# Pass the version to the command line program (pulled from tags)
+# By default, we strip the binary to reduce size.
+GO_LINK_FLAGS ?= -s -w
+# Pass the version to the command line program (pulled from tags).
 VERSION_FLAG = -X "main.version=$(shell git describe --tags)"
-# Pass the current date and time to the command line program
+# Pass the current date and time to the command line program.
 DATE_FLAG = -X "main.buildTime=$(shell date)"
-# Pass the C linking flags into Go
-GO_LINK_FLAGS += -s -w $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
-GOFLAGS += --ldflags '$(GO_LINK_FLAGS)'
+# Add the version, date, and any specified LDFLAGS to any user-specified flags.
+override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
+# Add the link flags to any user-specified flags.
+override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
-.PHONY: default all $(NAME) go update lint format install clean
-
+.PHONY: default all
 default: $(NAME)
-all: update go format lint $(NAME)
+all: update go format lint default
 
-$(NAME):
-	go build $(GOFLAGS) -o $(NAME) $(CMD_DIR)
+$(NAME): $(SRC_FILES)
+	go build $(GO_FLAGS) -o $(NAME) $(CMD_PKG)
 
-# Makes sure go files build and tests pass
+.PHONY: clean
+clean:
+	rm -rf $(NAME)
+
+# Make sure go files build and tests pass.
+.PHONY: go
 go:
-	govendor generate +local
-	govendor build $(GOFLAGS) +local
-	govendor test $(GOFLAGS) -p 1 +local
+	@go generate $(GO_FLAGS) $(GO_PKGS)
+	@go build $(GO_FLAGS) $(GO_PKGS)
+	@go test -p 1 $(GO_FLAGS) $(GO_PKGS)
 
+# Update the vendored dependencies.
+.PHONY: update
 update:
+	@govendor init
 	@govendor fetch +missing
 	@govendor add +external
 	@govendor remove +unused
 
-lint:
-	@golint $$(go list ./... | grep -v vendor) | grep -v "pb.go" || true
-	@govendor vet +local
-
+.PHONY: format
 format:
-	@govendor fmt +local
-	@find . -name "*.h" -o -name "*.c" -not -path "./vendor/*" | xargs clang-format -i -style=Google
+	@gofmt -l -s -w $(GO_FILES)
+	@clang-format -i -style=Google $(C_FILES)
 
-install:
-	go install $(GOFLAGS) $(CMD_DIR)
+# Run lint rules (skipping generated files)
+.PHONY: lint
+lint:
+	@go vet $(GO_PKGS)
+	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
+	@megacheck -unused.exported $(GO_PKGS)
 
-install_all:
-	govendor install $(GOFLAGS) +local
+# Check all files
+.PHONY: check
+check: all 
+	@govendor list +missing +external +unused \
+	| ./input_fail.py "Incorrect vendored dependencies. Run \"make update\""
+	@git diff
+	@git status -s \
+	| ./input_fail.py "Files have changed unexpectedly. Run \"make all\""
 
-TARBALL = $(NAME).$(shell date --iso-8601).tar.gz
-$(TARBALL):
-	git archive --format=tar.gz --output=$(TARBALL) HEAD
-tarball: $(TARBALL)
+.PHONY: install
+install: $(NAME)
+	$(INSTALL) -d $(DESTDIR)
+	$(INSTALL) $(NAME) $(DESTDIR)
 
-clean:
-	rm -rf $(NAME) $(TARBALL)
+.PHONY: uninstall
+uninstall:
+	rm -rf $(DESTDIR)/$(NAME)
