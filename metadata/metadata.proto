@@ -19,6 +19,7 @@
  * the License.
  */
 
+// If you modify this file, be sure to run "go generate" on this package.
 syntax = "proto3";
 package metadata;
 

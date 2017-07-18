@@ -1,0 +1,24 @@
+language: go
+sudo: required
+go:
+  - 1.8.x
+dist: trusty
+
+addons:
+  apt:
+    sources:
+      - sourceline: 'deb http://en.archive.ubuntu.com/ubuntu/ artful main universe'
+    packages:
+      - libargon2-0-dev
+      - libblkid-dev
+      - libpam0g-dev
+      - e2fsprogs
+      - protobuf-compiler
+      - git # Needed to stop git from getting deleted
+
+install:
+  - make go-tools
+  - make test-setup
+
+script:
+  - make check
