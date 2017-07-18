@@ -37,6 +37,18 @@ func Ptr(slice []byte) unsafe.Pointer {
 	return unsafe.Pointer(&slice[0])
 }
 
+// ByteSlice takes a pointer to some data and views it as a slice of bytes.
+// Note, indexing into this slice is unsafe.
+func ByteSlice(ptr unsafe.Pointer) []byte {
+	return (*[1 << 30]byte)(ptr)[:]
+}
+
+// PointerSlice takes a pointer to an array of pointers and views it as a slice
+// of pointers. Note, indexing into this slice is unsafe.
+func PointerSlice(ptr unsafe.Pointer) []unsafe.Pointer {
+	return (*[1 << 30]unsafe.Pointer)(ptr)[:]
+}
+
 // Index returns the first index i such that inVal == inArray[i].
 // ok is true if we find a match, false otherwise.
 func Index(inVal int64, inArray []int64) (index int, ok bool) {

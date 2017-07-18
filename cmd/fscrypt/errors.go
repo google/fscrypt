@@ -46,7 +46,6 @@ var (
 	ErrCanceled           = errors.New("operation canceled")
 	ErrNoDesctructiveOps  = errors.New("operation would be destructive")
 	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
-	ErrPAMPassphrase      = errors.New("incorrect login passphrase")
 	ErrInvalidSource      = errors.New("invalid source type")
 	ErrPassphraseMismatch = errors.New("entered passphrases do not match")
 	ErrSpecifyProtector   = errors.New("multiple protectors available")
@@ -59,6 +58,7 @@ var (
 	ErrBadOwners          = errors.New("you do not own this directory")
 	ErrNotEmptyDir        = errors.New("not an empty directory")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
+	ErrUnknownUser        = errors.New("unknown user")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))

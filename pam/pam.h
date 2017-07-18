@@ -22,10 +22,23 @@
 
 #include <security/pam_appl.h>
 
-// fscrypt_service is the display name of the service requesting the passphrase.
-const char* fscrypt_service;
+// Conversation that will call back into Go code when appropriate.
+const struct pam_conv conv;
 
-// pam_init initializes the pam_conv structure for use with our Go callbacks.
-void pam_init(struct pam_conv* conv);
+// CleaupFuncs are used to cleanup specific PAM data.
+typedef void (*CleanupFunc)(pam_handle_t *pamh, void *data, int error_status);
 
-#endif
+// CleaupFunc that calls free() on data.
+void freeData(pam_handle_t *pamh, void *data, int error_status);
+
+// CleaupFunc that frees each item in a null terminated array of pointers and
+// then frees the array itself.
+void freeArray(pam_handle_t *pamh, void **array, int error_status);
+
+// Creates a copy of a C string, which resides in an locked buffer.
+void *copyIntoSecret(void *data);
+
+// CleaupFunc that Zeros wipes a C string and unlocks and frees its memory.
+void freeSecret(pam_handle_t *pamh, char *data, int error_status);
+
+#endif  // FSCRYPT_PAM_H

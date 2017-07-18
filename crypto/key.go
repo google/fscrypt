@@ -20,6 +20,12 @@
 
 package crypto
 
+/*
+#include <stdlib.h>
+#include <string.h>
+*/
+import "C"
+
 import (
 	"bytes"
 	"crypto/subtle"
@@ -148,13 +154,6 @@ func (key *Key) Len() int {
 	return len(key.data)
 }
 
-// UnsafeData exposes the underlying protected slice. This is unsafe because the
-// data can be paged to disk if the buffer is copied, or the slice may be
-// wiped while being used.
-func (key *Key) UnsafeData() []byte {
-	return key.data
-}
-
 // Equals compares the contents of two keys, returning true if they have the same
 // key data. This function runs in constant time.
 func (key *Key) Equals(key2 *Key) bool {
@@ -176,6 +175,30 @@ func (key *Key) resize(requestedSize int) (*Key, error) {
 	}
 	copy(resizedKey.data, key.data)
 	return resizedKey, nil
+}
+
+// UnsafeToCString makes a copy of the string's data into a null-terminated C
+// string allocated by C. Note that this method is unsafe as this C copy has no
+// locking or wiping functionality. The key shouldn't contain any `\0` bytes.
+func (key *Key) UnsafeToCString() unsafe.Pointer {
+	// Memory for the key must be moved into a C string allocated by C.
+	size := C.size_t(key.Len())
+	data := C.calloc(size+1, 1)
+	C.memcpy(data, util.Ptr(key.data), size)
+	return data
+}
+
+// NewKeyFromCString creates of a copy of some C string's data in a key. Note
+// that the original C string is not modified at all, so steps must be taken to
+// ensure that this original copy is secured.
+func NewKeyFromCString(str unsafe.Pointer) (*Key, error) {
+	size := C.strlen((*C.char)(str))
+	key, err := newBlankKey(int(size))
+	if err != nil {
+		return nil, err
+	}
+	C.memcpy(util.Ptr(key.data), str, size)
+	return key, nil
 }
 
 // NewKeyFromReader constructs a key of abritary length by reading from reader

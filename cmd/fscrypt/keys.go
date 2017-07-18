@@ -125,7 +125,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 		switch info.Source() {
 		case metadata.SourceType_pam_passphrase:
 			prompt := fmt.Sprintf("Enter %slogin passphrase for %s: ",
-				prefix, getUsername(info.UID()))
+				prefix, formatUsername(info.UID()))
 			key, err := getPassphraseKey(prompt)
 			if err != nil {
 				return nil, err
@@ -134,15 +134,16 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			// To confirm, check that the passphrase is the user's
 			// login passphrase.
 			if shouldConfirm {
-				username := getUsername(info.UID())
-				ok, err := pam.IsUserLoginToken(username, key)
+				username, err := usernameFromID(info.UID())
 				if err != nil {
 					key.Wipe()
 					return nil, err
 				}
-				if !ok {
+
+				err = pam.IsUserLoginToken(username, key, quietFlag.Value)
+				if err != nil {
 					key.Wipe()
-					return nil, ErrPAMPassphrase
+					return nil, err
 				}
 			}
 			return key, nil

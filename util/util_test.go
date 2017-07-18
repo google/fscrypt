@@ -20,19 +20,52 @@
 package util
 
 import (
+	"bytes"
 	"testing"
+	"unsafe"
 )
 
 const offset = 3
 
+var (
+	byteArr = []byte{'a', 'b', 'c', 'd'}
+	ptrArr  = []*int{&a, &b, &c, &d}
+	a       = 1
+	b       = 2
+	c       = 3
+	d       = 4
+)
+
 // Make sure the address behaves well under slicing
 func TestPtrOffset(t *testing.T) {
-	arr := []byte{'a', 'b', 'c', 'd'}
-	i1 := uintptr(Ptr(arr[offset:]))
-	i2 := uintptr(Ptr(arr))
+	i1 := uintptr(Ptr(byteArr[offset:]))
+	i2 := uintptr(Ptr(byteArr))
 
 	if i1 != i2+offset {
-		t.Fatalf("pointers %v and %v do not have an offset of %v", i1, i2, offset)
+		t.Errorf("pointers %v and %v do not have an offset of %v", i1, i2, offset)
+	}
+}
+
+// Tests that the ByteSlice method essentially reverses the Ptr method
+func TestByteSlice(t *testing.T) {
+	ptr := Ptr(byteArr)
+	generatedArr := ByteSlice(ptr)[:len(byteArr)]
+
+	if !bytes.Equal(byteArr, generatedArr) {
+		t.Errorf("generated array (%v) and original array (%v) do not agree",
+			generatedArr, byteArr)
+	}
+}
+
+// Tests that the PointerSlice method correctly handles Go Pointers
+func TestPointerSlice(t *testing.T) {
+	arrPtr := unsafe.Pointer(&ptrArr[0])
+
+	// Convert an array of unsafe pointers to int pointers.
+	for i, ptr := range PointerSlice(arrPtr)[:len(ptrArr)] {
+		if ptrArr[i] != (*int)(ptr) {
+			t.Errorf("generated array and original array disagree at %d", i)
+		}
 	}
 }
 
