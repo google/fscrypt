@@ -23,17 +23,12 @@
 // See http://www.linux-pam.org/Linux-PAM-html/ for more information.
 package pam
 
-/*
-#cgo LDFLAGS: -lpam
-#include <stdlib.h>
-#include "pam.h"
-*/
 import "C"
 
 import (
+	"fmt"
 	"log"
 	"sync"
-	"unsafe"
 
 	"github.com/pkg/errors"
 
@@ -41,82 +36,78 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Global state is needed for the PAM callback, so we guard this function with a
-// lock. tokenToCheck is only ever non-nil when loginLock is held.
+// Pam error values
 var (
-	ErrPamInternal = util.SystemError("internal pam error")
-	loginLock      sync.Mutex
-	tokenToCheck   *crypto.Key
+	ErrPAMPassphrase = errors.New("incorrect login passphrase")
 )
 
-// unexpectedMessage logs an error encountered in the PAM callback.
-//export unexpectedMessage
-func unexpectedMessage(msg *C.char) {
-	log.Printf("pam encountered unexpected %q", C.GoString(msg))
+// Global state is needed for the PAM callback, so we guard this function with a
+// lock. tokenToCheck is only ever non-nil when tokenLock is held.
+var (
+	tokenLock    sync.Mutex
+	tokenToCheck *crypto.Key
+)
+
+// userInput is run when the the  callback needs some input from the user. We
+// prompt the user for information and return their answer. A return value of
+// nil indicates an error occurred.
+//export userInput
+func userInput(prompt *C.char) *C.char {
+	fmt.Print(C.GoString(prompt))
+	input, err := util.ReadLine()
+	if err != nil {
+		log.Printf("getting input for PAM: %s", err)
+		return nil
+	}
+	return C.CString(input)
 }
 
-// pamInput is run when the PAM module needs some input from the user. The
-// message parameter is the prompt that would be displayed to the user.
-//export pamInput
-func pamInput(msg *C.char) *C.char {
-	log.Printf("requesting secret data with %q", C.GoString(msg))
+// passphraseInput is run when the callback needs a passphrase from the user. We
+// pass along the tokenToCheck without prompting. A return value of nil
+// indicates an error occurred.
+//export passphraseInput
+func passphraseInput(prompt *C.char) *C.char {
+	log.Printf("getting secret data for PAM: %q", C.GoString(prompt))
+	if tokenToCheck == nil {
+		log.Print("secret data requested multiple times")
+		return nil
+	}
 
-	// Memory for the key must be moved into a C string allocated by C.
-	cLen := C.size_t(tokenToCheck.Len())
-	cData := C.malloc(cLen + 1)
-
-	// View the cData as a go slice
-	goData := (*[1 << 30]byte)(cData)
-	copy(goData[:cLen], tokenToCheck.UnsafeData())
-	goData[cLen] = 0 // Null terminator
-	return (*C.char)(cData)
+	// Subsequent calls to passphrase input should fail
+	input := (*C.char)(tokenToCheck.UnsafeToCString())
+	tokenToCheck = nil
+	return input
 }
 
-// IsUserLoginToken returns true if the presented token is the user's login key,
-// false if it is not their login key, and an error if this cannot be
-// determined. Note that unless the currently running process is root, this
-// check will only work for the user running this process.
-func IsUserLoginToken(username string, token *crypto.Key) (_ bool, err error) {
+// IsUserLoginToken returns nil if the presented token is the user's login key,
+// and returns an error otherwise. Note that unless we are currently running as
+// root, this check will only work for the user running this process.
+func IsUserLoginToken(username string, token *crypto.Key, quiet bool) error {
 	log.Printf("Checking login token for %s", username)
+
 	// We require global state for the function. This function never takes
 	// ownership of the token, so it is not responsible for wiping it.
-	loginLock.Lock()
+	tokenLock.Lock()
 	tokenToCheck = token
 	defer func() {
 		tokenToCheck = nil
-		loginLock.Unlock()
+		tokenLock.Unlock()
 	}()
 
-	cUsername := C.CString(username)
-	defer C.free(unsafe.Pointer(cUsername))
+	transaction, err := Start("fscrypt", username)
+	if err != nil {
+		return err
+	}
+	defer transaction.End()
 
-	var conv C.struct_pam_conv
-	var handle *C.struct_pam_handle
-	C.pam_init(&conv)
-
-	// Start the pam transaction with the desired conversation and handle.
-	returnCode := C.pam_start(C.fscrypt_service, cUsername, &conv, &handle)
-	if returnCode != C.PAM_SUCCESS {
-		return false, errors.Wrapf(ErrPamInternal, "pam_start() = %d", returnCode)
+	// Ask PAM to authenticate the token.
+	authenticated, err := transaction.Authenticate(quiet)
+	if err != nil {
+		return err
 	}
 
-	defer func() {
-		// End the PAM transaction, setting the error if appropriate.
-		returnCode = C.pam_end(handle, returnCode)
-		if returnCode != C.PAM_SUCCESS && err == nil {
-			err = errors.Wrapf(ErrPamInternal, "pam_end() = %d", returnCode)
-		}
-	}()
-
-	// Ask PAM to authenticate the token. We either get an answer or an error
-	returnCode = C.pam_authenticate(handle, 0)
-	switch returnCode {
-	case C.PAM_SUCCESS:
-		return true, nil
-	case C.PAM_AUTH_ERR:
-		return false, nil
-	default:
-		// PAM didn't give us an answer to the authentication question
-		return false, errors.Wrapf(ErrPamInternal, "pam_authenticate() = %d", returnCode)
+	if !authenticated {
+		return ErrPAMPassphrase
 	}
+	return nil
 }
