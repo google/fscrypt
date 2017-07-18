@@ -20,35 +20,13 @@
 package filesystem
 
 import (
-	"fmt"
 	"testing"
 )
-
-func printMountInfo() {
-	fmt.Println("\nBy Mountpoint:")
-	for _, mnt := range mountsByPath {
-		fmt.Println(mnt)
-	}
-
-	fmt.Println("\nBy Device:")
-	for device, mnts := range mountsByDevice {
-		fmt.Println("\t" + device)
-		for _, mnt := range mnts {
-			fmt.Println("\t\tPath: " + mnt.Path)
-		}
-	}
-}
 
 func TestLoadMountInfo(t *testing.T) {
 	if err := UpdateMountInfo(); err != nil {
 		t.Error(err)
 	}
-}
-
-func TestPrintMountInfo(t *testing.T) {
-	// Uncomment to see the mount info in the tests
-	// printMountInfo()
-	// t.Fail()
 }
 
 // Benchmarks how long it takes to update the mountpoint data

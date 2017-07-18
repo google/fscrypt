@@ -48,14 +48,15 @@ func makeKey(b byte, n int) (*Key, error) {
 	return NewFixedLengthKeyFromReader(ConstReader(b), n)
 }
 
-var fakeValidDescriptor = "0123456789abcdef"
-var fakeInvalidDescriptor = "123456789abcdef"
-var fakeSalt = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
-var fakePassword = []byte("password")
+var (
+	fakeValidDescriptor = "0123456789abcdef"
+	fakeSalt            = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
+	fakePassword        = []byte("password")
 
-var fakeValidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen)
-var fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
-var fakeWrappingKey, _ = makeKey(17, metadata.InternalKeyLen)
+	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
+	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
+	fakeWrappingKey, _      = makeKey(17, metadata.InternalKeyLen)
+)
 
 // As the passpharase hashing function clears the passphrase, we need to make
 // a new passphrase key for each test

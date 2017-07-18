@@ -179,7 +179,11 @@ func Start(service, username string) (*Transaction, error) {
 		handle: nil,
 		status: C.PAM_SUCCESS,
 	}
-	t.status = C.pam_start(cService, cUsername, &C.conv, &t.handle)
+	t.status = C.pam_start(
+		cService,
+		cUsername,
+		C.goConv,
+		&t.handle)
 	return t, (*Handle)(t).err()
 }
 
