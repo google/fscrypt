@@ -2,6 +2,7 @@
 
 [![GitHub version](https://badge.fury.io/gh/google%2Ffscrypt.svg)](https://github.com/google/fscrypt/releases)
 [![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
+[![Build Status](https://travis-ci.org/google/fscrypt.svg?branch=master)](https://travis-ci.org/google/fscrypt)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
 
 fscrypt is a high-level tool for the management of
@@ -102,62 +103,59 @@ The following functionality is planned:
 See the example usage section below or run `fscrypt COMMAND --help` for more
 information about each of the commands.
 
-## Building
-
-fscrypt is written in Go, so to build the program you will need to
-[setup Go](https://golang.org/doc/install),
-[setup your `GOPATH`](https://golang.org/doc/code.html#GOPATH), and clone the
-repository into the correct location by running:
-```shell
-go get -d github.com/google/fscrypt
-```
-Alternatively, just copy or checkout the source into
-`$GOPATH/src/github.com/google/fscrypt`. If you only want to install the fscrypt
-binary to `$GOPATH/bin`, it is enough to run:
-```shell
-go get github.com/google/fscrypt/cmd/fscrypt
-```
+## Building and Installing
 
 fscrypt has the following build dependencies:
-*   `make`
+*   [Go](https://golang.org/doc/install)
 *   A C compiler (`gcc` or `clang`)
-*   Go
-*   [Argon2 Passphrase Hash](https://github.com/P-H-C/phc-winner-argon2), a C
-    library which can be installed (both the header `argon2.h` and library
-    `libargon2`) by running:
+*   `make` 
+*   The [Argon2 Passphrase Hash](https://github.com/P-H-C/phc-winner-argon2)
+    library, which can be
+    [directly installed on Artful Ubuntu](https://packages.ubuntu.com/artful/libargon2-0-dev),
+    or installed from source by running:
     ```bash
     >>>>> git clone https://github.com/P-H-C/phc-winner-argon2 argon2
     >>>>> cd argon2
     >>>>> make
     >>>>> sudo make install
     ```
-*   Headers for `libblkid` (specifically `blkid/blkid.h`) and `libpam`
-    (specifically `security/pam_appl.h`). These can be installed with your
+*   Headers for `libblkid` and `libpam`. These can be installed with the
     appropriate package manager.
     - `sudo apt-get install libblkid-dev libpam0g-dev`
     - `sudo yum install libblkid-devel pam-devel`
     - `pam` and `util-liux` packages for Arch
 
-Once this is setup, you can run `make fscrypt` to build the executable in the
-current directory. See the `Makefile` for instructions on building a static
-executable. The C libraries used by fscrypt will be dynamically linked by
-default.
+Once all the dependencies are installed, you can get the repository by running:
+```shell
+go get -d github.com/google/fscrypt
+```
+and then you can run `make` in `$GOPATH/github.com/google/fscrypt` to build the
+executable in that directory. Running `sudo make install` installs the binary to
+`/usr/local/bin`.
 
-## Running and Installing
+See the `Makefile` for instructions on how to customize the build. This includes
+building a static binary (C libraries used by fscrypt will be dynamically linked
+by default).
+
+Alternatively, if you only want to install the fscrypt binary to `$GOPATH/bin`,
+it is enough to just run:
+```shell
+go get github.com/google/fscrypt/cmd/fscrypt
+```
+
+### Runtime Dependencies
 
 fscrypt has the following runtime dependencies:
 *   Kernel support for filesystem encryption (this will depend on your kernel
     configuration and specific filesystem)
-*   `libargon2` (see the above installation instructions for Argon2), unless you
-    built a static executable.
-*   `libblkid` and `libpam` (which are almost certainly already on your system),
-    unless you built a static executable.
+*   `libargon2.so` (see the above installation instructions for Argon2)
+*   `libblkid.so` and `libpam.so`. These libraries are almost certainly already
+    on your system.
 
-Installing it just requires placing it in your path or running `make install`.
-Change `$GOBIN` to change the install location of fscrypt. By default,
-fscrypt is installed to `$GOPATH/bin`.
+The dynamic libraries are not needed if you built a static executable.
 
 ## Note about stability
+
 fscrypt follows [semantic versioning](http://semver.org). As such, all versions
 below `1.0.0` should be considered development versions. This means no
 guarantees are make about the stability of APIs or formats of config files. As
@@ -497,9 +495,8 @@ Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee.
 
 ## Contributing
 
-We would love to accept your contributions to fscrypt. See the
-`CONTRIBUTING.md` file for more information about singing the CLA and submitting
-a pull request.
+We would love to accept your contributions to fscrypt. See the `CONTRIBUTING.md`
+file for more information about singing the CLA and submitting a pull request.
 
 ## Troubleshooting
 
@@ -534,10 +531,10 @@ To turn on the encryption feature flag for your filesystem, run
 ```
 tune2fs -O encrypt /dev/device
 ```
-This command may require root privileges. Once the flag is enabled, older
-kernels may not be able to mount the filesystem. Note that there was a bug in an
-older kernel version that allowed encryption policies to be set on ext4
-filesystems without enabling this encryption feature flag.
+This command requires root privileges and `e2fsprogs` v1.43 or later. Once the
+filesystem flag is enabled, older kernels may not be able to mount this
+filesystem. Note that there was a bug in older kernel versions that allowed
+encryption policies to be set on ext4 filesystems without this flag.
 
 ## Legal
 

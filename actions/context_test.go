@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/fscrypt/util"
+	"github.com/pkg/errors"
 )
 
 const testTime = 10 * time.Millisecond
@@ -38,7 +39,7 @@ var testContext *Context
 // Makes a context using the testing locations for the filesystem and
 // configuration file.
 func setupContext() (ctx *Context, err error) {
-	mountpoint, err := util.TestPath()
+	mountpoint, err := util.TestRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +84,11 @@ func TestMain(m *testing.M) {
 	var err error
 	testContext, err = setupContext()
 	if err != nil {
-		fmt.Printf("setupContext() = %v\n", err)
-		os.Exit(1)
+		fmt.Println(err)
+		if errors.Cause(err) != util.ErrSkipIntegration {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 
 	returnCode := m.Run()
