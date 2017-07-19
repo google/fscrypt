@@ -164,5 +164,5 @@ check: lint default test
 	@gofmt -s -d $(GO_FILES) \
 	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
 	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
-	| grep "<replacement "
+	| grep "<replacement " \
 	| ./input_fail.py "Incorrectly formatted C files. Run \"make format\"." 
