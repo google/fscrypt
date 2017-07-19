@@ -17,8 +17,7 @@ addons:
       - git # Needed to stop git from getting deleted
 
 install:
-  - make go-tools
-  - make test-setup
+  - make travis-install
 
 script:
-  - make check
+  - make travis-script

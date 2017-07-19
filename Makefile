@@ -110,10 +110,17 @@ update:
 	@govendor remove +unused
 
 # Format all the Go and C code
-.PHONY: format
+.PHONY: format format-check
 format:
 	@gofmt -l -s -w $(GO_FILES)
 	@clang-format -i -style=Google $(C_FILES)
+
+format-check:
+	@gofmt -s -d $(GO_FILES) \
+	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
+	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
+	| grep "<replacement " \
+	| ./input_fail.py "Incorrectly formatted C files. Run \"make format\"."
 
 # Run lint rules (skipping generated files)
 .PHONY: lint
@@ -155,14 +162,12 @@ test-teardown:
 	sudo rmdir $(MOUNT)
 	rm -f $(IMAGE)
 
-##### Commands for Travis CI #####
+##### Travis CI Commands
+.PHONY: travis-setup travis-script
+travis-install: go-tools test-setup
+	go get -u github.com/mattn/goveralls
 
-.PHONY: check
-check: lint default test
+travis-script: lint format-check default
+	goveralls -service=travis-ci
 	@govendor list +missing +external +unused \
 	| ./input_fail.py "Incorrect vendored dependencies. Run \"make update\"."
-	@gofmt -s -d $(GO_FILES) \
-	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
-	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
-	| grep "<replacement " \
-	| ./input_fail.py "Incorrectly formatted C files. Run \"make format\"." 
