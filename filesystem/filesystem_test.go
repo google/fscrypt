@@ -40,13 +40,12 @@ var (
 )
 
 // Gets the mount corresponding to the integration test path.
-func getTestMount() (*Mount, error) {
-	mountpoint, err := util.TestPath()
+func getTestMount(t *testing.T) (*Mount, error) {
+	mountpoint, err := util.TestRoot()
 	if err != nil {
-		return nil, err
+		t.Skip(err)
 	}
-	mnt, err := GetMount(mountpoint)
-	return mnt, errors.Wrapf(err, util.TestEnvVarName)
+	return GetMount(mountpoint)
 }
 
 func getFakeProtector() *metadata.ProtectorData {
@@ -72,8 +71,8 @@ func getFakePolicy() *metadata.PolicyData {
 }
 
 // Gets the mount and sets it up
-func getSetupMount() (*Mount, error) {
-	mnt, err := getTestMount()
+func getSetupMount(t *testing.T) (*Mount, error) {
+	mnt, err := getTestMount(t)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +81,7 @@ func getSetupMount() (*Mount, error) {
 
 // Tests that the setup works and creates the correct files
 func TestSetup(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +95,7 @@ func TestSetup(t *testing.T) {
 
 // Tests that we can remove all of the metadata
 func TestRemoveAllMetadata(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +111,7 @@ func TestRemoveAllMetadata(t *testing.T) {
 
 // Adding a good Protector should succeed, adding a bad one should fail
 func TestAddProtector(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +150,7 @@ func TestAddProtector(t *testing.T) {
 
 // Adding a good Policy should succeed, adding a bad one should fail
 func TestAddPolicy(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +189,7 @@ func TestAddPolicy(t *testing.T) {
 
 // Tests that we can set a policy and get it back
 func TestSetPolicy(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +213,7 @@ func TestSetPolicy(t *testing.T) {
 
 // Tests that we can set a normal protector and get it back
 func TestSetProtector(t *testing.T) {
-	mnt, err := getSetupMount()
+	mnt, err := getSetupMount(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,8 +235,8 @@ func TestSetProtector(t *testing.T) {
 }
 
 // Gets a setup mount and a fake second mount
-func getTwoSetupMounts() (realMnt, fakeMnt *Mount, err error) {
-	if realMnt, err = getSetupMount(); err != nil {
+func getTwoSetupMounts(t *testing.T) (realMnt, fakeMnt *Mount, err error) {
+	if realMnt, err = getSetupMount(t); err != nil {
 		return
 	}
 
@@ -259,7 +258,7 @@ func cleanupTwoMounts(realMnt, fakeMnt *Mount) {
 
 // Tests that we can set a linked protector and get it back
 func TestLinkedProtector(t *testing.T) {
-	realMnt, fakeMnt, err := getTwoSetupMounts()
+	realMnt, fakeMnt, err := getTwoSetupMounts(t)
 	if err != nil {
 		t.Fatal(err)
 	}

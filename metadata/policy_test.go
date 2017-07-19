@@ -37,14 +37,13 @@ var goodPolicy = &PolicyData{
 }
 
 // Creates a temporary directory for testing.
-func createTestDirectory() (directory string, err error) {
-	baseDirectory, err := util.TestPath()
+func createTestDirectory(t *testing.T) (directory string, err error) {
+	baseDirectory, err := util.TestRoot()
 	if err != nil {
-		return
+		t.Skip(err)
 	}
 	if s, err := os.Stat(baseDirectory); err != nil || !s.IsDir() {
-		return "", fmt.Errorf("%s: %q is not a valid directory",
-			util.TestEnvVarName, baseDirectory)
+		return "", fmt.Errorf("test directory %q is not valid", baseDirectory)
 	}
 
 	directoryPath := filepath.Join(baseDirectory, "test")
@@ -53,8 +52,8 @@ func createTestDirectory() (directory string, err error) {
 
 // Makes a test directory, makes a file in the directory, and fills the file
 // with data. Returns the directory name, file name, and error (if one).
-func createTestFile() (directory, file string, err error) {
-	if directory, err = createTestDirectory(); err != nil {
+func createTestFile(t *testing.T) (directory, file string, err error) {
+	if directory, err = createTestDirectory(t); err != nil {
 		return
 	}
 	// Cleanup if the file creation fails
@@ -77,7 +76,7 @@ func createTestFile() (directory, file string, err error) {
 
 // Tests that we can set a policy on an empty directory
 func TestSetPolicyEmptyDirectory(t *testing.T) {
-	directory, err := createTestDirectory()
+	directory, err := createTestDirectory(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +89,7 @@ func TestSetPolicyEmptyDirectory(t *testing.T) {
 
 // Tests that we cannot set a policy on a nonempty directory
 func TestSetPolicyNonemptyDirectory(t *testing.T) {
-	directory, _, err := createTestFile()
+	directory, _, err := createTestFile(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +102,7 @@ func TestSetPolicyNonemptyDirectory(t *testing.T) {
 
 // Tests that we cannot set a policy on a file
 func TestSetPolicyFile(t *testing.T) {
-	directory, file, err := createTestFile()
+	directory, file, err := createTestFile(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +119,7 @@ func TestSetPolicyBadDescriptors(t *testing.T) {
 	badDescriptors := []string{"123456789abcde", "xxxxxxxxxxxxxxxx", "0123456789abcdef00"}
 	for _, badDescriptor := range badDescriptors {
 		badPolicy := &PolicyData{KeyDescriptor: badDescriptor, Options: DefaultOptions}
-		directory, err := createTestDirectory()
+		directory, err := createTestDirectory(t)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +133,7 @@ func TestSetPolicyBadDescriptors(t *testing.T) {
 
 // Tests that we get back the same policy that we set on a directory
 func TestGetPolicyEmptyDirectory(t *testing.T) {
-	directory, err := createTestDirectory()
+	directory, err := createTestDirectory(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +154,7 @@ func TestGetPolicyEmptyDirectory(t *testing.T) {
 
 // Tests that we cannot get a policy on an unencrypted directory
 func TestGetPolicyUnencrypted(t *testing.T) {
-	directory, err := createTestDirectory()
+	directory, err := createTestDirectory(t)
 	if err != nil {
 		t.Fatal(err)
 	}

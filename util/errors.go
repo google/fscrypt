@@ -24,6 +24,8 @@ import (
 	"io"
 	"log"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 // ErrReader wraps an io.Reader, passing along calls to Read() until a read
@@ -113,17 +115,21 @@ func NeverError(err error) {
 	}
 }
 
-// TestEnvVarName is the name on an environment variable that should be set to
-// an empty mountpoint. This is only used for integration tests.
-var TestEnvVarName = "TEST_FILESYSTEM_ROOT"
+var (
+	// testEnvVarName is the name on an environment variable that should be
+	// set to an empty mountpoint. This is only used for integration tests.
+	// If not set, integration tests are skipped.
+	testEnvVarName = "TEST_FILESYSTEM_ROOT"
+	// ErrSkipIntegration indicates integration tests shouldn't be run.
+	ErrSkipIntegration = errors.New("skipping integration test")
+)
 
-// TestPath returns a the path specified by TestEnvVarName. The function
-// panics if the environment variable is not set. This function is only used for
-// integration tests.
-func TestPath() (string, error) {
-	path := os.Getenv(TestEnvVarName)
+// TestRoot returns a the root of a filesystem specified by testEnvVarName. This
+// function is only used for integration tests.
+func TestRoot() (string, error) {
+	path := os.Getenv(testEnvVarName)
 	if path == "" {
-		return "", fmt.Errorf("%s: environment variable not set", TestEnvVarName)
+		return "", ErrSkipIntegration
 	}
 	return path, nil
 }
