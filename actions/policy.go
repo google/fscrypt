@@ -278,13 +278,19 @@ func (policy *Policy) Lock() error {
 	return err
 }
 
+// UsesProtector returns if the policy is protected with the protector
+func (policy *Policy) UsesProtector(protector *Protector) bool {
+	_, ok := policy.findWrappedKeyIndex(protector.Descriptor())
+	return ok
+}
+
 // AddProtector updates the data that is wrapping the Policy Key so that the
 // provided Protector is now protecting the specified Policy. If an error is
 // returned, no data has been changed. If the policy and protector are on
 // different filesystems, a link will be created between them. The policy and
 // protector must both be unlocked.
 func (policy *Policy) AddProtector(protector *Protector) error {
-	if _, ok := policy.findWrappedKeyIndex(protector.Descriptor()); ok {
+	if policy.UsesProtector(protector) {
 		return ErrAlreadyProtected
 	}
 	if policy.key == nil || protector.key == nil {

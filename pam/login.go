@@ -38,7 +38,7 @@ import (
 
 // Pam error values
 var (
-	ErrPAMPassphrase = errors.New("incorrect login passphrase")
+	ErrPassphrase = errors.New("incorrect login passphrase")
 )
 
 // Global state is needed for the PAM callback, so we guard this function with a
@@ -107,7 +107,7 @@ func IsUserLoginToken(username string, token *crypto.Key, quiet bool) error {
 	}
 
 	if !authenticated {
-		return ErrPAMPassphrase
+		return ErrPassphrase
 	}
 	return nil
 }

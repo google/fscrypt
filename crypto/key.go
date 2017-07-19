@@ -175,7 +175,6 @@ func (key *Key) resize(requestedSize int) (*Key, error) {
 // string allocated by C. Note that this method is unsafe as this C copy has no
 // locking or wiping functionality. The key shouldn't contain any `\0` bytes.
 func (key *Key) UnsafeToCString() unsafe.Pointer {
-	// Memory for the key must be moved into a C string allocated by C.
 	size := C.size_t(key.Len())
 	data := C.calloc(size+1, 1)
 	C.memcpy(data, util.Ptr(key.data), size)
