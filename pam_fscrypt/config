@@ -1,0 +1,13 @@
+Name: fscrypt PAM passphrase support
+Default: yes
+Priority: 0
+Auth-Type: Additional
+Auth-Final:
+	optional	pam_fscrypt.so
+Session-Type: Additional
+Session-Interactive-Only: yes
+Session-Final:
+	optional	pam_fscrypt.so drop_caches
+Password-Type: Additional
+Password-Final:
+	optional	pam_fscrypt.so
