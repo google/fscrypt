@@ -26,7 +26,6 @@
 //    * Reasonable defaults for a Policy's EncryptionOptions
 package metadata
 
-//go:generate protoc --go_out=. metadata.proto
 import (
 	"io"
 	"strings"
