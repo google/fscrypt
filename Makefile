@@ -16,11 +16,16 @@
 # the License.
 
 NAME = fscrypt
+PAM_NAME = pam_$(NAME)
+PAM_MODULE = $(PAM_NAME).so
 
-INSTALL = install
-DESTDIR = /usr/local/bin
+INSTALL ?= install
+DESTDIR ?= /usr/local/bin
+PAM_MODULE_DIR ?= /lib/security
+PAM_CONFIG_DIR ?= /usr/share/pam-configs
 
 CMD_PKG = github.com/google/$(NAME)/cmd/$(NAME)
+PAM_PKG = github.com/google/$(NAME)/$(PAM_NAME)
 
 SRC_FILES = $(shell find . -type f -name '*.go' -o -name "*.h" -o -name "*.c")
 GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
@@ -81,15 +86,20 @@ override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
 .PHONY: default all
-default: $(NAME)
+
+default: $(NAME) $(PAM_MODULE)
 all: update format lint default test
 
 $(NAME): $(SRC_FILES)
 	go build $(GO_FLAGS) -o $(NAME) $(CMD_PKG)
 
+$(PAM_MODULE): $(SRC_FILES)
+	go build -buildmode=c-shared $(GO_FLAGS) -o $(PAM_MODULE) $(PAM_PKG)
+	rm -f $(PAM_NAME).h
+
 .PHONY: clean
 clean:
-	rm -rf $(NAME) $(IMAGE)
+	rm -f $(NAME) $(PAM_MODULE) $(IMAGE)
 
 # Make sure go files build and tests pass.
 .PHONY: test
@@ -129,14 +139,22 @@ lint:
 	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
 	@megacheck -unused.exported $(GO_PKGS)
 
-.PHONY: install
-install: $(NAME)
+###### Installation commands #####
+.PHONY: install_bin install_pam install uninstall
+install_bin: $(NAME)
 	$(INSTALL) -d $(DESTDIR)
 	$(INSTALL) $(NAME) $(DESTDIR)
 
-.PHONY: uninstall
+install_pam: $(PAM_MODULE)
+	$(INSTALL) -d $(PAM_MODULE_DIR)
+	$(INSTALL) $(PAM_MODULE) $(PAM_MODULE_DIR)
+	$(INSTALL) -d $(PAM_CONFIG_DIR)
+	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
+
+install: install_bin install_pam 
+
 uninstall:
-	rm -rf $(DESTDIR)/$(NAME)
+	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
 
 # Install the go tools used for checking/generating the code
 .PHONY: go-tools

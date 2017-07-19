@@ -99,7 +99,6 @@ The following functionality is planned:
 *   `fscrypt backup` - Manages backups of the fscrypt metadata
 *   `fscrypt recovery` - Manages recovery keys for directories
 *   `fscrypt cleanup` - Scans filesystem for unused policies/protectors
-*   A PAM module to support login passphrase changes (see below)
 
 See the example usage section below or run `fscrypt COMMAND --help` for more
 information about each of the commands.
@@ -109,7 +108,7 @@ information about each of the commands.
 fscrypt has the following build dependencies:
 *   [Go](https://golang.org/doc/install)
 *   A C compiler (`gcc` or `clang`)
-*   `make` 
+*   `make`
 *   The [Argon2 Passphrase Hash](https://github.com/P-H-C/phc-winner-argon2)
     library, which can be
     [directly installed on Artful Ubuntu](https://packages.ubuntu.com/artful/libargon2-0-dev),
@@ -154,6 +153,50 @@ fscrypt has the following runtime dependencies:
     on your system.
 
 The dynamic libraries are not needed if you built a static executable.
+
+### Setting up the PAM module
+
+Note that to make use of the installed PAM module, your
+[PAM configuration files](http://www.linux-pam.org/Linux-PAM-html/sag-configuration.html)
+in `/etc/pam.d` must be modified to add fscrypt.
+
+#### Automatic setup on Ubuntu
+
+fscrypt automatically installs the
+[PAM config file](https://wiki.ubuntu.com/PAMConfigFrameworkSpec)
+`pam_fscrypt/config` to `/usr/share/pam-configs/fscrypt`. This file contains
+reasonable defaults for the PAM module. To automatically apply these changes,
+run `sudo pam-auth-update` and follow the on-screen instructions.
+
+#### Manual setup
+
+The fscrypt PAM module implements the Auth, Session, and Password
+[types](http://www.linux-pam.org/Linux-PAM-html/sag-configuration-file.html).
+
+The Password functionality of `pam_fscrypt.so` is used to automatically rewrap
+a user's login protector when their unix passphrase changes. An easy way to get
+the working is to add the line:
+```
+password    optional    pam_fscrypt.so
+```
+after `pam_unix.so` in `/etc/pam.d/common-password` or similar.
+
+The Auth and Session functionality of `pam_fscrypt.so` are used to automatically
+unlock directories when logging in as a user. An easy way to get this working is
+to add the line:
+```
+auth        optional    pam_fscrypt.so
+```
+after `pam_unix.so` in `/etc/pam.d/common-password` or similar, and to add the
+line:
+```
+session     optional    pam_fscrypt.so drop_caches
+```
+after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The `drop_caches`
+option tells fscrypt to clear the filesystem caches on session closes if some
+directories were unlocked. This ensures all unlocked data is inaccessible after
+session close. All the types also support the `debug` option which prints
+additional debug information to the syslog.
 
 ## Note about stability
 
@@ -507,13 +550,24 @@ best to help.
 
 #### I changed my login passphrase, now all my directories are inaccessible
 
-We do not currently support the changing of the login passphrase. This will
-change when the appropriate module is completed. Until then, you can fix it by
-first finding the necessary protector (with `fscrypt status PATH`) and then
-running:
+The PAM module provided by fscrypt (`pam_fscrypt.so`) should automatically
+detect changes to a user's login passphrase so that they can still access their
+encrypted directories. However, sometimes the login passphrase can become
+desynchronized from a user's login protector. This usually happens when the PAM
+passphrase is managed by an external system, if the PAM module is not installed,
+or if the PAM module is not properly configured.
+
+To fix your login protector, you first should find the appropriate protector ID
+by running `fscrypt status "/"`. Then, change the passphrase for this protector
+by running:
 ```
-fscrypt metadata change-passphrase --protector=MOUNTPOINT:ID
+fscrypt metadata change-passphrase --protector=/:ID
 ```
+
+#### Directories using my login passphrase are not automatically unlocking.
+
+Either the PAM module is not installed correctly, or your login passphrase
+changed and things got out of sync.
 
 #### I can still see files or filenames after running `fscrypt purge MOUNTPOINT`
 

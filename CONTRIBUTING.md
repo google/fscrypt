@@ -30,9 +30,10 @@ these commands when writing your code.
 
 ### Building and Testing
 
-As mentioned in `README.md`, running `make` will build the fscrypt executable.
-Running `make go` will build each package and run the tests, but just running
-`make go` with nothing else will skip the integration tests.
+As mentioned in `README.md`, running `make` will build the fscrypt executable
+and the PAM module `pam_fscrypt.so`. Running `make go` will build each package
+and run the tests, but just running `make go` with nothing else will skip the
+integration tests.
 
 To run the integration tests, you will need a filesystem that supports
 encryption. If you already have some empty filesystem at `/foo/bar`, just run:
