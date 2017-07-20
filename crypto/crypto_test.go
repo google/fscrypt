@@ -423,6 +423,18 @@ func TestWrongWrappingKeyLength(t *testing.T) {
 	}
 }
 
+// Wrong length of unwrapping key should fail
+func TestWrongUnwrappingKeyLength(t *testing.T) {
+	data, err := Wrap(fakeWrappingKey, fakeWrappingKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, err := Unwrap(fakeValidPolicyKey, data); err == nil {
+		k.Wipe()
+		t.Fatal("using a policy key for unwrapping should fail")
+	}
+}
+
 // Wraping twice with the same keys should give different components
 func TestWrapTwiceDistinct(t *testing.T) {
 	data1, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
@@ -543,6 +555,19 @@ func TestBadParallelism(t *testing.T) {
 	_, err = PassphraseHash(pk, fakeSalt, &costs)
 	if err == nil {
 		t.Errorf("parallelism cost of %d should be invalid", costs.Parallelism)
+	}
+}
+
+func TestBadSalt(t *testing.T) {
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pk.Wipe()
+
+	_, err = PassphraseHash(pk, []byte{1, 2, 3, 4}, hashTestCases[0].costs)
+	if err == nil {
+		t.Error("too short of salt should be invalid")
 	}
 }
 

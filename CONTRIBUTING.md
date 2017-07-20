@@ -96,8 +96,9 @@ be older than v3.0.0. In that case, just get the build
 [directly from GitHub](https://github.com/google/protobuf/releases/latest).
 
 After installing everything, running `make all` will run all the commands
-mentioned above. As with `make test`, you can run the integration tests by
-either using `make all MOUNT=/path/to/my/filesystem` or using the
+mentioned above (except for `make gen` as different versions of protoc can
+rearrange things differently). As with `make test`, you can run the integration
+tests by either using `make all MOUNT=/path/to/my/filesystem` or using the
 `make test-setup` and `make test-teardown` commands.
 
 `make all` should always be run before submitting a pull request.
