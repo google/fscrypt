@@ -82,7 +82,7 @@ override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
 .PHONY: default all
 default: $(NAME)
-all: gen update format lint default test
+all: update format lint default test
 
 $(NAME): $(SRC_FILES)
 	go build $(GO_FLAGS) -o $(NAME) $(CMD_PKG)
