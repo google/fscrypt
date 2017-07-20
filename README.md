@@ -1,9 +1,11 @@
 # fscrypt
 
 [![GitHub version](https://badge.fury.io/gh/google%2Ffscrypt.svg)](https://github.com/google/fscrypt/releases)
-[![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
 [![Build Status](https://travis-ci.org/google/fscrypt.svg?branch=master)](https://travis-ci.org/google/fscrypt)
+[![Coverage Status](https://coveralls.io/repos/github/google/fscrypt/badge.svg?branch=master)](https://coveralls.io/github/google/fscrypt?branch=master)
+[![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
+[![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
 fscrypt is a high-level tool for the management of
 [Linux filesystem encryption](https://lwn.net/Articles/639427).
