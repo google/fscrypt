@@ -129,7 +129,7 @@ fscrypt has the following build dependencies:
 
 Once all the dependencies are installed, you can get the repository by running:
 ```shell
-go get -d github.com/google/fscrypt
+go get -d github.com/google/fscrypt/...
 ```
 and then you can run `make` in `$GOPATH/github.com/google/fscrypt` to build the
 executable in that directory. Running `sudo make install` installs the binary to
