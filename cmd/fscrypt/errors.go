@@ -50,7 +50,7 @@ var (
 	ErrSpecifyProtector   = errors.New("multiple protectors available")
 	ErrWrongKey           = errors.New("incorrect key provided")
 	ErrSpecifyKeyFile     = errors.New("no key file specified")
-	ErrKeyFileLength      = errors.Errorf("key file must be %d bytes", metadata.PolicyKeyLen)
+	ErrKeyFileLength      = errors.Errorf("key file must be %d bytes", metadata.InternalKeyLen)
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
 	ErrMustBeRoot         = errors.New("this command must be run as root")
 	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
