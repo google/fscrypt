@@ -230,7 +230,7 @@ func timeHashingCosts(costs *metadata.HashingCosts) (time.Duration, error) {
 	}
 	end := cpuTimeInNanoseconds()
 
-	return time.Duration(end - begin), nil
+	return time.Duration((end - begin) / costs.Parallelism), nil
 }
 
 // cpuTimeInNanoseconds returns the nanosecond count based on the process's CPU usage.
