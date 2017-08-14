@@ -25,6 +25,7 @@ package util
 
 import (
 	"bufio"
+	"math"
 	"os"
 	"unsafe"
 )
@@ -40,13 +41,15 @@ func Ptr(slice []byte) unsafe.Pointer {
 // ByteSlice takes a pointer to some data and views it as a slice of bytes.
 // Note, indexing into this slice is unsafe.
 func ByteSlice(ptr unsafe.Pointer) []byte {
-	return (*[1 << 30]byte)(ptr)[:]
+	// Silce must fix in 32-bit address space to build on 32-bit platforms.
+	return (*[math.MaxInt32]byte)(ptr)[:]
 }
 
 // PointerSlice takes a pointer to an array of pointers and views it as a slice
 // of pointers. Note, indexing into this slice is unsafe.
 func PointerSlice(ptr unsafe.Pointer) []unsafe.Pointer {
-	return (*[1 << 30]unsafe.Pointer)(ptr)[:]
+	// Silce must fix in 32-bit address space to build on 32-bit platforms.
+	return (*[math.MaxInt32 / 4]unsafe.Pointer)(ptr)[:]
 }
 
 // Index returns the first index i such that inVal == inArray[i].
