@@ -365,7 +365,7 @@ func (policy *Policy) Apply(path string) error {
 // IsProvisioned returns a boolean indicating if the policy has its key in the
 // keyring, meaning files and directories using this policy are accessible.
 func (policy *Policy) IsProvisioned() bool {
-	_, _, err := crypto.FindPolicyKey(policy.Description())
+	_, err := crypto.FindPolicyKey(policy.Description())
 	return err == nil
 }
 
