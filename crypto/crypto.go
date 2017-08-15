@@ -63,10 +63,9 @@ var (
 	ErrGetrandomFail  = util.SystemError("getrandom() failed")
 	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
 	ErrKeyFree        = util.SystemError("could not free memory of key")
-	ErrKeyringLocate  = util.SystemError("could not locate the session keyring")
-	ErrKeyringInsert  = util.SystemError("could not insert key into the session keyring")
+	ErrKeyringInsert  = util.SystemError("could not insert key into the keyring")
 	ErrKeyringSearch  = errors.New("could not find key with descriptor")
-	ErrKeyringDelete  = util.SystemError("could not delete key from the session keyring")
+	ErrKeyringDelete  = util.SystemError("could not delete key from the keyring")
 )
 
 // panicInputLength panics if "name" has invalid length (expected != actual)
