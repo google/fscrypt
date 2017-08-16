@@ -29,6 +29,7 @@ import (
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -56,10 +57,10 @@ func PurgeAllPolicies(ctx *Context) error {
 
 	for _, policyDescriptor := range policies {
 		service := ctx.getService()
-		err = crypto.RemovePolicyKey(service + policyDescriptor)
+		err = security.RemoveKey(service + policyDescriptor)
 
 		switch errors.Cause(err) {
-		case nil, crypto.ErrKeyringSearch:
+		case nil, security.ErrKeyringSearch:
 			// We don't care if the key has already been removed
 		default:
 			return err
@@ -365,7 +366,7 @@ func (policy *Policy) Apply(path string) error {
 // IsProvisioned returns a boolean indicating if the policy has its key in the
 // keyring, meaning files and directories using this policy are accessible.
 func (policy *Policy) IsProvisioned() bool {
-	_, err := crypto.FindPolicyKey(policy.Description())
+	_, err := security.FindKey(policy.Description())
 	return err == nil
 }
 
@@ -381,7 +382,7 @@ func (policy *Policy) Provision() error {
 // Deprovision removes the Policy key from the kernel keyring. This prevents
 // reading and writing to the directory once the caches are cleared.
 func (policy *Policy) Deprovision() error {
-	return crypto.RemovePolicyKey(policy.Description())
+	return security.RemoveKey(policy.Description())
 }
 
 // commitData writes the Policy's current data to the filesystem.

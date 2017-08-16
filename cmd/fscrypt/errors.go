@@ -58,6 +58,7 @@ var (
 	ErrNotEmptyDir        = errors.New("not an empty directory")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
+	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
@@ -112,6 +113,11 @@ func getErrorSuggestions(err error) string {
 			cannot be encrypted in-place. Instead, encrypt an empty
 			directory, copy the files into that encrypted directory,
 			and securely delete the originals with "shred".`
+	case ErrDropCachesPerm:
+		return fmt.Sprintf(`Either this command should be run as root to
+			properly clear the inode cache, or it should be run with
+			%s=false (this may leave encrypted files and directories
+			in an accessible state).`, shortDisplay(dropCachesFlag))
 	case ErrAllLoadsFailed:
 		return loadHelpText
 	default:

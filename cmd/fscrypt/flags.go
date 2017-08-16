@@ -158,6 +158,14 @@ var (
 			"fscrypt unlock" will need to be run in order to use the
 			directory.`,
 	}
+	dropCachesFlag = &boolFlag{
+		Name: "drop-caches",
+		Usage: `After purging the keys from the keyring, drop the
+			inode and dentry cache for the purge to take effect.
+			Without this flag, cached encrypted files may still have
+			their plaintext visible. Requires root privileges.`,
+		Default: true,
+	}
 )
 
 // Option flags: used to specify options instead of being prompted for them

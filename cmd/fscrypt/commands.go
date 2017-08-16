@@ -25,12 +25,15 @@ import (
 	"log"
 	"os"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Setup is a command which can to global or per-filesystem initialization.
@@ -304,27 +307,36 @@ func unlockAction(c *cli.Context) error {
 var Purge = cli.Command{
 	Name:      "purge",
 	ArgsUsage: mountpointArg,
-	Usage:     "[EXPERIMENTAL] remove a filesystem's keys",
-	Description: fmt.Sprintf(`EXPERIMENTAL: This command removes all the
-		policy keys for directories on %[1]s. This is intended to lock
-		all encrypted files and directories on %[1]s, in that unlocking
+	Usage:     "Remove a filesystem's keys",
+	Description: fmt.Sprintf(`This command removes a user's policy keys for
+		directories on %[1]s. This is intended to lock all files and
+		directories encrypted by the user on %[1]s, in that unlocking
 		them for reading will require providing a key again. However,
-		this action is currently subject to two significant limitations:
+		there are four important things to note about this command:
 
-		(1) If "fscrypt purge" is run, but the filesystem has not yet
-		been unmounted, recently accessed encrypted directories and
-		files will remain accessible for some time. Because of this,
-		after purging a filesystem's keys, it is recommended to unmount
-		the filesystem. This limitation might be eliminated in a future
-		kernel version.
+		(1) When run with the default options, this command also clears
+		the dentry and inode cache, so that the encrypted files and
+		directories will no longer be visible. However, this requires
+		root privileges.
 
-		(2) Even after unmounting the filesystem, the kernel may keep
-		contents of encrypted files cached in memory. This means direct
-		memory access (either though physical compromise or a kernel
-		exploit) could compromise encrypted data. This weakness can be
-		eliminated by cycling the power or mitigated by using page cache
-		and slab cache poisoning.`, mountpointArg),
-	Flags:  []cli.Flag{forceFlag},
+		(2) When run with %[2]s=false, the keyring is cleared and root
+		permissions are not required, but recently accessed encrypted
+		directories and files will remain cached for some time. Because
+		of this, after purging a filesystem's keys, it is recommended to
+		unmount the filesystem.
+
+		(3) When run as root, this command removes the policy keys for
+		all users. However, this will only work if the PAM module has
+		been enabled. Otherwise, only root's keys may be removed.
+
+		(4) Even after unmounting the filesystem or clearing the
+		caches, the kernel may keep contents of files in memory. This
+		means direct memory access (either though physical compromise or
+		a kernel exploit) could compromise encrypted data. This weakness
+		can be eliminated by cycling the power or mitigated by using
+		page cache and slab cache poisoning.`, mountpointArg,
+		shortDisplay(dropCachesFlag)),
+	Flags:  []cli.Flag{forceFlag, dropCachesFlag},
 	Action: purgeAction,
 }
 
@@ -333,25 +345,39 @@ func purgeAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
+	if dropCachesFlag.Value {
+		if unix.Geteuid() != 0 {
+			return newExitError(c, ErrDropCachesPerm)
+		}
+	}
+
 	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
 	if err != nil {
 		return newExitError(c, err)
 	}
 
-	err = askConfirmation(fmt.Sprintf(
-		"Purge all policy keys from %q?",
-		ctx.Mount.Path), false,
-		"Encrypted data on this filesystem will be inaccessible until unlocked again!!")
-	if err != nil {
+	question := fmt.Sprintf("Purge all policy keys from %q", ctx.Mount.Path)
+	if dropCachesFlag.Value {
+		question += " and drop global inode cache"
+	}
+	warning := "Encrypted data on this filesystem will be inaccessible until unlocked again!!"
+	if err = askConfirmation(question+"?", false, warning); err != nil {
 		return newExitError(c, err)
 	}
 
 	if err = actions.PurgeAllPolicies(ctx); err != nil {
 		return newExitError(c, err)
 	}
+	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
 
-	fmt.Fprintf(c.App.Writer, "All keys purged for %q.\n", ctx.Mount.Path)
-	fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	if dropCachesFlag.Value {
+		if err = util.DropInodeCache(); err != nil {
+			return newExitError(c, err)
+		}
+		fmt.Fprintf(c.App.Writer, "Global inode cache cleared.\n")
+	} else {
+		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	}
 	return nil
 }
 

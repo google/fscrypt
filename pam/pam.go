@@ -140,19 +140,19 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
-// GetUID retrieves the UID of the corresponding PAM_USER.
-func (h *Handle) GetUID() (int64, error) {
+// GetIDs retrieves the UID and GID of the corresponding PAM_USER.
+func (h *Handle) GetIDs() (uid int, gid int, err error) {
 	var pamUsername *C.char
 	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
-	if err := h.err(); err != nil {
-		return 0, err
+	if err = h.err(); err != nil {
+		return 0, 0, err
 	}
 
-	pwd := C.getpwnam(pamUsername)
-	if pwd == nil {
-		return 0, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+	pwnam := C.getpwnam(pamUsername)
+	if pwnam == nil {
+		return 0, 0, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
 	}
-	return int64(pwd.pw_uid), nil
+	return int(pwnam.pw_uid), int(pwnam.pw_gid), nil
 }
 
 func (h *Handle) err() error {
