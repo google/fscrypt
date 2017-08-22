@@ -40,20 +40,11 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
 const (
-	// DefaultService is the service which should be used for all encryption
-	// keys unless not possible for legacy reasons. For ext4 systems before
-	// v4.8 and f2fs systems before v4.6, filesystem specific services must
-	// be used (these legacy services will still work with later kernels).
-	DefaultService = unix.FS_KEY_DESC_PREFIX
-	// KeyringID is the keyring that fscrypt's keys will be added to. Currently it
-	// is the user keyring to avoid hitting systemd/issues/5715.
-	KeyringID = unix.KEY_SPEC_USER_KEYRING
-	// keyType is always logon as required by filesystem encryption
-	keyType = "logon"
 	// Keys need to readable and writable, but hidden from other processes.
 	keyProtection = unix.PROT_READ | unix.PROT_WRITE
 	keyMmapFlags  = unix.MAP_PRIVATE | unix.MAP_ANONYMOUS
@@ -252,34 +243,6 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 	return key, nil
 }
 
-// FindPolicyKey tries to locate a policy key in the kernel keyring with the
-// provided description. The keyring and key ids are returned if we can find the
-// key. An error is returned if the key does not exist.
-func FindPolicyKey(description string) (keyID int, err error) {
-	keyID, err = unix.KeyctlSearch(KeyringID, keyType, description, 0)
-	log.Printf("unix.KeyctlSearch(%d, %s, %s) = %d, %v", KeyringID, keyType, description, keyID, err)
-	if err != nil {
-		err = errors.Wrap(ErrKeyringSearch, err.Error())
-	}
-	return
-}
-
-// RemovePolicyKey tries to remove a policy key from the kernel keyring with the
-// provided description. An error is returned if the key does not exist.
-func RemovePolicyKey(description string) error {
-	keyID, err := FindPolicyKey(description)
-	if err != nil {
-		return err
-	}
-
-	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, KeyringID, 0, 0)
-	log.Printf("unix.KeyctlUnlink(%d, %d) = %v", keyID, KeyringID, err)
-	if err != nil {
-		return errors.Wrap(ErrKeyringDelete, err.Error())
-	}
-	return nil
-}
-
 // InsertPolicyKey puts the provided policy key into the kernel keyring with the
 // provided description, and type logon. The key must be a policy key.
 func InsertPolicyKey(key *Key, description string) error {
@@ -301,13 +264,7 @@ func InsertPolicyKey(key *Key, description string) error {
 	fscryptKey.Size = metadata.PolicyKeyLen
 	copy(fscryptKey.Raw[:], key.data)
 
-	keyID, err := unix.AddKey(keyType, description, payload.data, KeyringID)
-	log.Printf("unix.AddKey(%s, %s, <payload>, %d) = %d, %v",
-		keyType, description, KeyringID, keyID, err)
-	if err != nil {
-		return errors.Wrap(ErrKeyringInsert, err.Error())
-	}
-	return nil
+	return security.InsertKey(payload.data, description)
 }
 
 var (

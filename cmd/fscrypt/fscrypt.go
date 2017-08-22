@@ -28,8 +28,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
+	"golang.org/x/sys/unix"
+
+	"github.com/google/fscrypt/security"
 	"github.com/urfave/cli"
 )
 
@@ -99,7 +103,7 @@ func setupCommand(command *cli.Command) {
 	// Setup function handlers
 	command.OnUsageError = onUsageError
 	if len(command.Subcommands) == 0 {
-		command.Before = setupOutputs
+		command.Before = setupBefore
 	} else {
 		// Cleanup subcommands (if applicable)
 		for i := range command.Subcommands {
@@ -108,10 +112,12 @@ func setupCommand(command *cli.Command) {
 	}
 }
 
-// setupOutputs makes sure our logs, errors, and output are going to the correct
+// setupBefore makes sure our logs, errors, and output are going to the correct
 // io.Writers and that we haven't over-specified our flags. We only print the
 // logs when using verbose, and only print normal stuff when not using quiet.
-func setupOutputs(c *cli.Context) error {
+// When running with sudo, this function also verifies that we have the proper
+// keyring linkage enabled.
+func setupBefore(c *cli.Context) error {
 	log.SetOutput(ioutil.Discard)
 	c.App.Writer = ioutil.Discard
 
@@ -120,6 +126,27 @@ func setupOutputs(c *cli.Context) error {
 	}
 	if !quietFlag.Value {
 		c.App.Writer = os.Stdout
+	}
+
+	if unix.Geteuid() != 0 {
+		return nil // Must be root to setup links
+	}
+	euid, err := strconv.Atoi(os.Getenv("SUDO_UID"))
+	if err != nil {
+		return nil // Must be running with sudo
+	}
+	egid, err := strconv.Atoi(os.Getenv("SUDO_GID"))
+	if err != nil {
+		return nil // Must be running with sudo
+	}
+
+	// Dropping and raising privileges checks the needed keyring link.
+	privs, err := security.DropThreadPrivileges(euid, egid)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	if err := security.RaiseThreadPrivileges(privs); err != nil {
+		return newExitError(c, err)
 	}
 	return nil
 }

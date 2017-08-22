@@ -20,7 +20,6 @@
 // Package crypto manages all the cryptography for fscrypt. This includes:
 //	- Key management (key.go)
 //		- Securely holding keys in memory
-//		- Inserting keys into the keyring
 //		- Making recovery keys
 //	- Randomness (rand.go)
 //	- Cryptographic algorithms (crypto.go)
@@ -63,9 +62,6 @@ var (
 	ErrGetrandomFail  = util.SystemError("getrandom() failed")
 	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
 	ErrKeyFree        = util.SystemError("could not free memory of key")
-	ErrKeyringInsert  = util.SystemError("could not insert key into the keyring")
-	ErrKeyringSearch  = errors.New("could not find key with descriptor")
-	ErrKeyringDelete  = util.SystemError("could not delete key from the keyring")
 )
 
 // panicInputLength panics if "name" has invalid length (expected != actual)

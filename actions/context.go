@@ -31,9 +31,10 @@ package actions
 import (
 	"log"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/pkg/errors"
 
-	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 )
@@ -101,8 +102,10 @@ func (ctx *Context) checkContext() error {
 }
 
 // getService returns the keyring service for this context. We use the presence
-// of the LegacyConfig flag to determine if we should use the legacy services
-// (which are necessary for kernels before v4.8).
+// of the LegacyConfig flag to determine if we should use the legacy services.
+// For ext4 systems before v4.8 and f2fs systems before v4.6, filesystem
+// specific services must be used (these legacy services will still work with
+// later kernels).
 func (ctx *Context) getService() string {
 	// For legacy configurations, we may need non-standard services
 	if ctx.Config.HasCompatibilityOption(LegacyConfig) {
@@ -111,7 +114,7 @@ func (ctx *Context) getService() string {
 			return ctx.Mount.Filesystem + ":"
 		}
 	}
-	return crypto.DefaultService
+	return unix.FS_KEY_DESC_PREFIX
 }
 
 // getProtectorOption returns the ProtectorOption for the protector on the
