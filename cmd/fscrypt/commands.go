@@ -33,7 +33,7 @@ import (
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/util"
+	"github.com/google/fscrypt/security"
 )
 
 // Setup is a command which can to global or per-filesystem initialization.
@@ -371,7 +371,7 @@ func purgeAction(c *cli.Context) error {
 	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
 
 	if dropCachesFlag.Value {
-		if err = util.DropInodeCache(); err != nil {
+		if err = security.DropInodeCache(); err != nil {
 			return newExitError(c, err)
 		}
 		fmt.Fprintf(c.App.Writer, "Global inode cache cleared.\n")
