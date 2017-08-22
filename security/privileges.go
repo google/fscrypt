@@ -39,6 +39,8 @@ var (
 	ErrKeyringInsert  = util.SystemError("could not insert key into the keyring")
 	ErrKeyringSearch  = errors.New("could not find key with descriptor")
 	ErrKeyringDelete  = util.SystemError("could not delete key from the keyring")
+	ErrKeyringLink    = util.SystemError("could not link keyring")
+	ErrKeyringUnlink  = util.SystemError("could not unlink keyring")
 )
 
 // Privileges contains the state needed to restore a user's original privileges.
@@ -54,9 +56,8 @@ type Privileges struct {
 // Due to golang/go#1435, these privileges are only dropped for a single thread.
 // This function also makes sure that the appropriate user keyrings are linked.
 // This ensures that the user's keys are visible from commands like sudo.
-func DropThreadPrivileges(euid int, egid int) (*Privileges, error) {
-	var err error
-	privs := &Privileges{
+func DropThreadPrivileges(euid int, egid int) (privs *Privileges, err error) {
+	privs = &Privileges{
 		euid: unix.Geteuid(),
 		egid: unix.Getegid(),
 	}
@@ -68,32 +69,43 @@ func DropThreadPrivileges(euid int, egid int) (*Privileges, error) {
 	// can still modify it after dropping privileges.
 	privilegedUserKeyringID, err := getUserKeyringID()
 	if err != nil {
-		return nil, err
+		return
 	}
 	if err = keyringLink(privilegedUserKeyringID, unix.KEY_SPEC_THREAD_KEYRING); err != nil {
-		return nil, err
+		return
 	}
 	defer keyringUnlink(privilegedUserKeyringID, unix.KEY_SPEC_THREAD_KEYRING)
 
 	// Drop euid last so we have permissions to drop the others.
 	if err = unix.Setregid(-1, egid); err != nil {
-		return nil, errors.Wrapf(err, "dropping egid to %d", egid)
+		err = errors.Wrapf(err, "dropping egid to %d", egid)
+		return
 	}
 	if err = unix.Setgroups([]int{egid}); err != nil {
-		return nil, errors.Wrapf(err, "dropping groups")
+		err = errors.Wrapf(err, "dropping groups")
+		return
 	}
 	if err = unix.Setreuid(-1, euid); err != nil {
-		return nil, errors.Wrapf(err, "dropping euid to %d", euid)
+		err = errors.Wrapf(err, "dropping euid to %d", euid)
+		return
 	}
 	log.Printf("privileges dropped to euid=%d, egid=%d", euid, egid)
+
+	// Failure should undo the privilege modification
+	defer func() {
+		if err != nil {
+			raiseErr := RaiseThreadPrivileges(privs)
+			log.Printf("when reverting privilege changes: %v", raiseErr)
+		}
+	}()
 
 	// If the link already exists, this linking does nothing and succeeds.
 	droppedUserKeyringID, err := getUserKeyringID()
 	if err != nil {
-		return nil, err
+		return
 	}
 	if err = keyringLink(droppedUserKeyringID, privilegedUserKeyringID); err != nil {
-		return nil, err
+		return
 	}
 	log.Printf("user keyring (%d) linked into root user keyring (%d)",
 		droppedUserKeyringID, privilegedUserKeyringID)

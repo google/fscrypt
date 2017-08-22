@@ -95,7 +95,7 @@ var keyringIDCache = make(map[int]int)
 // simpler approach would be to use
 //     unix.KeyctlGetKeyringID(unix.KEY_SPEC_USER_KEYRING, false)
 // which would work in almost all cases. However, despite the fact that the rest
-// of the keyrings API using the _effective_ UID throughout, the translation of
+// of the keyrings API uses the _effective_ UID throughout, the translation of
 // KEY_SPEC_USER_KEYRING is done with respect to the _real_ UID. This means that
 // a simpler implementation would not respect permissions dropping.
 func getUserKeyringID() (int, error) {
@@ -150,10 +150,12 @@ func getUserKeyringID() (int, error) {
 
 func keyringLink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_LINK, keyID, keyringID, 0, 0)
-	return errors.Wrapf(err, "linking key %d into keyring %d", keyID, keyringID)
+	log.Printf("KeyctlLink(%d, %d) = %v", keyID, keyringID, err)
+	return errors.Wrap(ErrKeyringLink, err.Error())
 }
 
 func keyringUnlink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
-	return errors.Wrapf(err, "unlinking key %d from keyring %d", keyID, keyringID)
+	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
+	return errors.Wrap(ErrKeyringUnlink, err.Error())
 }
