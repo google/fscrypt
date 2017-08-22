@@ -7,7 +7,7 @@ Auth-Final:
 Session-Type: Additional
 Session-Interactive-Only: yes
 Session-Final:
-	optional	pam_fscrypt.so drop_caches
+	optional	pam_fscrypt.so drop_caches lock_policies
 Password-Type: Additional
 Password-Final:
 	optional	pam_fscrypt.so

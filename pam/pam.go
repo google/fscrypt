@@ -32,8 +32,6 @@ import (
 	"errors"
 	"fmt"
 	"unsafe"
-
-	"github.com/google/fscrypt/util"
 )
 
 // Handle wraps the C pam_handle_t type. This is used from within modules.
@@ -97,39 +95,6 @@ func (h *Handle) GetString(name string) (string, error) {
 		return "", err
 	}
 	return C.GoString((*C.char)(data)), nil
-}
-
-// SetSlice sets a []string value for the PAM data with the specified name.
-func (h *Handle) SetSlice(name string, slice []string) error {
-	sliceLength := uintptr(len(slice))
-	memorySize := (sliceLength + 1) * unsafe.Sizeof(uintptr(0))
-	data := C.malloc(C.size_t(memorySize))
-
-	cSlice := util.PointerSlice(data)
-	for i, str := range slice {
-		cSlice[i] = unsafe.Pointer(C.CString(str))
-	}
-	cSlice[sliceLength] = nil
-
-	return h.setData(name, data, C.CleanupFunc(C.freeArray))
-}
-
-// GetSlice gets a []string value for the PAM data with the specified name. It
-// should have been previously set with SetSlice().
-func (h *Handle) GetSlice(name string) ([]string, error) {
-	data, err := h.getData(name)
-	if err != nil {
-		return nil, err
-	}
-
-	var slice []string
-	for _, cString := range util.PointerSlice(data) {
-		if cString == nil {
-			return slice, nil
-		}
-		slice = append(slice, C.GoString((*C.char)(cString)))
-	}
-	panic("We will never get here")
 }
 
 // GetItem retrieves a PAM information item. This a pointer directory to the

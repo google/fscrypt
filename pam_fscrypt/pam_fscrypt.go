@@ -50,11 +50,14 @@ import (
 )
 
 const (
+	moduleName = "pam_fscrypt"
 	// These labels are used to tag items in the PAM data.
-	authtokLabel         = "fscrypt_authtok"
-	descriptorLabel      = "fscrypt_descriptor"
-	provisionedKeysLabel = "fscrypt_provisioned_keys"
-	moduleName           = "pam_fscrypt"
+	authtokLabel    = "fscrypt_authtok"
+	descriptorLabel = "fscrypt_descriptor"
+	// These flags are used to toggle behavior of the PAM module.
+	debugFlag = "debug"
+	lockFlag  = "lock_policies"
+	cacheFlag = "drop_caches"
 )
 
 // parseArgs takes a list of C arguments into a PAM function and returns a map
@@ -73,7 +76,7 @@ func parseArgs(argc C.int, argv **C.char) map[string]bool {
 func setupLogging(args map[string]bool) io.Writer {
 	log.SetFlags(0) // Syslog already includes time data itself
 	log.SetOutput(ioutil.Discard)
-	if args["debug"] {
+	if args[debugFlag] {
 		debugWriter, err := syslog.New(syslog.LOG_DEBUG, moduleName)
 		if err == nil {
 			log.SetOutput(debugWriter)
@@ -96,12 +99,6 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 		return nil, err
 	}
 
-	// Retrieve the cached value if one exists.
-	if descriptor, err := handle.GetString(descriptorLabel); err == nil {
-		log.Printf("using cached descriptor %q", descriptor)
-		return actions.GetProtector(ctx, descriptor)
-	}
-
 	// Find the user's PAM protector.
 	uid := int64(unix.Geteuid())
 	if err != nil {
@@ -112,17 +109,9 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 		return nil, err
 	}
 	for _, option := range options {
-		if option.Source() != metadata.SourceType_pam_passphrase || option.UID() != uid {
-			continue
+		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
+			return actions.GetProtectorFromOption(ctx, option)
 		}
-
-		log.Printf("caching descriptor %q", option.Descriptor())
-		if err = handle.SetString(descriptorLabel, option.Descriptor()); err != nil {
-			log.Printf("could not set descriptor data: %s", err)
-			// We can still get the protector, so no error.
-		}
-
-		return actions.GetProtectorFromOption(ctx, option)
 	}
 	return nil, fmt.Errorf("no PAM protector on %q", ctx.Mount.Path)
 }
@@ -159,10 +148,10 @@ func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int
 	return C.PAM_SUCCESS
 }
 
-// policiesToProvision searches all the mountpoints for any unprovisioned
-// policies protected with the specified protector. An error during this search
-// does not halt the search, instead the errors are written to errWriter.
-func policiesToProvision(protector *actions.Protector, errWriter io.Writer) []*actions.Policy {
+// policiesUsingProtector searches all the mountpoints for any policies
+// protected with the specified protector. An error during this search does not
+// halt the search, instead the errors are written to errWriter.
+func policiesUsingProtector(protector *actions.Protector, errWriter io.Writer) []*actions.Policy {
 	mounts, err := filesystem.AllFilesystems()
 	if err != nil {
 		fmt.Fprint(errWriter, err)
@@ -189,7 +178,7 @@ func policiesToProvision(protector *actions.Protector, errWriter io.Writer) []*a
 				continue
 			}
 
-			if policy.UsesProtector(protector) && !policy.IsProvisioned() {
+			if policy.UsesProtector(protector) {
 				policies = append(policies, policy)
 			}
 		}
@@ -205,7 +194,7 @@ func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 
 	protector, err := loginProtector(handle)
 	if err != nil {
-		log.Printf("no directories to unlock: %s", err)
+		log.Printf("no pam protector for this user: %s", err)
 		return C.PAM_SUCCESS
 	}
 
@@ -229,11 +218,10 @@ func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 		return crypto.NewKeyFromCString(authtok)
 	}
 
-	log.Print("searching for policies to provision in pam_sm_open_session()")
-	policies := policiesToProvision(protector, errWriter)
-
+	log.Print("searching for policies to unlock in pam_sm_open_session()")
+	policies := policiesUsingProtector(protector, errWriter)
 	if len(policies) == 0 {
-		log.Print("no policies to provision")
+		log.Print("no policies to unlock")
 		return C.PAM_SUCCESS
 	}
 
@@ -243,8 +231,11 @@ func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 	}
 	defer protector.Lock()
 
-	var provisionedKeys []string
 	for _, policy := range policies {
+		if policy.IsProvisioned() {
+			log.Printf("policy %s already provisioned", policy.Descriptor())
+			continue
+		}
 		if err := policy.UnlockWithProtector(protector); err != nil {
 			fmt.Fprintf(errWriter, "unlocking policy %s: %s", policy.Descriptor(), err)
 			continue
@@ -257,18 +248,8 @@ func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 		}
 
 		log.Printf("policy %s provisioned", policy.Descriptor())
-		provisionedKeys = append(provisionedKeys, policy.Description())
 	}
 
-	if len(provisionedKeys) == 0 {
-		fmt.Fprint(errWriter, "could not provision any policies")
-		return C.PAM_SERVICE_ERR
-	}
-
-	if err := handle.SetSlice(provisionedKeysLabel, provisionedKeys); err != nil {
-		fmt.Fprintf(errWriter, "setting key list data: %s", err)
-		return C.PAM_SERVICE_ERR
-	}
 	return C.PAM_SUCCESS
 }
 
@@ -280,10 +261,19 @@ func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char)
 	args := parseArgs(argc, argv)
 	errWriter := setupLogging(args)
 
-	provisionedKeys, err := handle.GetSlice(provisionedKeysLabel)
-	if err != nil {
-		log.Printf("no directories to lock: %s", err)
-		return C.PAM_SUCCESS
+	if args[lockFlag] {
+		protector, err := loginProtector(handle)
+		if err != nil {
+			log.Printf("no pam protector for this user: %s", err)
+			return C.PAM_SUCCESS
+		}
+
+		policies := policiesUsingProtector(protector, errWriter)
+
+		if len(policies) == 0 {
+			log.Print("no policies to lock")
+			return C.PAM_SUCCESS
+		}
 	}
 
 	log.Print("locking directories in pam_sm_close_session()")
@@ -293,7 +283,7 @@ func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char)
 		}
 	}
 
-	if args["drop_caches"] {
+	if args[cacheFlag] {
 		if err = security.DropInodeCache(); err != nil {
 			fmt.Fprint(errWriter, err)
 			return C.PAM_SERVICE_ERR
