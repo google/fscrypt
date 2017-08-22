@@ -34,8 +34,9 @@ import (
 	"io/ioutil"
 	"log"
 	"log/syslog"
-	"os"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/pkg/errors"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/pam"
+	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -101,7 +103,7 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 	}
 
 	// Find the user's PAM protector.
-	pamUID, err := handle.GetUID()
+	uid := int64(unix.Geteuid())
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 		return nil, err
 	}
 	for _, option := range options {
-		if option.Source() != metadata.SourceType_pam_passphrase || option.UID() != pamUID {
+		if option.Source() != metadata.SourceType_pam_passphrase || option.UID() != uid {
 			continue
 		}
 
@@ -286,22 +288,13 @@ func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char)
 
 	log.Print("locking directories in pam_sm_close_session()")
 	for _, provisionedKey := range provisionedKeys {
-		if err := crypto.RemovePolicyKey(provisionedKey); err != nil {
+		if err := security.RemoveKey(provisionedKey); err != nil {
 			fmt.Fprintf(errWriter, "can't remove %s: %s", provisionedKey, err)
 		}
 	}
 
 	if args["drop_caches"] {
-		log.Print("dropping page caches")
-		// See: https://www.kernel.org/doc/Documentation/sysctl/vm.txt
-		f, err := os.OpenFile("/proc/sys/vm/drop_caches", os.O_WRONLY|os.O_SYNC, 0)
-		if err != nil {
-			fmt.Fprint(errWriter, err)
-			return C.PAM_SERVICE_ERR
-		}
-		defer f.Close()
-		// "3" clears slab objects and the page cache
-		if _, err := f.WriteString("3"); err != nil {
+		if err = security.DropInodeCache(); err != nil {
 			fmt.Fprint(errWriter, err)
 			return C.PAM_SERVICE_ERR
 		}
