@@ -15,6 +15,16 @@ You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it
 again.
 
+## Reporting an Issue
+
+Any bugs or problems found in fscrypt should be reported though the 
+[Github Issue Tracker](https://github.com/google/fscrypt/issues/new). When
+reporting an issue, be sure to give as much information about the problem as
+possible. If reporting an issue around the fscrypt command-line tool, post the
+relevant output from fscrypt, running with the `--verbose` flag. For the
+pam_fscrypt module, use the `debug` flag with the module and post the relevant
+parts of the syslog (at ``).
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We

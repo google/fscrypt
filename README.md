@@ -545,8 +545,8 @@ file for more information about singing the CLA and submitting a pull request.
 ## Troubleshooting
 
 In general, if you are encountering issues with fscrypt,
-[open an issue](https://github.com/google/fscrypt/issues/new). We will try our
-best to help.
+[open an issue](https://github.com/google/fscrypt/issues/new), following the
+guidelines in `CONTRIBUTING.md`. We will try our best to help.
 
 #### I changed my login passphrase, now all my directories are inaccessible
 

@@ -151,11 +151,19 @@ func getUserKeyringID() (int, error) {
 func keyringLink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_LINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlLink(%d, %d) = %v", keyID, keyringID, err)
-	return errors.Wrap(ErrKeyringLink, err.Error())
+
+	if err != nil {
+		return errors.Wrap(ErrKeyringLink, err.Error())
+	}
+	return err
 }
 
 func keyringUnlink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
-	return errors.Wrap(ErrKeyringUnlink, err.Error())
+
+	if err != nil {
+		return errors.Wrap(ErrKeyringUnlink, err.Error())
+	}
+	return err
 }

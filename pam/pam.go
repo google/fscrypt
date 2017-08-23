@@ -32,12 +32,15 @@ import (
 	"errors"
 	"fmt"
 	"unsafe"
+
+	"github.com/google/fscrypt/security"
 )
 
 // Handle wraps the C pam_handle_t type. This is used from within modules.
 type Handle struct {
 	handle *C.pam_handle_t
 	status C.int
+	privs  *security.Privileges
 }
 
 // NewHandle creates a Handle from a raw pointer.
@@ -105,19 +108,28 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
-// GetIDs retrieves the UID and GID of the corresponding PAM_USER.
-func (h *Handle) GetIDs() (uid int, gid int, err error) {
+// DropThreadPrivileges sets the effective privileges to that of the PAM user
+func (h *Handle) DropThreadPrivileges() error {
 	var pamUsername *C.char
+	var err error
+
 	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
 	if err = h.err(); err != nil {
-		return 0, 0, err
+		return err
 	}
-
 	pwnam := C.getpwnam(pamUsername)
 	if pwnam == nil {
-		return 0, 0, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+		return fmt.Errorf("unknown user %q", C.GoString(pamUsername))
 	}
-	return int(pwnam.pw_uid), int(pwnam.pw_gid), nil
+
+	h.privs, err = security.DropThreadPrivileges(int(pwnam.pw_uid), int(pwnam.pw_gid))
+	return err
+}
+
+// RaiseThreadPrivileges restores the original privileges that were running the
+// PAM module (this is usually root).
+func (h *Handle) RaiseThreadPrivileges() error {
+	return security.RaiseThreadPrivileges(h.privs)
 }
 
 func (h *Handle) err() error {
