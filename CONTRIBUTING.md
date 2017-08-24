@@ -15,6 +15,16 @@ You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it
 again.
 
+## Reporting an Issue
+
+Any bugs or problems found in fscrypt should be reported though the 
+[Github Issue Tracker](https://github.com/google/fscrypt/issues/new). When
+reporting an issue, be sure to give as much information about the problem as
+possible. If reporting an issue around the fscrypt command-line tool, post the
+relevant output from fscrypt, running with the `--verbose` flag. For the
+pam_fscrypt module, use the `debug` option with the module and post the relevant
+parts of the syslog (usually at `/var/log/syslog`).
+
 ## Code reviews
 
 All submissions, including submissions by project members, require review. We
@@ -30,9 +40,10 @@ these commands when writing your code.
 
 ### Building and Testing
 
-As mentioned in `README.md`, running `make` will build the fscrypt executable.
-Running `make go` will build each package and run the tests, but just running
-`make go` with nothing else will skip the integration tests.
+As mentioned in `README.md`, running `make` will build the fscrypt executable
+and the PAM module `pam_fscrypt.so`. Running `make go` will build each package
+and run the tests, but just running `make go` with nothing else will skip the
+integration tests.
 
 To run the integration tests, you will need a filesystem that supports
 encryption. If you already have some empty filesystem at `/foo/bar`, just run:

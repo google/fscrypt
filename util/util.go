@@ -25,7 +25,6 @@ package util
 
 import (
 	"bufio"
-	"log"
 	"math"
 	"os"
 	"unsafe"
@@ -83,6 +82,14 @@ func MinInt(a, b int) int {
 	return b
 }
 
+// MaxInt returns the greater of a and b.
+func MaxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // MinInt64 returns the lesser of a and b.
 func MinInt64(a, b int64) int64 {
 	if a < b {
@@ -97,20 +104,4 @@ func ReadLine() (string, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	return scanner.Text(), scanner.Err()
-}
-
-// DropInodeCache instructs the kernel to clear the global cache of inodes and
-// dentries. This has the effect of making encrypted directories whose keys
-// are not present no longer accessible. Requires root privileges.
-func DropInodeCache() error {
-	log.Print("dropping page caches")
-	// See: https://www.kernel.org/doc/Documentation/sysctl/vm.txt
-	file, err := os.OpenFile("/proc/sys/vm/drop_caches", os.O_WRONLY|os.O_SYNC, 0)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	// "2" just clears the inodes and dentries
-	_, err = file.WriteString("2")
-	return err
 }

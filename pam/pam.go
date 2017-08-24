@@ -31,23 +31,43 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"log"
 	"unsafe"
 
-	"github.com/google/fscrypt/util"
+	"github.com/google/fscrypt/security"
 )
 
 // Handle wraps the C pam_handle_t type. This is used from within modules.
 type Handle struct {
 	handle *C.pam_handle_t
 	status C.int
+	privs  *security.Privileges
+	// UID of the user being authenticated
+	UID int
+	// GID of the user being authenticated
+	GID int
 }
 
 // NewHandle creates a Handle from a raw pointer.
-func NewHandle(pamh unsafe.Pointer) *Handle {
-	return &Handle{
+func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
+	h := &Handle{
 		handle: (*C.pam_handle_t)(pamh),
 		status: C.PAM_SUCCESS,
 	}
+
+	var pamUsername *C.char
+	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
+	if err := h.err(); err != nil {
+		return nil, err
+	}
+
+	pwnam := C.getpwnam(pamUsername)
+	if pwnam == nil {
+		return nil, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+	}
+	h.UID = int(pwnam.pw_uid)
+	h.GID = int(pwnam.pw_gid)
+	return h, nil
 }
 
 func (h *Handle) setData(name string, data unsafe.Pointer, cleanup C.CleanupFunc) error {
@@ -99,39 +119,6 @@ func (h *Handle) GetString(name string) (string, error) {
 	return C.GoString((*C.char)(data)), nil
 }
 
-// SetSlice sets a []string value for the PAM data with the specified name.
-func (h *Handle) SetSlice(name string, slice []string) error {
-	sliceLength := uintptr(len(slice))
-	memorySize := (sliceLength + 1) * unsafe.Sizeof(uintptr(0))
-	data := C.malloc(C.size_t(memorySize))
-
-	cSlice := util.PointerSlice(data)
-	for i, str := range slice {
-		cSlice[i] = unsafe.Pointer(C.CString(str))
-	}
-	cSlice[sliceLength] = nil
-
-	return h.setData(name, data, C.CleanupFunc(C.freeArray))
-}
-
-// GetSlice gets a []string value for the PAM data with the specified name. It
-// should have been previously set with SetSlice().
-func (h *Handle) GetSlice(name string) ([]string, error) {
-	data, err := h.getData(name)
-	if err != nil {
-		return nil, err
-	}
-
-	var slice []string
-	for _, cString := range util.PointerSlice(data) {
-		if cString == nil {
-			return slice, nil
-		}
-		slice = append(slice, C.GoString((*C.char)(cString)))
-	}
-	panic("We will never get here")
-}
-
 // GetItem retrieves a PAM information item. This a pointer directory to the
 // data, so it shouldn't be modified.
 func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
@@ -140,19 +127,22 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
-// GetIDs retrieves the UID and GID of the corresponding PAM_USER.
-func (h *Handle) GetIDs() (uid int, gid int, err error) {
-	var pamUsername *C.char
-	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
-	if err = h.err(); err != nil {
-		return 0, 0, err
-	}
+// DropThreadPrivileges sets the effective privileges to that of the PAM user
+func (h *Handle) DropThreadPrivileges() error {
+	var err error
+	h.privs, err = security.DropThreadPrivileges(h.UID, h.GID)
+	return err
+}
 
-	pwnam := C.getpwnam(pamUsername)
-	if pwnam == nil {
-		return 0, 0, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+// RaiseThreadPrivileges restores the original privileges that were running the
+// PAM module (this is usually root). As this error is often ignored in a defer
+// statement, any error is also logged.
+func (h *Handle) RaiseThreadPrivileges() error {
+	err := security.RaiseThreadPrivileges(h.privs)
+	if err != nil {
+		log.Print(err)
 	}
-	return int(pwnam.pw_uid), int(pwnam.pw_gid), nil
+	return err
 }
 
 func (h *Handle) err() error {

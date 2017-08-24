@@ -18,6 +18,7 @@
  */
 
 // Package security manages:
+//  - Cache clearing (cache.go)
 //  - Keyring Operations (keyring.go)
 //  - Privilege manipulation (privileges.go)
 //  - Maintaining the link between the root and user keyrings.

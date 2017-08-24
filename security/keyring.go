@@ -141,6 +141,13 @@ func getUserKeyringID() (int, error) {
 		}
 
 		keyringID := int(parsedID)
+		// For some stupid reason, a thread does not automaticaly "possess" keys
+		// in the user keyring. So we link it into the process keyring so that
+		// we will not get "permission denied" when purging or modifying keys.
+		if err := keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
+			return 0, err
+		}
+
 		keyringIDCache[euid] = keyringID
 		return keyringID, nil
 	}
@@ -151,11 +158,19 @@ func getUserKeyringID() (int, error) {
 func keyringLink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_LINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlLink(%d, %d) = %v", keyID, keyringID, err)
-	return errors.Wrap(ErrKeyringLink, err.Error())
+
+	if err != nil {
+		return errors.Wrap(ErrKeyringLink, err.Error())
+	}
+	return err
 }
 
 func keyringUnlink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
-	return errors.Wrap(ErrKeyringUnlink, err.Error())
+
+	if err != nil {
+		return errors.Wrap(ErrKeyringUnlink, err.Error())
+	}
+	return err
 }
