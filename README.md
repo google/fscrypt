@@ -130,7 +130,7 @@ Once all the dependencies are installed, you can get the repository by running:
 go get -d github.com/google/fscrypt/...
 ```
 and then you can run `make` in `$GOPATH/github.com/google/fscrypt` to build the
-executable in that directory. Running `sudo make install` installs the binary to
+executable and PAM moudle in that directory. Running `sudo make install` installs the binary to
 `/usr/local/bin`.
 
 See the `Makefile` for instructions on how to customize the build. This includes
@@ -190,13 +190,14 @@ auth        optional    pam_fscrypt.so
 after `pam_unix.so` in `/etc/pam.d/common-password` or similar, and to add the
 line:
 ```
-session     optional    pam_fscrypt.so drop_caches
+session     optional    pam_fscrypt.so drop_caches lock_policies
 ```
-after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The `drop_caches`
-option tells fscrypt to clear the filesystem caches on session closes if some
-directories were unlocked. This ensures all unlocked data is inaccessible after
-session close. All the types also support the `debug` option which prints
-additional debug information to the syslog.
+after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
+`lock_policies` option locks the directories protected with the user's login
+passphrase when the last session ends. The `drop_caches` option tells fscrypt to
+clear the filesystem caches when the last session closes, ensuring all the
+locked data is inaccessible. All the types also support the `debug` option which
+prints additional debug information to the syslog.
 
 ## Note about stability
 

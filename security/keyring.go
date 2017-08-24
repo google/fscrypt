@@ -141,6 +141,13 @@ func getUserKeyringID() (int, error) {
 		}
 
 		keyringID := int(parsedID)
+		// For some stupid reason, a thread does not automaticaly "possess" keys
+		// in the user keyring. So we link it into the process keyring so that
+		// we will not get "permission denied" when purging or modifying keys.
+		if err := keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
+			return 0, err
+		}
+
 		keyringIDCache[euid] = keyringID
 		return keyringID, nil
 	}
