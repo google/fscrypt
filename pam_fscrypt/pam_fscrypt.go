@@ -78,7 +78,7 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	// We will always clear the the AUTHTOK data
 	defer handle.ClearData(authtokLabel)
 	// Increment the count as we add a session
-	if _, err := AdjustCount(handle, 1); err != nil {
+	if _, err := AdjustCount(handle, +1); err != nil {
 		return err
 	}
 
@@ -150,6 +150,7 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	// Only do stuff on session close when we are the last session
 	if count, err := AdjustCount(handle, -1); err != nil || count != 0 {
+		log.Printf("count is %d and we are not locking", count)
 		return err
 	}
 
@@ -275,7 +276,6 @@ func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char)
 func pam_sm_chauthtok(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
 	// Only do rewrapping if we have both AUTHTOKs and a login protector.
 	if pam.Flag(flags)&pam.PrelimCheck != 0 {
-		log.Print("no preliminary checks need to run")
 		return C.PAM_SUCCESS
 	}
 

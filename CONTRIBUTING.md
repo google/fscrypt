@@ -22,8 +22,8 @@ Any bugs or problems found in fscrypt should be reported though the
 reporting an issue, be sure to give as much information about the problem as
 possible. If reporting an issue around the fscrypt command-line tool, post the
 relevant output from fscrypt, running with the `--verbose` flag. For the
-pam_fscrypt module, use the `debug` flag with the module and post the relevant
-parts of the syslog (at ``).
+pam_fscrypt module, use the `debug` option with the module and post the relevant
+parts of the syslog (usually at `/var/log/syslog`).
 
 ## Code reviews
 

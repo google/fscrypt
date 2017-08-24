@@ -568,12 +568,11 @@ fscrypt metadata change-passphrase --protector=/:ID
 #### Directories using my login passphrase are not automatically unlocking.
 
 Either the PAM module is not installed correctly, or your login passphrase
-changed and things got out of sync.
+changed and things got out of sync. Another reason that these directories might
+not unlock is if your session starts without password authentication. The most
+common case of this is public-key ssh login.
 
-#### I can still see files or filenames after running `fscrypt purge MOUNTPOINT`
-
-You need to unmount `MOUNTPOINT` to clear the necessary caches. See
-`fscrypt purge --help` for more information
+To trigger a password authentication event, run `su $(whoami) -c exit`.
 
 #### Getting "encryption not enabled" on an ext4 filesystem.
 
