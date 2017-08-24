@@ -29,175 +29,77 @@ package main
 */
 import "C"
 import (
-	"fmt"
-	"io"
-	"io/ioutil"
 	"log"
-	"log/syslog"
 	"unsafe"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
-	"github.com/google/fscrypt/filesystem"
-	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/pam"
 	"github.com/google/fscrypt/security"
-	"github.com/google/fscrypt/util"
 )
 
 const (
 	moduleName = "pam_fscrypt"
-	// These labels are used to tag items in the PAM data.
-	authtokLabel    = "fscrypt_authtok"
-	descriptorLabel = "fscrypt_descriptor"
+	// authtokLabel tags the AUTHTOK in the PAM data.
+	authtokLabel = "fscrypt_authtok"
 	// These flags are used to toggle behavior of the PAM module.
 	debugFlag = "debug"
 	lockFlag  = "lock_policies"
 	cacheFlag = "drop_caches"
 )
 
-// parseArgs takes a list of C arguments into a PAM function and returns a map
-// where a key has a value of true if it appears in the argument list.
-func parseArgs(argc C.int, argv **C.char) map[string]bool {
-	args := make(map[string]bool)
-	for _, cString := range util.PointerSlice(unsafe.Pointer(argv))[:argc] {
-		args[C.GoString((*C.char)(cString))] = true
+// Authenticate copies the AUTHTOK (if necessary) into the PAM data so it can be
+// used in pam_sm_open_session.
+func Authenticate(handle *pam.Handle, _ map[string]bool) error {
+	if err := handle.DropThreadPrivileges(); err != nil {
+		return err
 	}
-	return args
-}
-
-// setupLogging directs turns off standard logging (or redirects it to debug
-// syslog if the "debug" argument is passed) and returns a writer to the error
-// syslog.
-func setupLogging(args map[string]bool) io.Writer {
-	log.SetFlags(0) // Syslog already includes time data itself
-	log.SetOutput(ioutil.Discard)
-	if args[debugFlag] {
-		debugWriter, err := syslog.New(syslog.LOG_DEBUG, moduleName)
-		if err == nil {
-			log.SetOutput(debugWriter)
-		}
-	}
-
-	errorWriter, err := syslog.New(syslog.LOG_ERR, moduleName)
-	if err != nil {
-		return ioutil.Discard
-	}
-	return errorWriter
-}
-
-// loginProtector returns the login protector corresponding to the PAM_USER if
-// one exists. This protector descriptor (if found) will be cached in the pam
-// data, under descriptorLabel.
-func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
-	ctx, err := actions.NewContextFromMountpoint("/")
-	if err != nil {
-		return nil, err
-	}
-
-	// Find the user's PAM protector.
-	uid := int64(unix.Geteuid())
-	if err != nil {
-		return nil, err
-	}
-	options, err := ctx.ProtectorOptions()
-	if err != nil {
-		return nil, err
-	}
-	for _, option := range options {
-		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
-			return actions.GetProtectorFromOption(ctx, option)
-		}
-	}
-	return nil, fmt.Errorf("no PAM protector on %q", ctx.Mount.Path)
-}
-
-// pam_sm_authenticate copies the AUTHTOK (if necessary) into the PAM data so it
-// can be used in pam_sm_open_session.
-//export pam_sm_authenticate
-func pam_sm_authenticate(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	handle := pam.NewHandle(pamh)
-	errWriter := setupLogging(parseArgs(argc, argv))
+	defer handle.RaiseThreadPrivileges()
 
 	// If this user doesn't have a login protector, no unlocking is needed.
 	if _, err := loginProtector(handle); err != nil {
 		log.Printf("no need to copy AUTHTOK: %s", err)
-		return C.PAM_SUCCESS
-	}
-
-	log.Print("copying AUTHTOK in pam_sm_authenticate()")
-	authtok, err := handle.GetItem(pam.Authtok)
-	if err != nil {
-		fmt.Fprintf(errWriter, "could not get AUTHTOK: %s", err)
-		return C.PAM_SERVICE_ERR
-	}
-	if err = handle.SetSecret(authtokLabel, authtok); err != nil {
-		fmt.Fprintf(errWriter, "could not set AUTHTOK data: %s", err)
-		return C.PAM_SERVICE_ERR
-	}
-	return C.PAM_SUCCESS
-}
-
-// pam_sm_stecred needed because we use pam_sm_authenticate.
-//export pam_sm_setcred
-func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	return C.PAM_SUCCESS
-}
-
-// policiesUsingProtector searches all the mountpoints for any policies
-// protected with the specified protector. An error during this search does not
-// halt the search, instead the errors are written to errWriter.
-func policiesUsingProtector(protector *actions.Protector, errWriter io.Writer) []*actions.Policy {
-	mounts, err := filesystem.AllFilesystems()
-	if err != nil {
-		fmt.Fprint(errWriter, err)
 		return nil
 	}
 
-	var policies []*actions.Policy
-	for _, mount := range mounts {
-		// Skip mountpoints that do not use the protector.
-		if _, _, err := mount.GetProtector(protector.Descriptor()); err != nil {
-			continue
-		}
-		policyDescriptors, err := mount.ListPolicies()
-		if err != nil {
-			fmt.Fprintf(errWriter, "listing policies: %s", err)
-			continue
-		}
-
-		ctx := &actions.Context{Config: protector.Context.Config, Mount: mount}
-		for _, policyDescriptor := range policyDescriptors {
-			policy, err := actions.GetPolicy(ctx, policyDescriptor)
-			if err != nil {
-				fmt.Fprintf(errWriter, "reading policy: %s", err)
-				continue
-			}
-
-			if policy.UsesProtector(protector) {
-				policies = append(policies, policy)
-			}
-		}
+	log.Print("Authenticate: copying AUTHTOK for use in the session")
+	authtok, err := handle.GetItem(pam.Authtok)
+	if err != nil {
+		return errors.Wrap(err, "could not get AUTHTOK")
 	}
-	return policies
+	err = handle.SetSecret(authtokLabel, authtok)
+	return errors.Wrap(err, "could not set AUTHTOK data")
 }
 
-// pam_sm_open_session provisions policies protected with the login protector.
-//export pam_sm_open_session
-func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	handle := pam.NewHandle(pamh)
-	errWriter := setupLogging(parseArgs(argc, argv))
-
-	protector, err := loginProtector(handle)
-	if err != nil {
-		log.Printf("no pam protector for this user: %s", err)
-		return C.PAM_SUCCESS
+// OpenSession provisions any policies protected with the login protector.
+func OpenSession(handle *pam.Handle, _ map[string]bool) error {
+	// We will always clear the the AUTHTOK data
+	defer handle.ClearData(authtokLabel)
+	// Increment the count as we add a session
+	if _, err := AdjustCount(handle, 1); err != nil {
+		return err
 	}
 
+	if err := handle.DropThreadPrivileges(); err != nil {
+		return err
+	}
+	defer handle.RaiseThreadPrivileges()
+
+	// If there are no polices for the login protector, no unlocking needed.
+	protector, err := loginProtector(handle)
+	if err != nil {
+		log.Printf("nothing to unlock: %s", err)
+		return nil
+	}
+	policies := policiesUsingProtector(protector)
+	if len(policies) == 0 {
+		log.Print("no policies to unlock")
+		return nil
+	}
+
+	log.Print("OpenSession: unlocking policies protected with AUTHTOK")
 	keyFn := func(_ actions.ProtectorInfo, retry bool) (*crypto.Key, error) {
 		if retry {
 			// Login passphrase and login protector have diverged.
@@ -214,100 +116,107 @@ func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 			// login passphrase here, but we currently don't.
 			return nil, errors.Wrap(err, "AUTHTOK data missing")
 		}
-		defer handle.ClearData(authtokLabel)
+
 		return crypto.NewKeyFromCString(authtok)
 	}
-
-	log.Print("searching for policies to unlock in pam_sm_open_session()")
-	policies := policiesUsingProtector(protector, errWriter)
-	if len(policies) == 0 {
-		log.Print("no policies to unlock")
-		return C.PAM_SUCCESS
-	}
-
 	if err := protector.Unlock(keyFn); err != nil {
-		fmt.Fprintf(errWriter, "unlocking protector %s: %s", protector.Descriptor(), err)
-		return C.PAM_SERVICE_ERR
+		return errors.Wrapf(err, "unlocking protector %s", protector.Descriptor())
 	}
 	defer protector.Lock()
 
+	// We don't stop provisioning polices on error, we try all of them.
 	for _, policy := range policies {
 		if policy.IsProvisioned() {
 			log.Printf("policy %s already provisioned", policy.Descriptor())
 			continue
 		}
 		if err := policy.UnlockWithProtector(protector); err != nil {
-			fmt.Fprintf(errWriter, "unlocking policy %s: %s", policy.Descriptor(), err)
+			log.Printf("unlocking policy %s: %s", policy.Descriptor(), err)
 			continue
 		}
 		defer policy.Lock()
 
 		if err := policy.Provision(); err != nil {
-			fmt.Fprintf(errWriter, "provisioning policy %s: %s", policy.Descriptor(), err)
+			log.Printf("provisioning policy %s: %s", policy.Descriptor(), err)
 			continue
 		}
-
 		log.Printf("policy %s provisioned", policy.Descriptor())
 	}
-
-	return C.PAM_SUCCESS
+	return nil
 }
 
-// pam_sm_close_session deprovisions all keys provisioned at the start of the
-// session. It also clears the cache so these changes take effect.
-//export pam_sm_close_session
-func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	handle := pam.NewHandle(pamh)
-	args := parseArgs(argc, argv)
-	errWriter := setupLogging(args)
-
-	if args[lockFlag] {
-		protector, err := loginProtector(handle)
-		if err != nil {
-			log.Printf("no pam protector for this user: %s", err)
-			return C.PAM_SUCCESS
-		}
-
-		policies := policiesUsingProtector(protector, errWriter)
-
-		if len(policies) == 0 {
-			log.Print("no policies to lock")
-			return C.PAM_SUCCESS
-		}
+// CloseSession can deprovision all keys provisioned at the start of the
+// session. It can also clear the cache so these changes take effect.
+func CloseSession(handle *pam.Handle, args map[string]bool) error {
+	// Only do stuff on session close when we are the last session
+	if count, err := AdjustCount(handle, -1); err != nil || count != 0 {
+		return err
 	}
 
-	log.Print("locking directories in pam_sm_close_session()")
-	for _, provisionedKey := range provisionedKeys {
-		if err := security.RemoveKey(provisionedKey); err != nil {
-			fmt.Fprintf(errWriter, "can't remove %s: %s", provisionedKey, err)
-		}
+	var errLock, errCache error
+	// Don't automatically drop privileges, we may need them to drop caches.
+	if args[lockFlag] {
+		log.Print("CloseSession: locking polices protected with login")
+		errLock = lockLoginPolicies(handle)
 	}
 
 	if args[cacheFlag] {
-		if err = security.DropInodeCache(); err != nil {
-			fmt.Fprint(errWriter, err)
-			return C.PAM_SERVICE_ERR
-		}
+		log.Print("CloseSession: dropping inode caches")
+		errCache = security.DropInodeCache()
 	}
 
-	return C.PAM_SUCCESS
+	if errLock != nil {
+		return errLock
+	}
+	return errCache
 }
 
-// pam_sm_chauthtok rewraps the login protector when the passphrase changes.
-//export pam_sm_chauthtok
-func pam_sm_chauthtok(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	handle := pam.NewHandle(pamh)
-	errWriter := setupLogging(parseArgs(argc, argv))
-
-	// Only do rewrapping if we have both AUTHTOKs and a login protector.
-	if pam.Flag(flags)&pam.PrelimCheck != 0 {
-		log.Print("no preliminary checks need to run")
-		return C.PAM_SUCCESS
+// lockLoginPolicies deprovisions all policy keys that are protected by
+// the user's login protector.
+func lockLoginPolicies(handle *pam.Handle) error {
+	if err := handle.DropThreadPrivileges(); err != nil {
+		return err
 	}
+	defer handle.RaiseThreadPrivileges()
+
+	// If there are no polices for the login protector, no locking needed.
 	protector, err := loginProtector(handle)
 	if err != nil {
-		log.Printf("no protector to rewrap: %s", err)
-		return C.PAM_SUCCESS
+		log.Printf("nothing to lock: %s", err)
+		return nil
+	}
+	policies := policiesUsingProtector(protector)
+	if len(policies) == 0 {
+		log.Print("no policies to lock")
+		return nil
+	}
+
+	// We will try to deprovision all of the policies.
+	for _, policy := range policies {
+		if !policy.IsProvisioned() {
+			log.Printf("policy %s not provisioned", policy.Descriptor())
+			continue
+		}
+		if err := policy.Deprovision(); err != nil {
+			log.Printf("deprovisioning policy %s: %s", policy.Descriptor(), err)
+			continue
+		}
+		log.Printf("policy %s deprovisioned", policy.Descriptor())
+	}
+	return nil
+}
+
+// Chauthtok rewraps the login protector when the passphrase changes.
+func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
+	if err := handle.DropThreadPrivileges(); err != nil {
+		return err
+	}
+	defer handle.RaiseThreadPrivileges()
+
+	protector, err := loginProtector(handle)
+	if err != nil {
+		log.Printf("nothing to rewrap: %s", err)
+		return nil
 	}
 
 	oldKeyFn := func(_ actions.ProtectorInfo, retry bool) (*crypto.Key, error) {
@@ -332,18 +241,45 @@ func pam_sm_chauthtok(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.i
 		return crypto.NewKeyFromCString(authtok)
 	}
 
-	log.Print("rewrapping protector in pam_sm_chauthtok()")
+	log.Print("Chauthtok: rewrapping login protector")
 	if err = protector.Unlock(oldKeyFn); err != nil {
-		fmt.Fprint(errWriter, err)
-		return C.PAM_SERVICE_ERR
+		return err
 	}
 	defer protector.Lock()
-	if err = protector.Rewrap(newKeyFn); err != nil {
-		fmt.Fprint(errWriter, err)
-		return C.PAM_SERVICE_ERR
+
+	return protector.Rewrap(newKeyFn)
+}
+
+//export pam_sm_authenticate
+func pam_sm_authenticate(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
+	return RunPamFunc(Authenticate, pamh, argc, argv)
+}
+
+// pam_sm_stecred needed because we use pam_sm_authenticate.
+//export pam_sm_setcred
+func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
+	return C.PAM_SUCCESS
+}
+
+//export pam_sm_open_session
+func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
+	return RunPamFunc(OpenSession, pamh, argc, argv)
+}
+
+//export pam_sm_close_session
+func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
+	return RunPamFunc(CloseSession, pamh, argc, argv)
+}
+
+//export pam_sm_chauthtok
+func pam_sm_chauthtok(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
+	// Only do rewrapping if we have both AUTHTOKs and a login protector.
+	if pam.Flag(flags)&pam.PrelimCheck != 0 {
+		log.Print("no preliminary checks need to run")
+		return C.PAM_SUCCESS
 	}
 
-	return C.PAM_SUCCESS
+	return RunPamFunc(Chauthtok, pamh, argc, argv)
 }
 
 // main() is needed to make a shared library compile

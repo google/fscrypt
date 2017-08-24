@@ -31,6 +31,7 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"log"
 	"unsafe"
 
 	"github.com/google/fscrypt/security"
@@ -41,14 +42,32 @@ type Handle struct {
 	handle *C.pam_handle_t
 	status C.int
 	privs  *security.Privileges
+	// UID of the user being authenticated
+	UID int
+	// GID of the user being authenticated
+	GID int
 }
 
 // NewHandle creates a Handle from a raw pointer.
-func NewHandle(pamh unsafe.Pointer) *Handle {
-	return &Handle{
+func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
+	h := &Handle{
 		handle: (*C.pam_handle_t)(pamh),
 		status: C.PAM_SUCCESS,
 	}
+
+	var pamUsername *C.char
+	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
+	if err := h.err(); err != nil {
+		return nil, err
+	}
+
+	pwnam := C.getpwnam(pamUsername)
+	if pwnam == nil {
+		return nil, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+	}
+	h.UID = int(pwnam.pw_uid)
+	h.GID = int(pwnam.pw_gid)
+	return h, nil
 }
 
 func (h *Handle) setData(name string, data unsafe.Pointer, cleanup C.CleanupFunc) error {
@@ -110,26 +129,20 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 
 // DropThreadPrivileges sets the effective privileges to that of the PAM user
 func (h *Handle) DropThreadPrivileges() error {
-	var pamUsername *C.char
 	var err error
-
-	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
-	if err = h.err(); err != nil {
-		return err
-	}
-	pwnam := C.getpwnam(pamUsername)
-	if pwnam == nil {
-		return fmt.Errorf("unknown user %q", C.GoString(pamUsername))
-	}
-
-	h.privs, err = security.DropThreadPrivileges(int(pwnam.pw_uid), int(pwnam.pw_gid))
+	h.privs, err = security.DropThreadPrivileges(h.UID, h.GID)
 	return err
 }
 
 // RaiseThreadPrivileges restores the original privileges that were running the
-// PAM module (this is usually root).
+// PAM module (this is usually root). As this error is often ignored in a defer
+// statement, any error is also logged.
 func (h *Handle) RaiseThreadPrivileges() error {
-	return security.RaiseThreadPrivileges(h.privs)
+	err := security.RaiseThreadPrivileges(h.privs)
+	if err != nil {
+		log.Print(err)
+	}
+	return err
 }
 
 func (h *Handle) err() error {
