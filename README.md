@@ -45,7 +45,7 @@ directory. Note that using both dm-crypt and fscrypt simultaneously will give
 the protections and benefits of both; however, this may cause a decrease in
 your performance, as file contents are encrypted twice.
 
-Once example of a reasonable setup could involve using dm-crypt with a TPM or
+One example of a reasonable setup could involve using dm-crypt with a TPM or
 Secure boot key, while using fscrypt for the contents of a home directory. This
 would still encrypt the entire drive, but would also tie the encryption of a
 user's personal documents to their passphrase.
