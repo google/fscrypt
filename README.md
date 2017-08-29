@@ -187,7 +187,7 @@ to add the line:
 ```
 auth        optional    pam_fscrypt.so
 ```
-after `pam_unix.so` in `/etc/pam.d/common-password` or similar, and to add the
+after `pam_unix.so` in `/etc/pam.d/common-auth` or similar, and to add the
 line:
 ```
 session     optional    pam_fscrypt.so drop_caches lock_policies
