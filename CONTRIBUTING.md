@@ -21,7 +21,7 @@ __IMPORTANT__: Any significant security issues should __NOT__ be reported in
 the public issue tracker. Practice responsible disclosure by emailing
 <joerichey@google.com> and <tyhicks@canonical.com> directly.
 
-Any bugs, problems, or design discussion relating to fscrypt should be rasied
+Any bugs, problems, or design discussion relating to fscrypt should be raised
 in the [Github Issue Tracker](https://github.com/google/fscrypt/issues/new).
 
 When reporting an issue or problem, be sure to give as much information as
