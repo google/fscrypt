@@ -15,6 +15,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+# Update on each new release!!
+RELEASE_VERSION = 0.2.0
+
 NAME = fscrypt
 PAM_NAME = pam_$(NAME)
 PAM_MODULE = $(PAM_NAME).so
@@ -76,8 +79,12 @@ export CGO_CFLAGS = $(CFLAGS)
 
 # By default, we strip the binary to reduce size.
 GO_LINK_FLAGS ?= -s -w
+
 # Pass the version to the command line program (pulled from tags).
-VERSION_FLAG = -X "main.version=$(shell git describe --tags)"
+TAG_VERSION = $(shell git describe --tags)
+VERSION = $(if $(TAG_VERSION),$(TAG_VERSION),$(RELEASE_VERSION))
+VERSION_FLAG = -X "main.version=$(VERSION)"
+
 # Pass the current date and time to the command line program.
 DATE_FLAG = -X "main.buildTime=$(shell date)"
 # Add the version, date, and any specified LDFLAGS to any user-specified flags.
