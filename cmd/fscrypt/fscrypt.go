@@ -19,8 +19,11 @@
  */
 
 /*
-fscrypt is a comprehensive command line tool for managing filesystem encryption.
+fscrypt is a command line tool for managing linux filesystem encryption.
 */
+
+// +build linux,cgo
+
 package main
 
 import (
