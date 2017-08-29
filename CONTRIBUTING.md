@@ -15,15 +15,38 @@ You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it
 again.
 
-## Reporting an Issue
+## Reporting an Issue or Discussing Design
 
-Any bugs or problems found in fscrypt should be reported though the 
-[Github Issue Tracker](https://github.com/google/fscrypt/issues/new). When
-reporting an issue, be sure to give as much information about the problem as
-possible. If reporting an issue around the fscrypt command-line tool, post the
+__IMPORTANT__: Any significant security issues should __NOT__ be reported in
+the public issue tracker. Practice responsible disclosure by emailing
+<joerichey@google.com> and <tyhicks@canonical.com> directly.
+
+Any bugs, problems, or design discussion relating to fscrypt should be rasied
+in the [Github Issue Tracker](https://github.com/google/fscrypt/issues/new).
+
+When reporting an issue or problem, be sure to give as much information as
+possible. Also, make sure you are running the `fscrypt` and `pam_fscrypt`
+built from the current `master` branch.
+
+If reporting an issue around the fscrypt command-line tool, post the
 relevant output from fscrypt, running with the `--verbose` flag. For the
-pam_fscrypt module, use the `debug` option with the module and post the relevant
-parts of the syslog (usually at `/var/log/syslog`).
+`pam_fscrypt` module, use the `debug` option with the module and post the
+relevant parts of the syslog (usually at `/var/log/syslog`).
+
+Be sure to correctly tag your issue. The usage for the tags is as follows:
+* `bug` - General problems with the program's behavior
+	* The program crashes or hangs
+	* Directories cannot be locked/unlocked
+	* Metadata corruption
+	* Data loss/corruption
+* `documentation`
+	* Typos or unclear explanations in `README.md` or man pages.
+	* Outdated example output
+	* Unclear or ambiguous error messages
+* `enhancement` - Things you want in fscrypt
+* `question` - You don't know how something works with fscrypt
+	* This usally turns into a `documentation` issue.
+* `testing` - Strange test failures or missing tests
 
 ## Code reviews
 
