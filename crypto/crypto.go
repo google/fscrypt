@@ -62,6 +62,7 @@ var (
 	ErrGetrandomFail  = util.SystemError("getrandom() failed")
 	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
 	ErrKeyFree        = util.SystemError("could not free memory of key")
+	ErrKeyLock        = errors.New("could not lock key in memory")
 )
 
 // panicInputLength panics if "name" has invalid length (expected != actual)

@@ -109,6 +109,9 @@ func newBlankKey(length int) (*Key, error) {
 
 	// See MAP_ANONYMOUS in http://man7.org/linux/man-pages/man2/mmap.2.html
 	data, err := unix.Mmap(-1, 0, length, keyProtection, flags)
+	if err == unix.EAGAIN {
+		return nil, ErrKeyLock
+	}
 	if err != nil {
 		log.Printf("unix.Mmap() with length=%d failed: %v", length, err)
 		return nil, ErrKeyAlloc
@@ -329,7 +332,7 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	for blockStart := blockSize; blockStart < encodedLength; blockStart += blockSize {
 		r.Read(inputSeparator)
 		if r.Err() == nil && !bytes.Equal(separator, inputSeparator) {
-			err := errors.Wrapf(ErrRecoveryCode, "invalid seperator %q", inputSeparator)
+			err := errors.Wrapf(ErrRecoveryCode, "invalid separator %q", inputSeparator)
 			return nil, err
 		}
 

@@ -32,6 +32,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
@@ -77,6 +78,12 @@ func getErrorSuggestions(err error) string {
 	switch errors.Cause(err) {
 	case filesystem.ErrNotSetup:
 		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
+	case crypto.ErrKeyLock:
+		return `Too much memory was requested to be locked in RAM. The
+			current limit for this user can be checked with "ulimit
+			-l". The limit can be modified by either changing the
+			"memlock" item in /etc/security/limits.conf or by
+			changing the "LimitMEMLOCK" value in systemd.`
 	case metadata.ErrEncryptionNotSupported:
 		return `Encryption for this type of filesystem is not supported
 			on this kernel version.`

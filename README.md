@@ -187,7 +187,7 @@ to add the line:
 ```
 auth        optional    pam_fscrypt.so
 ```
-after `pam_unix.so` in `/etc/pam.d/common-password` or similar, and to add the
+after `pam_unix.so` in `/etc/pam.d/common-auth` or similar, and to add the
 line:
 ```
 session     optional    pam_fscrypt.so drop_caches lock_policies
@@ -577,19 +577,40 @@ To trigger a password authentication event, run `su $(whoami) -c exit`.
 #### Getting "encryption not enabled" on an ext4 filesystem.
 
 Getting this error on an ext4 system usually means the filesystem has not been
-setup for encryption. To setup a filesystem to support encryption, first check
-that your block size is equal to your page size by comparing the outputs of
-`getconf PAGE_SIZE` and `tune2fs -l /dev/device | grep 'Block size'`. If these
-are not the same, DO NOT ENABLE ENCRYPTION.
+setup for encryption. The only other way to get this error is if filesystem
+encryption has been explictly disabled in the kernel config.
 
-To turn on the encryption feature flag for your filesystem, run
+__IMPORTANT:__ Before enabling encryption on an ext4 filesystem __ALL__ of the
+following should be true:
+	* Your filesystem is formatted as ext4. Other filesystems will have
+	  different ways of enabling encryption.
+	* Your kernel page size (run `getconf PAGE_SIZE`) and your filesystem
+          block size (run `tune2fs -l /dev/device | grep 'Block size'`) are the
+	  same.
+	* You are ok with not being able to mount this filesystem with a v4.0
+	  kernel or older.
+	* You are __NOT__ using GRUB to boot directly off this filesystem. If
+	  you have a sperate `/boot` partition, you are fine.
+If any of the above is not true, __DO NOT ENABLE FILESYSTEM ENCRYPTION__.
+
+To turn on encryption for your filesystem, run
 ```
 tune2fs -O encrypt /dev/device
 ```
-This command requires root privileges and `e2fsprogs` v1.43 or later. Once the
-filesystem flag is enabled, older kernels may not be able to mount this
-filesystem. Note that there was a bug in older kernel versions that allowed
-encryption policies to be set on ext4 filesystems without this flag.
+To turn off encryption for your filesystem, run
+```
+fsck -fn /dev/device
+debugfs -w -R "feature -encrypt" /dev/device
+fsck -fn /dev/device
+``` 
+
+Note: It is actually possible to get GRUB to boot an encrypted ext4 filesystem.
+However, it requires GRUB 2.02 (__NOT__ the 2.02 beta) to be installed as the
+bootloader. As this version was released in April 2017, most systems __WILL
+FAIL TO BOOT__ with an ext4 encrypted boot directory. Note that this is only
+relevant to systems without a seperate boot partition. Sytems with `/boot` on
+a different partition than the one being encrypted (including all UEFI systems)
+are not effected by this.
 
 ## Legal
 

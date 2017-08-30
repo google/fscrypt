@@ -294,6 +294,20 @@ func TestRandomKeyGen(t *testing.T) {
 	}
 }
 
+func TestBigKeyGen(t *testing.T) {
+	key, err := NewRandomKey(4096 * 4096)
+	switch err {
+	case nil:
+		key.Wipe()
+		return
+	case ErrKeyLock:
+		// Don't fail just because "ulimit -l" is too low.
+		return
+	default:
+		t.Fatal(err)
+	}
+}
+
 // didCompress checks if the given data can be compressed. Specifically, it
 // returns true if running zlib on the provided input produces a shorter output.
 func didCompress(input []byte) bool {
