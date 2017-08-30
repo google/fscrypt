@@ -27,6 +27,8 @@ import (
 	"bufio"
 	"math"
 	"os"
+	"os/user"
+	"strconv"
 	"unsafe"
 )
 
@@ -104,4 +106,24 @@ func ReadLine() (string, error) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	return scanner.Text(), scanner.Err()
+}
+
+// AtoiOrPanic converts a string to an int or it panics. Should only be used in
+// situations where the input MUST be a decimal number.
+func AtoiOrPanic(input string) int {
+	i, err := strconv.Atoi(input)
+	if err != nil {
+		panic(err)
+	}
+	return i
+}
+
+// EffectiveUser returns the user entry corresponding to the effective user.
+func EffectiveUser() (*user.User, error) {
+	return user.LookupId(strconv.Itoa(os.Geteuid()))
+}
+
+// IsUserRoot checks if the effective user is root.
+func IsUserRoot() bool {
+	return os.Geteuid() == 0
 }
