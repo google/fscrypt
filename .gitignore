@@ -2,3 +2,4 @@ fscrypt
 fscrypt.*
 fscrypt_image
 pam_fscrypt.so
+.vscode
