@@ -129,11 +129,11 @@ update:
 # Format all the Go and C code
 .PHONY: format format-check
 format:
-	@gofmt -l -s -w $(GO_FILES)
+	@goimports -l -w $(GO_FILES)
 	@clang-format -i -style=Google $(C_FILES)
 
 format-check:
-	@gofmt -s -d $(GO_FILES) \
+	@goimports -d $(GO_FILES) \
 	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
 	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
 	| grep "<replacement " \
@@ -169,6 +169,7 @@ go-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/golang/lint/golint
 	go get -u github.com/kardianos/govendor
+	go get -u golang.org/x/tools/cmd/goimports
 	go get -u honnef.co/go/tools/cmd/megacheck
 
 ##### Setup/Teardown for integration tests (need root permissions) #####
