@@ -82,6 +82,9 @@ func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) C.int
 // where a key has a value of true if it appears in the argument list.
 func parseArgs(argc C.int, argv **C.char) map[string]bool {
 	args := make(map[string]bool)
+	if argc == 0 || argv == nil {
+		return args
+	}
 	for _, cString := range util.PointerSlice(unsafe.Pointer(argv))[:argc] {
 		args[C.GoString((*C.char)(cString))] = true
 	}
