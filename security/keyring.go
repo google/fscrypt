@@ -139,8 +139,8 @@ func userKeyringID(target *user.User) (int, error) {
 	// We drop permissions in a separate thread (guaranteed as the main
 	// thread is locked) because we need to drop the real AND effective IDs.
 	log.Printf("Threaded keyring lookup for uid=%d", uid)
-	idChan := make(chan int, 0)
-	errChan := make(chan error, 0)
+	idChan := make(chan int)
+	errChan := make(chan error)
 	// OSThread locks ensure the privilege change is only for the lookup.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
@@ -156,7 +156,6 @@ func userKeyringID(target *user.User) (int, error) {
 			return
 		}
 		idChan <- keyringID
-		return
 	}()
 
 	// We select so the thread will have to complete

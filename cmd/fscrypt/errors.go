@@ -61,7 +61,6 @@ var (
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
-	ErrSpecifyNonRootUser = errors.New("non-root user must be specified")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
