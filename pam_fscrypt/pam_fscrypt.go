@@ -55,18 +55,19 @@ const (
 // Authenticate copies the AUTHTOK (if necessary) into the PAM data so it can be
 // used in pam_sm_open_session.
 func Authenticate(handle *pam.Handle, _ map[string]bool) error {
-	if err := handle.DropThreadPrivileges(); err != nil {
+	log.Print("Authenticate()")
+	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
-	defer handle.RaiseThreadPrivileges()
+	defer handle.StopAsPamUser()
 
 	// If this user doesn't have a login protector, no unlocking is needed.
 	if _, err := loginProtector(handle); err != nil {
-		log.Printf("no need to copy AUTHTOK: %s", err)
+		log.Printf("no protector, no need for AUTHTOK: %s", err)
 		return nil
 	}
 
-	log.Print("Authenticate: copying AUTHTOK for use in the session")
+	log.Print("copying AUTHTOK for use in the session open")
 	authtok, err := handle.GetItem(pam.Authtok)
 	if err != nil {
 		return errors.Wrap(err, "could not get AUTHTOK")
@@ -77,6 +78,7 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
+	log.Print("OpenSession()")
 	// We will always clear the the AUTHTOK data
 	defer handle.ClearData(authtokLabel)
 	// Increment the count as we add a session
@@ -84,15 +86,15 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 		return err
 	}
 
-	if err := handle.DropThreadPrivileges(); err != nil {
+	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
-	defer handle.RaiseThreadPrivileges()
+	defer handle.StopAsPamUser()
 
 	// If there are no polices for the login protector, no unlocking needed.
 	protector, err := loginProtector(handle)
 	if err != nil {
-		log.Printf("nothing to unlock: %s", err)
+		log.Printf("no protector to unlock: %s", err)
 		return nil
 	}
 	policies := policiesUsingProtector(protector)
@@ -101,7 +103,7 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 		return nil
 	}
 
-	log.Print("OpenSession: unlocking policies protected with AUTHTOK")
+	log.Printf("unlocking %d policies protected with AUTHTOK", len(policies))
 	keyFn := func(_ actions.ProtectorInfo, retry bool) (*crypto.Key, error) {
 		if retry {
 			// Login passphrase and login protector have diverged.
@@ -150,6 +152,7 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 // CloseSession can deprovision all keys provisioned at the start of the
 // session. It can also clear the cache so these changes take effect.
 func CloseSession(handle *pam.Handle, args map[string]bool) error {
+	log.Printf("CloseSession(%v)", args)
 	// Only do stuff on session close when we are the last session
 	if count, err := AdjustCount(handle, -1); err != nil || count != 0 {
 		log.Printf("count is %d and we are not locking", count)
@@ -159,12 +162,12 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	var errLock, errCache error
 	// Don't automatically drop privileges, we may need them to drop caches.
 	if args[lockFlag] {
-		log.Print("CloseSession: locking polices protected with login")
+		log.Print("locking polices protected with login protector")
 		errLock = lockLoginPolicies(handle)
 	}
 
 	if args[cacheFlag] {
-		log.Print("CloseSession: dropping inode caches")
+		log.Print("dropping inode caches at session close")
 		errCache = security.DropInodeCache()
 	}
 
@@ -177,10 +180,10 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 // lockLoginPolicies deprovisions all policy keys that are protected by
 // the user's login protector.
 func lockLoginPolicies(handle *pam.Handle) error {
-	if err := handle.DropThreadPrivileges(); err != nil {
+	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
-	defer handle.RaiseThreadPrivileges()
+	defer handle.StopAsPamUser()
 
 	// If there are no polices for the login protector, no locking needed.
 	protector, err := loginProtector(handle)
@@ -211,14 +214,15 @@ func lockLoginPolicies(handle *pam.Handle) error {
 
 // Chauthtok rewraps the login protector when the passphrase changes.
 func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
-	if err := handle.DropThreadPrivileges(); err != nil {
+	log.Print("Chauthtok()")
+	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
-	defer handle.RaiseThreadPrivileges()
+	defer handle.StopAsPamUser()
 
 	protector, err := loginProtector(handle)
 	if err != nil {
-		log.Printf("nothing to rewrap: %s", err)
+		log.Printf("no login protector to rewrap: %s", err)
 		return nil
 	}
 
@@ -244,7 +248,7 @@ func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
 		return crypto.NewKeyFromCString(authtok)
 	}
 
-	log.Print("Chauthtok: rewrapping login protector")
+	log.Print("rewrapping login protector")
 	if err = protector.Unlock(oldKeyFn); err != nil {
 		return err
 	}
