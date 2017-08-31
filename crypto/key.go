@@ -33,6 +33,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"runtime"
 	"unsafe"
 
@@ -247,7 +248,7 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 
 // InsertPolicyKey puts the provided policy key into the kernel keyring with the
 // provided description, and type logon. The key must be a policy key.
-func InsertPolicyKey(key *Key, description string) error {
+func InsertPolicyKey(key *Key, description string, target *user.User) error {
 	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
 		return errors.Wrap(err, "policy key")
 	}
@@ -266,7 +267,7 @@ func InsertPolicyKey(key *Key, description string) error {
 	fscryptKey.Size = metadata.PolicyKeyLen
 	copy(fscryptKey.Raw[:], key.data)
 
-	return security.InsertKey(payload.data, description)
+	return security.InsertKey(payload.data, description, target)
 }
 
 var (
