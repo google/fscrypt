@@ -10,7 +10,6 @@ addons:
       - sourceline: 'deb http://en.archive.ubuntu.com/ubuntu/ artful main universe'
     packages:
       - libargon2-0-dev
-      - libblkid-dev
       - libpam0g-dev
       - e2fsprogs
       - protobuf-compiler

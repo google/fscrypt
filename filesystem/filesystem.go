@@ -84,9 +84,7 @@ var (
 // There is also the ability to reference another filesystem's metadata. This is
 // used when a Policy on filesystem A is protected with Protector on filesystem
 // B. In this scenario, we store a "link file" in the protectors directory whose
-// contents look like "UUID=3a6d9a76-47f0-4f13-81bf-3332fbe984fb". These
-// contents can be anything parsable by libblkid (i.e. anything that could be in
-// the Device column of /etc/fstab).
+// contents look like "UUID=3a6d9a76-47f0-4f13-81bf-3332fbe984fb".
 type Mount struct {
 	Path       string
 	Filesystem string
