@@ -60,6 +60,7 @@ var (
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
+	ErrSpecifyUser        = errors.New("user must be specified when run as root")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
@@ -125,6 +126,14 @@ func getErrorSuggestions(err error) string {
 			properly clear the inode cache, or it should be run with
 			%s=false (this may leave encrypted files and directories
 			in an accessible state).`, shortDisplay(dropCachesFlag))
+	case ErrSpecifyUser:
+		return fmt.Sprintf(`When running this command as root, you
+			usually still want to provision/remove keys for a normal
+			user's keyring and use a normal user's login passphrase
+			as a protector (so the corresponding files will be
+			accessible for that user). This can be done with %s. To
+			use the root user's keyring or passphrase, use
+			--%s=root.`, shortDisplay(userFlag), userFlag.GetName())
 	case ErrAllLoadsFailed:
 		return loadHelpText
 	default:

@@ -31,12 +31,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/google/fscrypt/security"
 	"github.com/urfave/cli"
 )
 
@@ -129,27 +125,6 @@ func setupBefore(c *cli.Context) error {
 	}
 	if !quietFlag.Value {
 		c.App.Writer = os.Stdout
-	}
-
-	if unix.Geteuid() != 0 {
-		return nil // Must be root to setup links
-	}
-	euid, err := strconv.Atoi(os.Getenv("SUDO_UID"))
-	if err != nil {
-		return nil // Must be running with sudo
-	}
-	egid, err := strconv.Atoi(os.Getenv("SUDO_GID"))
-	if err != nil {
-		return nil // Must be running with sudo
-	}
-
-	// Dropping and raising privileges checks the needed keyring link.
-	privs, err := security.DropThreadPrivileges(euid, egid)
-	if err != nil {
-		return newExitError(c, err)
-	}
-	if err := security.RaiseThreadPrivileges(privs); err != nil {
-		return newExitError(c, err)
 	}
 	return nil
 }

@@ -308,7 +308,7 @@ func optionFn(policyDescriptor string, options []*actions.ProtectorOption) (int,
 	// protector to unlock the policy.
 	if unlockWithFlag.Value != "" {
 		log.Printf("optionFn(%s) w/ unlock flag", policyDescriptor)
-		protector, err := getProtectorFromFlag(unlockWithFlag.Value)
+		protector, err := getProtectorFromFlag(unlockWithFlag.Value, nil)
 		if err != nil {
 			return 0, err
 		}

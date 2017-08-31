@@ -86,10 +86,11 @@ make test-teardown
 
 ### Formatting and Linting
 
-The `make format` command formats all the code in fscrypt with either `gofmt`
-(for Go code) or [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
-(for C code). `gofmt` comes with any Go distribution, and `clang-format` can be
-installed with your package manager.
+The `make format` command formats all the code in fscrypt with either 
+[`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports) (for Go code)
+or [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) (for C code).
+`goimports` can be installed with `go get`; `clang-format` can be installed
+with your package manager.
 
 The `make lint` command runs a series of static analysis checks on your code.
 This requires the

@@ -30,26 +30,27 @@ package pam
 import "C"
 import (
 	"errors"
-	"fmt"
 	"log"
+	"os/user"
 	"unsafe"
 
 	"github.com/google/fscrypt/security"
+	"github.com/google/fscrypt/util"
 )
 
 // Handle wraps the C pam_handle_t type. This is used from within modules.
 type Handle struct {
 	handle *C.pam_handle_t
 	status C.int
-	privs  *security.Privileges
-	// UID of the user being authenticated
-	UID int
-	// GID of the user being authenticated
-	GID int
+	// OrigUser is the user who invoked the PAM module (usually root)
+	OrigUser *user.User
+	// PamUser is the user who the PAM module is for
+	PamUser *user.User
 }
 
 // NewHandle creates a Handle from a raw pointer.
 func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
+	var err error
 	h := &Handle{
 		handle: (*C.pam_handle_t)(pamh),
 		status: C.PAM_SUCCESS,
@@ -61,12 +62,12 @@ func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
 		return nil, err
 	}
 
-	pwnam := C.getpwnam(pamUsername)
-	if pwnam == nil {
-		return nil, fmt.Errorf("unknown user %q", C.GoString(pamUsername))
+	if h.PamUser, err = user.Lookup(C.GoString(pamUsername)); err != nil {
+		return nil, err
 	}
-	h.UID = int(pwnam.pw_uid)
-	h.GID = int(pwnam.pw_gid)
+	if h.OrigUser, err = util.EffectiveUser(); err != nil {
+		return nil, err
+	}
 	return h, nil
 }
 
@@ -127,18 +128,20 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
-// DropThreadPrivileges sets the effective privileges to that of the PAM user
-func (h *Handle) DropThreadPrivileges() error {
-	var err error
-	h.privs, err = security.DropThreadPrivileges(h.UID, h.GID)
-	return err
+// StartAsPamUser sets the effective privileges to that of the PAM user, and
+// configures the PAM user's keyrings to be properly linked.
+func (h *Handle) StartAsPamUser() error {
+	if err := security.KeyringsSetup(h.PamUser, h.OrigUser); err != nil {
+		return err
+	}
+	return security.SetThreadPrivileges(h.PamUser, false)
 }
 
-// RaiseThreadPrivileges restores the original privileges that were running the
+// StopAsPamUser restores the original privileges that were running the
 // PAM module (this is usually root). As this error is often ignored in a defer
 // statement, any error is also logged.
-func (h *Handle) RaiseThreadPrivileges() error {
-	err := security.RaiseThreadPrivileges(h.privs)
+func (h *Handle) StopAsPamUser() error {
+	err := security.SetThreadPrivileges(h.OrigUser, false)
 	if err != nil {
 		log.Print(err)
 	}

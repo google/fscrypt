@@ -34,6 +34,7 @@ import (
 
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/security"
+	"github.com/google/fscrypt/util"
 )
 
 // Reader that always returns the same byte
@@ -60,6 +61,8 @@ var (
 	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
 	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
 	fakeWrappingKey, _      = makeKey(17, metadata.InternalKeyLen)
+
+	testUser, _ = util.EffectiveUser()
 )
 
 // As the passpharase hashing function clears the passphrase, we need to make
@@ -243,10 +246,10 @@ func TestKeyLargeResize(t *testing.T) {
 func TestAddRemoveKeys(t *testing.T) {
 	for _, service := range []string{defaultService, "ext4:", "f2fs:"} {
 		validDescription := service + fakeValidDescriptor
-		if err := InsertPolicyKey(fakeValidPolicyKey, validDescription); err != nil {
+		if err := InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser); err != nil {
 			t.Error(err)
 		}
-		if err := security.RemoveKey(validDescription); err != nil {
+		if err := security.RemoveKey(validDescription, testUser); err != nil {
 			t.Error(err)
 		}
 	}
@@ -255,23 +258,23 @@ func TestAddRemoveKeys(t *testing.T) {
 // Adds a key twice (both should succeed)
 func TestAddTwice(t *testing.T) {
 	validDescription := defaultService + fakeValidDescriptor
-	InsertPolicyKey(fakeValidPolicyKey, validDescription)
-	if InsertPolicyKey(fakeValidPolicyKey, validDescription) != nil {
+	InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser)
+	if InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser) != nil {
 		t.Error("InsertPolicyKey should not fail if key already exists")
 	}
-	security.RemoveKey(validDescription)
+	security.RemoveKey(validDescription, testUser)
 }
 
 // Makes sure a key fails with bad policy or service
 func TestBadAddKeys(t *testing.T) {
 	validDescription := defaultService + fakeValidDescriptor
-	if InsertPolicyKey(fakeInvalidPolicyKey, validDescription) == nil {
-		security.RemoveKey(validDescription)
+	if InsertPolicyKey(fakeInvalidPolicyKey, validDescription, testUser) == nil {
+		security.RemoveKey(validDescription, testUser)
 		t.Error("InsertPolicyKey should fail with bad policy key")
 	}
 	invalidDescription := "ext4" + fakeValidDescriptor
-	if InsertPolicyKey(fakeValidPolicyKey, invalidDescription) == nil {
-		security.RemoveKey(invalidDescription)
+	if InsertPolicyKey(fakeValidPolicyKey, invalidDescription, testUser) == nil {
+		security.RemoveKey(invalidDescription, testUser)
 		t.Error("InsertPolicyKey should fail with bad service")
 	}
 }

@@ -82,6 +82,9 @@ func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) C.int
 // where a key has a value of true if it appears in the argument list.
 func parseArgs(argc C.int, argv **C.char) map[string]bool {
 	args := make(map[string]bool)
+	if argc == 0 || argv == nil {
+		return args
+	}
 	for _, cString := range util.PointerSlice(unsafe.Pointer(argv))[:argc] {
 		args[C.GoString((*C.char)(cString))] = true
 	}
@@ -112,7 +115,7 @@ func setupLogging(args map[string]bool) io.Writer {
 // one exists. This protector descriptor (if found) will be cached in the pam
 // data, under descriptorLabel.
 func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
-	ctx, err := actions.NewContextFromMountpoint("/")
+	ctx, err := actions.NewContextFromMountpoint("/", handle.PamUser)
 	if err != nil {
 		return nil, err
 	}
@@ -122,13 +125,13 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 	if err != nil {
 		return nil, err
 	}
+	uid := int64(util.AtoiOrPanic(handle.PamUser.Uid))
 	for _, option := range options {
-		if option.Source() == metadata.SourceType_pam_passphrase &&
-			option.UID() == int64(handle.UID) {
+		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
 			return actions.GetProtectorFromOption(ctx, option)
 		}
 	}
-	return nil, errors.Errorf("no PAM protector for UID=%d on %q", handle.UID, ctx.Mount.Path)
+	return nil, errors.Errorf("no PAM protector for UID=%d on %q", uid, ctx.Mount.Path)
 }
 
 // policiesUsingProtector searches all the mountpoints for any policies
@@ -152,9 +155,11 @@ func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
 			continue
 		}
 
-		ctx := &actions.Context{Config: protector.Context.Config, Mount: mount}
+		// Clone context but modify the mountpoint
+		ctx := *protector.Context
+		ctx.Mount = mount
 		for _, policyDescriptor := range policyDescriptors {
-			policy, err := actions.GetPolicy(ctx, policyDescriptor)
+			policy, err := actions.GetPolicy(&ctx, policyDescriptor)
 			if err != nil {
 				log.Printf("reading policy: %s", err)
 				continue
@@ -178,7 +183,7 @@ func AdjustCount(handle *pam.Handle, delta int) (int, error) {
 		return 0, err
 	}
 
-	path := filepath.Join(countDirectory, fmt.Sprintf("%d.count", handle.UID))
+	path := filepath.Join(countDirectory, handle.PamUser.Uid+".count")
 	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, countFilePermissions)
 	if err != nil {
 		return 0, err
@@ -196,7 +201,7 @@ func AdjustCount(handle *pam.Handle, delta int) (int, error) {
 		return 0, err
 	}
 
-	log.Printf("Session count for UID=%d updated to %d", handle.UID, newCount)
+	log.Printf("Session count for UID=%s updated to %d", handle.PamUser.Uid, newCount)
 	return newCount, nil
 }
 

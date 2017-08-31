@@ -26,11 +26,12 @@ import (
 	"os"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/util"
 )
 
 // createGlobalConfig creates (or overwrites) the global config file
 func createGlobalConfig(w io.Writer, path string) error {
-	if os.Getuid() != 0 {
+	if !util.IsUserRoot() {
 		return ErrMustBeRoot
 	}
 
@@ -61,7 +62,7 @@ func createGlobalConfig(w io.Writer, path string) error {
 
 // setupFilesystem creates the directories for a filesystem to use fscrypt.
 func setupFilesystem(w io.Writer, path string) error {
-	ctx, err := actions.NewContextFromMountpoint(path)
+	ctx, err := actions.NewContextFromMountpoint(path, nil)
 	if err != nil {
 		return err
 	}
