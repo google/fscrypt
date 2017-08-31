@@ -164,7 +164,7 @@ func userKeyringID(target *user.User) (int, error) {
 		return 0, err
 	case keyringID := <-idChan:
 		if uid == os.Getuid() && uid == os.Geteuid() {
-			log.Print("thread privileges now incorrect")
+			return 0, util.SystemError("thread privileges now incorrect")
 		}
 		return keyringID, nil
 	}
