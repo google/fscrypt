@@ -25,6 +25,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os/user"
 	"regexp"
 	"strconv"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/util"
 )
 
 // We define the types boolFlag, durationFlag, and stringFlag here instead of
@@ -204,6 +206,12 @@ var (
 			formatted as raw binary and should be exactly 32 bytes
 			long.`,
 	}
+	userFlag = &stringFlag{
+		Name:    "user",
+		ArgName: "USERNAME",
+		Usage: `Specifiy which user should be used for login passphrases
+			or to which user's keyring keys should be provisioned.`,
+	}
 	protectorFlag = &stringFlag{
 		Name:    "protector",
 		ArgName: "MOUNTPOINT:ID",
@@ -233,27 +241,31 @@ var (
 // group is required and corresponds to the descriptor.
 var idFlagRegex = regexp.MustCompile("^([[:print:]]+):([[:alnum:]]+)$")
 
+func matchMetadataFlag(flagValue string) (mountpoint, descriptor string, err error) {
+	matches := idFlagRegex.FindStringSubmatch(flagValue)
+	if matches == nil {
+		return "", "", fmt.Errorf("flag value %q does not have format %s",
+			flagValue, mountpointIDArg)
+	}
+	log.Printf("parsed flag: mountpoint=%q descriptor=%s", matches[1], matches[2])
+	return matches[1], matches[2], nil
+}
+
 // parseMetadataFlag takes the value of either protectorFlag or policyFlag
 // formatted as MOUNTPOINT:DESCRIPTOR, and returns a context for the mountpoint
 // and a string for the descriptor.
-func parseMetadataFlag(flagValue string) (*actions.Context, string, error) {
-	matches := idFlagRegex.FindStringSubmatch(flagValue)
-	if matches == nil {
-		err := fmt.Errorf("flag value %q does not have format %s", flagValue, mountpointIDArg)
+func parseMetadataFlag(flagValue string, target *user.User) (*actions.Context, string, error) {
+	mountpoint, descriptor, err := matchMetadataFlag(flagValue)
+	if err != nil {
 		return nil, "", err
 	}
-
-	mountpoint := matches[1]
-	descriptor := matches[2]
-	log.Printf("parsed flag: mountpoint=%q descriptor=%s", mountpoint, descriptor)
-
-	ctx, err := actions.NewContextFromMountpoint(mountpoint)
+	ctx, err := actions.NewContextFromMountpoint(mountpoint, target)
 	return ctx, descriptor, err
 }
 
 // getProtectorFromFlag gets an existing locked protector from protectorFlag.
-func getProtectorFromFlag(flagValue string) (*actions.Protector, error) {
-	ctx, descriptor, err := parseMetadataFlag(flagValue)
+func getProtectorFromFlag(flagValue string, target *user.User) (*actions.Protector, error) {
+	ctx, descriptor, err := parseMetadataFlag(flagValue, target)
 	if err != nil {
 		return nil, err
 	}
@@ -261,10 +273,27 @@ func getProtectorFromFlag(flagValue string) (*actions.Protector, error) {
 }
 
 // getPolicyFromFlag gets an existing locked policy from policyFlag.
-func getPolicyFromFlag(flagValue string) (*actions.Policy, error) {
-	ctx, descriptor, err := parseMetadataFlag(flagValue)
+func getPolicyFromFlag(flagValue string, target *user.User) (*actions.Policy, error) {
+	ctx, descriptor, err := parseMetadataFlag(flagValue, target)
 	if err != nil {
 		return nil, err
 	}
 	return actions.GetPolicy(ctx, descriptor)
+}
+
+// parseUserFlag returns the user specified by userFlag or the current effective
+// user if the flag value is missing. If the effective user is root, however, a
+// user must specified in the flag.
+func parseUserFlag() (*user.User, error) {
+	if userFlag.Value != "" {
+		return user.Lookup(userFlag.Value)
+	}
+	effectiveUser, err := util.EffectiveUser()
+	if err != nil {
+		return nil, err
+	}
+	if util.IsUserRoot() {
+		return nil, ErrSpecifyUser
+	}
+	return effectiveUser, nil
 }

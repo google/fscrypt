@@ -119,5 +119,7 @@ func modifiedContext(ctx *actions.Context) (*actions.Context, error) {
 		return nil, err
 	}
 
-	return &actions.Context{Config: ctx.Config, Mount: mnt}, nil
+	modifiedCtx := *ctx
+	modifiedCtx.Mount = mnt
+	return &modifiedCtx, nil
 }

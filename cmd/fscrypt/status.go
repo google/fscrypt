@@ -166,7 +166,7 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 }
 
 func writePathStatus(w io.Writer, path string) error {
-	ctx, err := actions.NewContextFromPath(path)
+	ctx, err := actions.NewContextFromPath(path, nil)
 	if err != nil {
 		return err
 	}

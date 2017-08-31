@@ -25,8 +25,6 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
@@ -34,6 +32,7 @@ import (
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/security"
+	"github.com/google/fscrypt/util"
 )
 
 // Setup is a command which can to global or per-filesystem initialization.
@@ -60,7 +59,6 @@ var Setup = cli.Command{
 
 func setupAction(c *cli.Context) error {
 	var err error
-
 	switch c.NArg() {
 	case 0:
 		// Case (1) - global setup
@@ -92,7 +90,7 @@ var Encrypt = cli.Command{
 		immediately be used.`, directoryArg, shortDisplay(policyFlag),
 		shortDisplay(protectorFlag), mountpointArg),
 	Flags: []cli.Flag{policyFlag, unlockWithFlag, protectorFlag, sourceFlag,
-		nameFlag, keyFileFlag, skipUnlockFlag},
+		userFlag, nameFlag, keyFileFlag, skipUnlockFlag},
 	Action: encryptAction,
 }
 
@@ -121,7 +119,11 @@ func encryptAction(c *cli.Context) error {
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
 // metadata creation is reverted, and the directory is unmodified.
 func encryptPath(path string) (err error) {
-	ctx, err := actions.NewContextFromPath(path)
+	target, err := parseUserFlag()
+	if err != nil {
+		return
+	}
+	ctx, err := actions.NewContextFromPath(path, target)
 	if err != nil {
 		return
 	}
@@ -133,7 +135,7 @@ func encryptPath(path string) (err error) {
 	if policyFlag.Value != "" {
 		log.Printf("getting policy for %q", path)
 
-		policy, err = getPolicyFromFlag(policyFlag.Value)
+		policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser)
 	} else {
 		log.Printf("creating policy for %q", path)
 
@@ -220,7 +222,7 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 // created a new protector.
 func selectOrCreateProtector(ctx *actions.Context) (*actions.Protector, bool, error) {
 	if protectorFlag.Value != "" {
-		protector, err := getProtectorFromFlag(protectorFlag.Value)
+		protector, err := getProtectorFromFlag(protectorFlag.Value, ctx.TargetUser)
 		return protector, false, err
 	}
 
@@ -263,7 +265,7 @@ var Unlock = cli.Command{
 		locked again upon reboot, or after running "fscrypt purge" and
 		unmounting the corresponding filesystem.`, directoryArg,
 		shortDisplay(unlockWithFlag)),
-	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag},
+	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag, userFlag},
 	Action: unlockAction,
 }
 
@@ -272,8 +274,12 @@ func unlockAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
+	target, err := parseUserFlag()
+	if err != nil {
+		return newExitError(c, err)
+	}
 	path := c.Args().Get(0)
-	ctx, err := actions.NewContextFromPath(path)
+	ctx, err := actions.NewContextFromPath(path, target)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -336,7 +342,7 @@ var Purge = cli.Command{
 		can be eliminated by cycling the power or mitigated by using
 		page cache and slab cache poisoning.`, mountpointArg,
 		shortDisplay(dropCachesFlag)),
-	Flags:  []cli.Flag{forceFlag, dropCachesFlag},
+	Flags:  []cli.Flag{forceFlag, dropCachesFlag, userFlag},
 	Action: purgeAction,
 }
 
@@ -346,12 +352,17 @@ func purgeAction(c *cli.Context) error {
 	}
 
 	if dropCachesFlag.Value {
-		if unix.Geteuid() != 0 {
+		if !util.IsUserRoot() {
 			return newExitError(c, ErrDropCachesPerm)
 		}
 	}
 
-	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	target, err := parseUserFlag()
+	if err != nil {
+		return newExitError(c, err)
+	}
+	mountpoint := c.Args().Get(0)
+	ctx, err := actions.NewContextFromMountpoint(mountpoint, target)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -417,7 +428,7 @@ func statusAction(c *cli.Context) error {
 		err = writeGlobalStatus(c.App.Writer)
 	case 1:
 		path := c.Args().Get(0)
-		ctx, mntErr := actions.NewContextFromMountpoint(path)
+		ctx, mntErr := actions.NewContextFromMountpoint(path, nil)
 
 		switch errors.Cause(mntErr) {
 		case nil:
@@ -487,7 +498,7 @@ var createProtector = cli.Command{
 		applicable). As with "fscrypt encrypt", these prompts can be
 		disabled with the appropriate flags.`, mountpointArg,
 		shortDisplay(protectorFlag)),
-	Flags:  []cli.Flag{sourceFlag, nameFlag, keyFileFlag},
+	Flags:  []cli.Flag{sourceFlag, nameFlag, keyFileFlag, userFlag},
 	Action: createProtectorAction,
 }
 
@@ -496,7 +507,12 @@ func createProtectorAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	target, err := parseUserFlag()
+	if err != nil {
+		return newExitError(c, err)
+	}
+	mountpoint := c.Args().Get(0)
+	ctx, err := actions.NewContextFromMountpoint(mountpoint, target)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -539,7 +555,7 @@ func createPolicyAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0))
+	ctx, err := actions.NewContextFromMountpoint(c.Args().Get(0), nil)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -547,7 +563,7 @@ func createPolicyAction(c *cli.Context) error {
 	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
 		return err
 	}
-	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	protector, err := getProtectorFromFlag(protectorFlag.Value, ctx.TargetUser)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -608,7 +624,7 @@ func destoryMetadataAction(c *cli.Context) error {
 		switch {
 		case protectorFlag.Value != "":
 			// Case (1) - protector destroy
-			protector, err := getProtectorFromFlag(protectorFlag.Value)
+			protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 			if err != nil {
 				return newExitError(c, err)
 			}
@@ -627,7 +643,7 @@ func destoryMetadataAction(c *cli.Context) error {
 				protector.Descriptor(), protector.Context.Mount.Path)
 		case policyFlag.Value != "":
 			// Case (2) - policy destroy
-			policy, err := getPolicyFromFlag(policyFlag.Value)
+			policy, err := getPolicyFromFlag(policyFlag.Value, nil)
 			if err != nil {
 				return newExitError(c, err)
 			}
@@ -654,7 +670,7 @@ func destoryMetadataAction(c *cli.Context) error {
 	case 1:
 		// Case (3) - mountpoint destroy
 		path := c.Args().Get(0)
-		ctx, err := actions.NewContextFromMountpoint(path)
+		ctx, err := actions.NewContextFromMountpoint(path, nil)
 		if err != nil {
 			return newExitError(c, err)
 		}
@@ -694,7 +710,7 @@ func changePassphraseAction(c *cli.Context) error {
 		return err
 	}
 
-	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -732,11 +748,11 @@ func addProtectorAction(c *cli.Context) error {
 		return err
 	}
 
-	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 	if err != nil {
 		return newExitError(c, err)
 	}
-	policy, err := getPolicyFromFlag(policyFlag.Value)
+	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -790,11 +806,11 @@ func removeProtectorAction(c *cli.Context) error {
 	}
 
 	// We do not need to unlock anything for this operation
-	protector, err := getProtectorFromFlag(protectorFlag.Value)
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 	if err != nil {
 		return newExitError(c, err)
 	}
-	policy, err := getPolicyFromFlag(policyFlag.Value)
+	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -834,14 +850,14 @@ func dumpMetadataAction(c *cli.Context) error {
 	switch {
 	case protectorFlag.Value != "":
 		// Case (1) - protector print
-		protector, err := getProtectorFromFlag(protectorFlag.Value)
+		protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 		if err != nil {
 			return newExitError(c, err)
 		}
 		fmt.Fprintln(c.App.Writer, protector)
 	case policyFlag.Value != "":
 		// Case (2) - policy print
-		policy, err := getPolicyFromFlag(policyFlag.Value)
+		policy, err := getPolicyFromFlag(policyFlag.Value, nil)
 		if err != nil {
 			return newExitError(c, err)
 		}
