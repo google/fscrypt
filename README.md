@@ -119,11 +119,10 @@ fscrypt has the following build dependencies:
     >>>>> make
     >>>>> sudo make install
     ```
-*   Headers for `libblkid` and `libpam`. These can be installed with the
-    appropriate package manager.
-    - `sudo apt-get install libblkid-dev libpam0g-dev`
-    - `sudo yum install libblkid-devel pam-devel`
-    - `pam` and `util-liux` packages for Arch
+*   Headers for `libpam`. Install them with the appropriate package manager.
+    - `sudo apt-get install libpam0g-dev`
+    - `sudo yum install pam-devel`
+    - `pam` package for Arch (part of the `base` group)
 
 Once all the dependencies are installed, you can get the repository by running:
 ```shell
@@ -149,8 +148,7 @@ fscrypt has the following runtime dependencies:
 *   Kernel support for filesystem encryption (this will depend on your kernel
     configuration and specific filesystem)
 *   `libargon2.so` (see the above installation instructions for Argon2)
-*   `libblkid.so` and `libpam.so`. These libraries are almost certainly already
-    on your system.
+*   `libpam.so` (almost certainly already on your system)
 
 The dynamic libraries are not needed if you built a static executable.
 

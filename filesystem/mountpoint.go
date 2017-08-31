@@ -21,20 +21,17 @@
 
 package filesystem
 
+import (
+	"io/ioutil"
+	"os"
+)
+
 /*
-#cgo LDFLAGS: -lblkid
-#include <blkid/blkid.h> // blkid functions
-#include <stdlib.h>      // free()
 #include <mntent.h>      // setmntent, getmntent, endmntent
 
 // The file containing mountpoints info and how we should read it
 const char* mountpoints_filename = "/proc/mounts";
 const char* read_mode = "r";
-
-// Helper function for freeing strings
-void string_free(char* str) { free(str); }
-
-// Helper function to lookup tokens
 */
 import "C"
 
@@ -53,12 +50,14 @@ var (
 	// These maps hold data about the state of the system's mountpoints.
 	mountsByPath   map[string]*Mount
 	mountsByDevice map[string][]*Mount
-	// Cache for information about the devices
-	cache C.blkid_cache
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
 	// True if the maps have been successfully initialized.
 	mountsInitialized bool
+	// Supported tokens for filesystem links
+	uuidToken = "UUID"
+	// Location to perform UUID lookup
+	uuidDirectory = "/dev/disk/by-uuid"
 )
 
 // getMountInfo populates the Mount mappings by parsing the filesystem
@@ -80,14 +79,6 @@ func getMountInfo() error {
 			C.GoString(C.mountpoints_filename))
 	}
 	defer C.endmntent(fileHandle)
-
-	// Load the device information from the default blkid cache
-	if cache != nil {
-		C.blkid_put_cache(cache)
-	}
-	if C.blkid_get_cache(&cache, nil) != 0 {
-		return errors.Wrap(ErrGlobalMountInfo, "could not read blkid cache")
-	}
 
 	for {
 		entry := C.getmntent(fileHandle)
@@ -214,72 +205,75 @@ func GetMount(mountpoint string) (*Mount, error) {
 }
 
 // getMountsFromLink returns the Mount objects which match the provided link.
-// This link can be an unparsed tag (e.g. <token>=<value>) or path (e.g.
-// /dev/dm-0). The matching rules are determined by libblkid. These are the same
-// matching rules for things like UUID=3a6d9a76-47f0-4f13-81bf-3332fbe984fb in
-// "/etc/fstab". Note that this can match multiple Mounts. An error is returned
-// if the link is invalid or we cannot load the required mount data. If a
-// filesystem has been updated since the last call to one of the mount
-// functions, run UpdateMountInfo to see the change.
+// This link if formatted as a tag (e.g. <token>=<value>) similar to how they
+// apprear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
+// that this can match multiple Mounts (due to the existance of bind mounts). An
+// error is returned if the link is invalid or we cannot load the required mount
+// data. If a filesystem has been updated since the last call to one of the
+// mount functions, run UpdateMountInfo to see the change.
 func getMountsFromLink(link string) ([]*Mount, error) {
-	// Use blkid_evaluate_spec to get the device name.
-	cLink := C.CString(link)
-	defer C.string_free(cLink)
-
-	cDeviceName := C.blkid_evaluate_spec(cLink, &cache)
-	defer C.string_free(cDeviceName)
-	deviceName := C.GoString(cDeviceName)
-
-	log.Printf("blkid_evaluate_spec(%q, <cache>) = %q", link, deviceName)
-
-	if deviceName == "" {
-		return nil, errors.Wrapf(ErrFollowLink, "link %q is invalid", link)
+	// Parse the link
+	linkComponents := strings.Split(link, "=")
+	if len(linkComponents) != 2 {
+		return nil, errors.Wrapf(ErrFollowLink, "link %q format in invalid", link)
 	}
-	deviceName, err := cannonicalizePath(deviceName)
+	token := linkComponents[0]
+	value := linkComponents[1]
+	if token != uuidToken {
+		return nil, errors.Wrapf(ErrFollowLink, "token type %q not supported", token)
+	}
+
+	// See if UUID points to an existing device
+	searchPath := filepath.Join(uuidDirectory, value)
+	if filepath.Base(searchPath) != value {
+		return nil, errors.Wrapf(ErrFollowLink, "value %q is not a UUID", value)
+	}
+	devicePath, err := cannonicalizePath(searchPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(ErrFollowLink, "no device with UUID %q", value)
 	}
 
+	// Lookup mountpoints for device in global store
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	if err := getMountInfo(); err != nil {
 		return nil, err
 	}
-
-	if mnts, ok := mountsByDevice[deviceName]; ok {
-		return mnts, nil
+	mnts, ok := mountsByDevice[devicePath]
+	if !ok {
+		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q", devicePath)
 	}
-
-	return nil, errors.Wrapf(ErrFollowLink, "device %q is invalid", deviceName)
+	return mnts, nil
 }
 
 // makeLink returns a link of the form <token>=<value> where value is the tag
-// value for the Mount's device according to libblkid. An error is returned if
-// the device/token pair has no value.
+// value for the Mount's device. Currently, only "UUID" tokens are supported. An
+// error is returned if the mount has no device, or no UUID.
 func makeLink(mnt *Mount, token string) (string, error) {
-	// The blkid cache may not always hold the canonical device path. To
-	// solve this we first use blkid_evaluate_spec to find the right entry
-	// in the cache. Then that name is used to get the token value.
-	cDevice := C.CString(mnt.Device)
-	defer C.string_free(cDevice)
-
-	cDeviceEntry := C.blkid_evaluate_spec(cDevice, &cache)
-	defer C.string_free(cDeviceEntry)
-	deviceEntry := C.GoString(cDeviceEntry)
-
-	log.Printf("blkid_evaluate_spec(%q, <cache>) = %q", mnt.Device, deviceEntry)
-
-	cToken := C.CString(token)
-	defer C.string_free(cToken)
-
-	cValue := C.blkid_get_tag_value(cache, cToken, cDeviceEntry)
-	defer C.string_free(cValue)
-	value := C.GoString(cValue)
-
-	log.Printf("blkid_get_tag_value(<cache>, %s, %s) = %s", token, deviceEntry, value)
-
-	if value == "" {
-		return "", errors.Wrapf(ErrMakeLink, "no %s", token)
+	if token != uuidToken {
+		return "", errors.Wrapf(ErrMakeLink, "token type %q not supported", token)
 	}
-	return fmt.Sprintf("%s=%s", token, C.GoString(cValue)), nil
+	if mnt.Device == "" {
+		return "", errors.Wrapf(ErrMakeLink, "no device for mount %q", mnt.Path)
+	}
+
+	dirContents, err := ioutil.ReadDir(uuidDirectory)
+	if err != nil {
+		return "", errors.Wrap(ErrMakeLink, err.Error())
+	}
+	for _, fileInfo := range dirContents {
+		if fileInfo.Mode()&os.ModeSymlink == 0 {
+			continue // Only interested in UUID symlinks
+		}
+		uuid := fileInfo.Name()
+		devicePath, err := cannonicalizePath(filepath.Join(uuidDirectory, uuid))
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+		if mnt.Device == devicePath {
+			return fmt.Sprintf("%s=%s", uuidToken, uuid), nil
+		}
+	}
+	return "", errors.Wrapf(ErrMakeLink, "device %q has no UUID", mnt.Device)
 }

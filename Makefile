@@ -59,9 +59,9 @@ endif
 #		builds the C code with high optimizations, and C warnings fail.
 #	LDFLAGS
 #		Change the flags passed to the C linker. Empty by default.
-#		For example:
-#			make fscrypt "LDFLAGS = -static -luuid -ldl -laudit -lpthread"
-#		will build a static binary.
+#		For example (on my system with additional dev packages):
+#			make fscrypt "LDFLAGS = -static -ldl -laudit -lcap-ng"
+#		will build a static fscrypt binary.
 #	GO_FLAGS
 #		Change the flags passed to "go build". Empty by default.
 #		For example:
@@ -179,8 +179,6 @@ test-setup:
 	sudo mkdir -p $(MOUNT)
 	sudo mount -o rw,loop $(IMAGE) $(MOUNT)
 	sudo chmod +777 $(MOUNT)
-	# Add UUID to BLKID cache
-	sudo blkid $$(df $(MOUNT) --output=source | grep /dev/)
 
 test-teardown:
 	sudo umount $(MOUNT)
