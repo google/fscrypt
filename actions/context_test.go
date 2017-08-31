@@ -47,7 +47,7 @@ func setupContext() (ctx *Context, err error) {
 	ConfigFileLocation = filepath.Join(mountpoint, "test.conf")
 
 	// Should not be able to setup without a config file
-	if badCtx, badCtxErr := NewContextFromMountpoint(mountpoint); badCtxErr == nil {
+	if badCtx, badCtxErr := NewContextFromMountpoint(mountpoint, nil); badCtxErr == nil {
 		badCtx.Mount.RemoveAllMetadata()
 		return nil, fmt.Errorf("created context at %q without config file", badCtx.Mount.Path)
 	}
@@ -61,7 +61,7 @@ func setupContext() (ctx *Context, err error) {
 		}
 	}()
 
-	ctx, err = NewContextFromMountpoint(mountpoint)
+	ctx, err = NewContextFromMountpoint(mountpoint, nil)
 	if err != nil {
 		return nil, err
 	}

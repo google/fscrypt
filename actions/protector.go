@@ -22,12 +22,12 @@ package actions
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Errors relating to Protectors
@@ -54,17 +54,17 @@ func checkForProtectorWithName(ctx *Context, name string) error {
 	return nil
 }
 
-// checkForProtectorWithUid returns an error if there is already a login
-// protector on the filesystem with a specific UID (or if we cannot read the
+// checkIfUserHasLoginProtector returns an error if there is already a login
+// protector on the filesystem for a specific user (or if we cannot read the
 // necessary data).
-func checkForProtectorWithUID(ctx *Context, uid int64) error {
+func checkIfUserHasLoginProtector(ctx *Context, uid int64) error {
 	options, err := ctx.ProtectorOptions()
 	if err != nil {
 		return err
 	}
 	for _, option := range options {
 		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
-			return errors.Wrapf(ErrDuplicateUID, "uid %d", uid)
+			return errors.Wrapf(ErrDuplicateUID, "user %q", ctx.TargetUser.Username)
 		}
 	}
 	return nil
@@ -121,9 +121,9 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 	case metadata.SourceType_pam_passphrase:
 		// As the pam passphrases are user specific, we also store the
 		// UID for this kind of source.
-		protector.data.Uid = int64(os.Getuid())
+		protector.data.Uid = int64(util.AtoiOrPanic(ctx.TargetUser.Uid))
 		// Make sure we aren't duplicating protectors
-		if err := checkForProtectorWithUID(ctx, protector.data.Uid); err != nil {
+		if err := checkIfUserHasLoginProtector(ctx, protector.data.Uid); err != nil {
 			return nil, err
 		}
 		fallthrough
@@ -180,7 +180,7 @@ func GetProtectorFromOption(ctx *Context, option *ProtectorOption) (*Protector, 
 
 	// Replace the context if this is a linked protector
 	if option.LinkedMount != nil {
-		ctx = &Context{ctx.Config, option.LinkedMount}
+		ctx = &Context{ctx.Config, option.LinkedMount, ctx.TargetUser}
 	}
 	return &Protector{Context: ctx, data: option.data}, nil
 }

@@ -30,6 +30,7 @@ package actions
 
 import (
 	"log"
+	"os/user"
 
 	"golang.org/x/sys/unix"
 
@@ -37,6 +38,7 @@ import (
 
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // Errors relating to Config files or Config structures.
@@ -49,47 +51,73 @@ var (
 )
 
 // Context contains the necessary global state to perform most of fscrypt's
-// actions. It contains a config struct, which is loaded from the global config
-// file, but can be edited manually. A context is specific to a filesystem, and
-// all actions to add, edit, remove, and apply Protectors and Policies are done
-// relative to that filesystem.
+// actions.
 type Context struct {
+	// Config is the struct loaded from the global config file. It can be
+	// modified after being loaded to customise parameters.
 	Config *metadata.Config
-	Mount  *filesystem.Mount
+	// Mount is the filesystem relitive to which all Protectors and Policies
+	// are added, edited, removed, and applied.
+	Mount *filesystem.Mount
+	// TargetUser is the user for which protectors are created and to whose
+	// keyring policies are provisioned.
+	TargetUser *user.User
 }
 
 // NewContextFromPath makes a context for the filesystem containing the
 // specified path and whose Config is loaded from the global config file. On
-// success, the Context contains a valid Config and Mount.
-func NewContextFromPath(path string) (ctx *Context, err error) {
-	ctx = new(Context)
-	if ctx.Mount, err = filesystem.FindMount(path); err != nil {
-		return
+// success, the Context contains a valid Config and Mount. The target defaults
+// the the current effective user if none is specified.
+func NewContextFromPath(path string, target *user.User) (*Context, error) {
+	ctx, err := newContextFromUser(target)
+	if err != nil {
+		return nil, err
 	}
-	if ctx.Config, err = getConfig(); err != nil {
-		return
+	if ctx.Mount, err = filesystem.FindMount(path); err != nil {
+		return nil, err
 	}
 
 	log.Printf("%s is on %s filesystem %q (%s)", path,
 		ctx.Mount.Filesystem, ctx.Mount.Path, ctx.Mount.Device)
-	return
+	return ctx, nil
 }
 
 // NewContextFromMountpoint makes a context for the filesystem at the specified
 // mountpoint and whose Config is loaded from the global config file. On
-// success, the Context contains a valid Config and Mount.
-func NewContextFromMountpoint(mountpoint string) (ctx *Context, err error) {
-	ctx = new(Context)
-	if ctx.Mount, err = filesystem.GetMount(mountpoint); err != nil {
-		return
+// success, the Context contains a valid Config and Mount. The target defaults
+// the the current effective user if none is specified.
+func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, error) {
+	ctx, err := newContextFromUser(target)
+	if err != nil {
+		return nil, err
 	}
-	if ctx.Config, err = getConfig(); err != nil {
-		return
+	if ctx.Mount, err = filesystem.GetMount(mountpoint); err != nil {
+		return nil, err
 	}
 
 	log.Printf("found %s filesystem %q (%s)", ctx.Mount.Filesystem,
 		ctx.Mount.Path, ctx.Mount.Device)
-	return
+	return ctx, nil
+}
+
+// newContextFromUser makes a context with the corresponding target user, and
+// whose Config is loaded from the global config file. If the target is nil, the
+// effecitive user is used.
+func newContextFromUser(target *user.User) (*Context, error) {
+	var err error
+	if target == nil {
+		if target, err = util.EffectiveUser(); err != nil {
+			return nil, err
+		}
+	}
+
+	ctx := &Context{TargetUser: target}
+	if ctx.Config, err = getConfig(); err != nil {
+		return nil, err
+	}
+
+	log.Printf("creating context for %q", target.Username)
+	return ctx, nil
 }
 
 // checkContext verifies that the context contains an valid config and a mount
