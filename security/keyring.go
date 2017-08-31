@@ -20,34 +20,55 @@
 package security
 
 import (
-	"bytes"
-	"fmt"
-	"io/ioutil"
 	"log"
-	"strconv"
+	"os"
+	"os/user"
+	"runtime"
+	"sync"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+
+	"github.com/google/fscrypt/util"
 )
 
-const (
-	// file which lists all visible keys
-	keyListFilename = "/proc/keys"
-	// keyType is always logon as required by filesystem encryption.
-	keyType = "logon"
+// KeyType is always logon as required by filesystem encryption.
+const KeyType = "logon"
+
+// Keyring related error values
+var (
+	ErrFindingKeyring = util.SystemError("could not find user keyring")
+	ErrKeyringInsert  = util.SystemError("could not insert key into the keyring")
+	ErrKeyringSearch  = errors.New("could not find key with descriptor")
+	ErrKeyringDelete  = util.SystemError("could not delete key from the keyring")
+	ErrKeyringLink    = util.SystemError("could not link keyring")
 )
+
+// KeyringsSetup configures the desired keyring linkage by linking the target
+// user's keying into the privileged user's keyring.
+func KeyringsSetup(target, privileged *user.User) error {
+	targetKeyringID, err := userKeyringID(target)
+	if err != nil {
+		return err
+	}
+	privilegedKeyringID, err := userKeyringID(privileged)
+	if err != nil {
+		return err
+	}
+	return keyringLink(targetKeyringID, privilegedKeyringID)
+}
 
 // FindKey tries to locate a key in the kernel keyring with the provided
-// description. The key id is returned if we can find the key. An error is
+// description. The key ID is returned if we can find the key. An error is
 // returned if the key does not exist.
-func FindKey(description string) (int, error) {
-	keyringID, err := getUserKeyringID()
+func FindKey(description string, target *user.User) (int, error) {
+	keyringID, err := userKeyringID(target)
 	if err != nil {
 		return 0, err
 	}
 
-	keyID, err := unix.KeyctlSearch(keyringID, keyType, description, 0)
-	log.Printf("KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, keyType, description, keyID, err)
+	keyID, err := unix.KeyctlSearch(keyringID, KeyType, description, 0)
+	log.Printf("KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, KeyType, description, keyID, err)
 	if err != nil {
 		return 0, errors.Wrap(ErrKeyringSearch, err.Error())
 	}
@@ -56,8 +77,8 @@ func FindKey(description string) (int, error) {
 
 // RemoveKey tries to remove a policy key from the kernel keyring with the
 // provided description. An error is returned if the key does not exist.
-func RemoveKey(description string) error {
-	keyID, err := FindKey(description)
+func RemoveKey(description string, target *user.User) error {
+	keyID, err := FindKey(description, target)
 	if err != nil {
 		return err
 	}
@@ -74,103 +95,106 @@ func RemoveKey(description string) error {
 
 // InsertKey puts the provided data into the kernel keyring with the provided
 // description.
-func InsertKey(data []byte, description string) error {
-	keyringID, err := getUserKeyringID()
+func InsertKey(data []byte, description string, target *user.User) error {
+	keyringID, err := userKeyringID(target)
 	if err != nil {
 		return err
 	}
 
-	keyID, err := unix.AddKey(keyType, description, data, keyringID)
+	keyID, err := unix.AddKey(KeyType, description, data, keyringID)
 	log.Printf("KeyctlAddKey(%s, %s, <data>, %d) = %d, %v",
-		keyType, description, keyringID, keyID, err)
+		KeyType, description, keyringID, keyID, err)
 	if err != nil {
 		return errors.Wrap(ErrKeyringInsert, err.Error())
 	}
 	return nil
 }
 
-var keyringIDCache = make(map[int]int)
+var (
+	keyringIDCache = make(map[int]int)
+	cacheLock      sync.Mutex
+)
 
-// getUserKeyringID returns the key id of the current user's user keyring. A
-// simpler approach would be to use
-//     unix.KeyctlGetKeyringID(unix.KEY_SPEC_USER_KEYRING, false)
-// which would work in almost all cases. However, despite the fact that the rest
-// of the keyrings API uses the _effective_ UID throughout, the translation of
-// KEY_SPEC_USER_KEYRING is done with respect to the _real_ UID. This means that
-// a simpler implementation would not respect permissions dropping.
-func getUserKeyringID() (int, error) {
+// userKeyringID returns the key id of the target user's keyring. The returned
+// keyring will also be linked into the process keyring so that it will be
+// accessible thoughout the program.
+func userKeyringID(target *user.User) (int, error) {
+	uid := util.AtoiOrPanic(target.Uid)
 	// We will cache the result of this function.
-	euid := unix.Geteuid()
-	if keyringID, ok := keyringIDCache[euid]; ok {
+	cacheLock.Lock()
+	defer cacheLock.Unlock()
+	if keyringID, ok := keyringIDCache[uid]; ok {
 		return keyringID, nil
 	}
 
-	data, err := ioutil.ReadFile(keyListFilename)
-	if err != nil {
-		log.Print(err)
-		return 0, ErrReadingKeyList
+	// The permissions of the keyrings API is a little strange. The euid is
+	// used to determine if we can access/modify a key/keyring. However, the
+	// ruid is used to determine KEY_SPEC_USER_KEYRING. This means both the
+	// ruid and euid must match the user's uid for the lookup to work.
+	if uid == os.Getuid() && uid == os.Geteuid() {
+		log.Printf("Normal keyring lookup for uid=%d", uid)
+		return userKeyringIDLookup(uid)
 	}
 
-	expectedName := fmt.Sprintf("_uid.%d:", euid)
-	for _, line := range bytes.Split(data, []byte{'\n'}) {
-		if len(line) == 0 {
-			continue
+	// We drop permissions in a separate thread (guaranteed as the main
+	// thread is locked) because we need to drop the real AND effective IDs.
+	log.Printf("Threaded keyring lookup for uid=%d", uid)
+	idChan := make(chan int, 0)
+	errChan := make(chan error, 0)
+	// OSThread locks ensure the privilege change is only for the lookup.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	go func() {
+		runtime.LockOSThread()
+		if err := SetThreadPrivileges(target, true); err != nil {
+			errChan <- err
+			return
 		}
-
-		// Each line in /proc/keys should have 9 columns.
-		columns := bytes.Fields(line)
-		if len(columns) < 9 {
-			return 0, ErrReadingKeyList
-		}
-		hexID := string(columns[0])
-		owner := string(columns[5])
-		name := string(columns[8])
-
-		// Our desired key is owned by the user and has the right name.
-		// The owner check is so another user cannot DOS this user by
-		// inserting a keyring with a similar name.
-		if owner != strconv.Itoa(euid) || name != expectedName {
-			continue
-		}
-
-		// The keyring's ID is encoded as hex.
-		parsedID, err := strconv.ParseInt(hexID, 16, 32)
+		keyringID, err := userKeyringIDLookup(uid)
 		if err != nil {
-			log.Print(err)
-			return 0, ErrReadingKeyList
+			errChan <- err
+			return
 		}
+		idChan <- keyringID
+		return
+	}()
 
-		keyringID := int(parsedID)
-		// For some stupid reason, a thread does not automaticaly "possess" keys
-		// in the user keyring. So we link it into the process keyring so that
-		// we will not get "permission denied" when purging or modifying keys.
-		if err := keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
-			return 0, err
+	// We select so the thread will have to complete
+	select {
+	case err := <-errChan:
+		return 0, err
+	case keyringID := <-idChan:
+		if uid == os.Getuid() && uid == os.Geteuid() {
+			log.Print("thread privileges now incorrect")
 		}
-
-		keyringIDCache[euid] = keyringID
 		return keyringID, nil
 	}
+}
 
-	return 0, ErrFindingKeyring
+func userKeyringIDLookup(uid int) (int, error) {
+	// This will trigger the creation of the user keyring, if necessary.
+	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_USER_KEYRING, false)
+	log.Printf("keyringID(_uid.%d) = %d, %v", uid, keyringID, err)
+	if err != nil {
+		return 0, errors.Wrap(ErrFindingKeyring, err.Error())
+	}
+
+	// For some silly reason, a thread does not automatically "possess" keys
+	// in the user keyring. So we link it into the process keyring so that
+	// we will not get "permission denied" when purging or modifying keys.
+	if err := keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
+		return 0, err
+	}
+
+	keyringIDCache[uid] = keyringID
+	return keyringID, nil
 }
 
 func keyringLink(keyID int, keyringID int) error {
 	_, err := unix.KeyctlInt(unix.KEYCTL_LINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlLink(%d, %d) = %v", keyID, keyringID, err)
-
 	if err != nil {
 		return errors.Wrap(ErrKeyringLink, err.Error())
 	}
-	return err
-}
-
-func keyringUnlink(keyID int, keyringID int) error {
-	_, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
-	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
-
-	if err != nil {
-		return errors.Wrap(ErrKeyringUnlink, err.Error())
-	}
-	return err
+	return nil
 }
