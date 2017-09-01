@@ -119,7 +119,7 @@ func encryptAction(c *cli.Context) error {
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
 // metadata creation is reverted, and the directory is unmodified.
 func encryptPath(path string) (err error) {
-	target, err := parseUserFlag()
+	target, err := parseUserFlag(!skipUnlockFlag.Value)
 	if err != nil {
 		return
 	}
@@ -274,7 +274,7 @@ func unlockAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	target, err := parseUserFlag()
+	target, err := parseUserFlag(true)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -357,7 +357,7 @@ func purgeAction(c *cli.Context) error {
 		}
 	}
 
-	target, err := parseUserFlag()
+	target, err := parseUserFlag(true)
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -507,7 +507,7 @@ func createProtectorAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	target, err := parseUserFlag()
+	target, err := parseUserFlag(false)
 	if err != nil {
 		return newExitError(c, err)
 	}

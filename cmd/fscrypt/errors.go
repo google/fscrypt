@@ -35,6 +35,7 @@ import (
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -93,6 +94,14 @@ func getErrorSuggestions(err error) string {
 			needs to be enabled for this filesystem. See the
 			documentation on how to enable encryption on ext4
 			systems (and the risks of doing so).`
+	case security.ErrSessionUserKeying:
+		return `This is usually the result of a bad PAM configuration.
+			Either correct the problem in your PAM stack, enable
+			pam_keyinit.so, or run "keyctl link @u @s".`
+	case security.ErrAccessUserKeyring:
+		return fmt.Sprintf(`You can only use %s to access the user
+			keyring of another user if you are running as root.`,
+			shortDisplay(userFlag))
 	case actions.ErrBadConfigFile:
 		return `Run "sudo fscrypt setup" to recreate the file.`
 	case actions.ErrNoConfigFile:

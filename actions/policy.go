@@ -60,7 +60,7 @@ func PurgeAllPolicies(ctx *Context) error {
 		err = security.RemoveKey(service+policyDescriptor, ctx.TargetUser)
 
 		switch errors.Cause(err) {
-		case nil, security.ErrKeyringSearch:
+		case nil, security.ErrKeySearch:
 			// We don't care if the key has already been removed
 		default:
 			return err
