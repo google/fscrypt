@@ -134,14 +134,14 @@ func (h *Handle) StartAsPamUser() error {
 	if err := security.KeyringsSetup(h.PamUser, h.OrigUser); err != nil {
 		return err
 	}
-	return security.SetThreadPrivileges(h.PamUser, false)
+	return security.SetThreadPrivileges(h.PamUser)
 }
 
 // StopAsPamUser restores the original privileges that were running the
 // PAM module (this is usually root). As this error is often ignored in a defer
 // statement, any error is also logged.
 func (h *Handle) StopAsPamUser() error {
-	err := security.SetThreadPrivileges(h.OrigUser, false)
+	err := security.SetThreadPrivileges(h.OrigUser)
 	if err != nil {
 		log.Print(err)
 	}

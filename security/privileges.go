@@ -26,6 +26,7 @@ package security
 
 import (
 	"log"
+	"os"
 	"os/user"
 
 	"github.com/pkg/errors"
@@ -34,44 +35,35 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// SetThreadPrivileges drops drops the privileges of the current thread to have
-// the uid/gid of the target user. If permanent is true, this operation cannot
-// be reversed in the thread (the real and effective IDs are set). If
-// permanent is false, only the effective IDs are set, allowing the privileges
-// to be changed again with another call to SetThreadPrivileges.
-func SetThreadPrivileges(target *user.User, permanent bool) error {
+// SetThreadPrivileges temporarily drops the privileges of the current thread to
+// have the effective uid/gid of the target user. The privileges can be changed
+// again with another call to SetThreadPrivileges.
+func SetThreadPrivileges(target *user.User) error {
 	euid := util.AtoiOrPanic(target.Uid)
 	egid := util.AtoiOrPanic(target.Gid)
-	var ruid, rgid int
-	if permanent {
-		log.Printf("Permanently dropping to user %q", target.Username)
-		ruid, rgid = euid, egid
-	} else {
-		log.Printf("Temporarily dropping to user %q", target.Username)
-		// Real IDs of -1 mean they will not be changed.
-		ruid, rgid = -1, -1
+	if os.Geteuid() == euid {
+		log.Printf("Privileges already set to %q", target.Username)
+		return nil
 	}
+	log.Printf("Setting privileges to %q", target.Username)
 
 	// If setting privs to root, we want to set the uid first, so we will
 	// then have the necessary permissions to perform the other actions.
 	if euid == 0 {
-		if err := setUids(ruid, euid); err != nil {
+		if err := setUids(-1, euid); err != nil {
 			return err
 		}
 	}
-
-	if err := setGids(rgid, egid); err != nil {
+	if err := setGids(-1, egid); err != nil {
 		return err
 	}
-
 	if err := setGroups(target); err != nil {
 		return err
 	}
-
 	// If not setting privs to root, we want to avoid dropping the uid
 	// util the very end.
 	if euid != 0 {
-		if err := setUids(ruid, euid); err != nil {
+		if err := setUids(-1, euid); err != nil {
 			return err
 		}
 	}
