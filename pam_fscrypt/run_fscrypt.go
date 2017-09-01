@@ -36,6 +36,7 @@ import (
 	"log/syslog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -62,19 +63,29 @@ const (
 type PamFunc func(handle *pam.Handle, args map[string]bool) error
 
 // RunPamFunc is used to convert between the Go functions and exported C funcs.
-func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) C.int {
+func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) (ret C.int) {
 	args := parseArgs(argc, argv)
 	errorWriter := setupLogging(args)
-	handle, err := pam.NewHandle(pamh)
 
+	// Log any panics to the errorWriter
+	defer func() {
+		if r := recover(); r != nil {
+			ret = C.PAM_SERVICE_ERR
+			fmt.Fprintf(errorWriter,
+				"pam func panicked: %s\nPlease open an issue.\n%s",
+				r, debug.Stack())
+		}
+	}()
+
+	handle, err := pam.NewHandle(pamh)
 	if err == nil {
 		err = f(handle, args)
 	}
-
 	if err != nil {
-		fmt.Fprint(errorWriter, err)
+		fmt.Fprintf(errorWriter, "pam func failed: %s", err)
 		return C.PAM_SERVICE_ERR
 	}
+	log.Print("pam func succeeded")
 	return C.PAM_SUCCESS
 }
 
