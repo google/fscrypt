@@ -292,7 +292,7 @@ func unlockAction(c *cli.Context) error {
 	}
 	// Check if directory is already unlocked
 	if policy.IsProvisioned() {
-		log.Printf("policy %s is already provisioned", policy)
+		log.Printf("policy %s is already provisioned", policy.Descriptor())
 		return newExitError(c, errors.Wrapf(ErrPolicyUnlocked, path))
 	}
 
