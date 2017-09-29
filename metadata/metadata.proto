@@ -70,6 +70,8 @@ message EncryptionOptions {
     AES_256_GCM = 2;
     AES_256_CBC = 3;
     AES_256_CTS = 4;
+    AES_128_CBC = 5;
+    AES_128_CTS = 6;
   }
 
   Mode contents = 2;
