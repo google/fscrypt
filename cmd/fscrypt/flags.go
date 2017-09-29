@@ -300,7 +300,7 @@ func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
 	}
 
 	if checkKeyring {
-		_, err = security.UserKeyringID(targetUser)
+		_, err = security.UserKeyringID(targetUser, true)
 	}
 	return targetUser, err
 }

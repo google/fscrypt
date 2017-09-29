@@ -49,7 +49,7 @@ var (
 // description. The key ID is returned if we can find the key. An error is
 // returned if the key does not exist.
 func FindKey(description string, target *user.User) (int, error) {
-	keyringID, err := UserKeyringID(target)
+	keyringID, err := UserKeyringID(target, false)
 	if err != nil {
 		return 0, err
 	}
@@ -83,7 +83,7 @@ func RemoveKey(description string, target *user.User) error {
 // InsertKey puts the provided data into the kernel keyring with the provided
 // description.
 func InsertKey(data []byte, description string, target *user.User) error {
-	keyringID, err := UserKeyringID(target)
+	keyringID, err := UserKeyringID(target, true)
 	if err != nil {
 		return err
 	}
@@ -104,10 +104,10 @@ var (
 
 // UserKeyringID returns the key id of the target user's user keyring. We also
 // ensure that the keyring will be accessible by linking it into the process
-// keyring and linking it into the root user keyring (permissions allowing). An
-// error is returned if a normal user requests their user keyring, but it is not
-// in the current session keyring.
-func UserKeyringID(target *user.User) (int, error) {
+// keyring and linking it into the root user keyring (permissions allowing). If
+// checkSession is true, an error is returned if a normal user requests their
+// user keyring, but it is not in the current session keyring.
+func UserKeyringID(target *user.User, checkSession bool) (int, error) {
 	uid := util.AtoiOrPanic(target.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
 	if err != nil {
@@ -117,7 +117,7 @@ func UserKeyringID(target *user.User) (int, error) {
 	if !util.IsUserRoot() {
 		// Make sure the returned keyring will be accessible by checking
 		// that it is in the session keyring.
-		if !isUserKeyringInSession(uid) {
+		if checkSession && !isUserKeyringInSession(uid) {
 			return 0, ErrSessionUserKeying
 		}
 		return targetKeyring, nil
