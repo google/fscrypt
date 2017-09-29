@@ -105,9 +105,9 @@ var (
 // UserKeyringID returns the key id of the target user's user keyring. We also
 // ensure that the keyring will be accessible by linking it into the process
 // keyring and linking it into the root user keyring (permissions allowing). If
-// check_session is true, an error is returned if a normal user requests their
+// checkSession is true, an error is returned if a normal user requests their
 // user keyring, but it is not in the current session keyring.
-func UserKeyringID(target *user.User, check_session bool) (int, error) {
+func UserKeyringID(target *user.User, checkSession bool) (int, error) {
 	uid := util.AtoiOrPanic(target.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
 	if err != nil {
@@ -117,7 +117,7 @@ func UserKeyringID(target *user.User, check_session bool) (int, error) {
 	if !util.IsUserRoot() {
 		// Make sure the returned keyring will be accessible by checking
 		// that it is in the session keyring.
-		if check_session && !isUserKeyringInSession(uid) {
+		if checkSession && !isUserKeyringInSession(uid) {
 			return 0, ErrSessionUserKeying
 		}
 		return targetKeyring, nil
