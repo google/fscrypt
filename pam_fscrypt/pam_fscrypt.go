@@ -167,8 +167,8 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	}
 
 	if args[cacheFlag] {
-		log.Print("dropping inode caches at session close")
-		errCache = security.DropInodeCache()
+		log.Print("dropping appropriate filesystem caches at session close")
+		errCache = security.DropFilesystemCache()
 	}
 
 	if errLock != nil {

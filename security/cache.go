@@ -22,20 +22,28 @@ package security
 import (
 	"log"
 	"os"
+
+	"golang.org/x/sys/unix"
 )
 
-// DropInodeCache instructs the kernel to clear the global cache of inodes and
-// dentries. This has the effect of making encrypted directories whose keys
-// are not present no longer accessible. Requires root privileges.
-func DropInodeCache() error {
-	log.Print("dropping page caches")
+// DropFilesystemCache instructs the kernel to free the reclaimable inodes and
+// dentries. This has the effect of making encrypted directories whose keys are
+// not present no longer accessible. Requires root privileges.
+func DropFilesystemCache() error {
+	// Dirty reclaimible inodes must be synced so that they will be freed.
+	log.Print("syncing changes to filesystem")
+	unix.Sync()
+
 	// See: https://www.kernel.org/doc/Documentation/sysctl/vm.txt
+	log.Print("freeing reclaimable inodes and dentries")
 	file, err := os.OpenFile("/proc/sys/vm/drop_caches", os.O_WRONLY|os.O_SYNC, 0)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	// "2" just clears the inodes and dentries
+	// "2" just frees the reclaimable inodes and dentries, the associated
+	// pages to these inodes will be freed. We do not need to free the
+	// entire pagecache (as this will severly impact performance).
 	_, err = file.WriteString("2")
 	return err
 }

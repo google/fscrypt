@@ -321,15 +321,16 @@ var Purge = cli.Command{
 		there are four important things to note about this command:
 
 		(1) When run with the default options, this command also clears
-		the dentry and inode cache, so that the encrypted files and
-		directories will no longer be visible. However, this requires
-		root privileges.
+		the reclaimable dentries and inodes, so that the encrypted files
+		and directories will no longer be visible. However, this
+		requires root privileges. Note that any open file descriptors to
+		plaintext data will not be affected by this command.
 
 		(2) When run with %[2]s=false, the keyring is cleared and root
 		permissions are not required, but recently accessed encrypted
 		directories and files will remain cached for some time. Because
-		of this, after purging a filesystem's keys, it is recommended to
-		unmount the filesystem.
+		of this, after purging a filesystem's keys in this manner, it
+		is recommended to unmount the filesystem.
 
 		(3) When run as root, this command removes the policy keys for
 		all users. However, this will only work if the PAM module has
@@ -382,10 +383,10 @@ func purgeAction(c *cli.Context) error {
 	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
 
 	if dropCachesFlag.Value {
-		if err = security.DropInodeCache(); err != nil {
+		if err = security.DropFilesystemCache(); err != nil {
 			return newExitError(c, err)
 		}
-		fmt.Fprintf(c.App.Writer, "Global inode cache cleared.\n")
+		fmt.Fprintf(c.App.Writer, "Encrypted data removed filesystem cache.\n")
 	} else {
 		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
 	}
