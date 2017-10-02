@@ -164,9 +164,9 @@ var (
 	dropCachesFlag = &boolFlag{
 		Name: "drop-caches",
 		Usage: `After purging the keys from the keyring, drop the
-			inode and dentry cache for the purge to take effect.
-			Without this flag, cached encrypted files may still have
-			their plaintext visible. Requires root privileges.`,
+			associated caches for the purge to take effect. Without
+			this flag, cached encrypted files may still have their
+			plaintext visible. Requires root privileges.`,
 		Default: true,
 	}
 )
