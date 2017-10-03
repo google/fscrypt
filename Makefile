@@ -50,6 +50,7 @@ MOUNT ?= /mnt/$(NAME)_mount
 ifneq ("$(wildcard $(MOUNT))","")
 export TEST_FILESYSTEM_ROOT = $(MOUNT)
 endif
+
 # The flags code below lets the caller of the makefile change the build flags
 # for fscrypt in a familiar manner.
 #	CFLAGS
@@ -121,16 +122,16 @@ gen:
 # Update the vendored dependencies.
 .PHONY: update
 update:
-	@govendor init
-	@govendor fetch +missing
-	@govendor add +external
-	@govendor remove +unused
+	govendor init
+	govendor fetch +missing
+	govendor add +external
+	govendor remove +unused
 
 # Format all the Go and C code
 .PHONY: format format-check
 format:
-	@goimports -l -w $(GO_FILES)
-	@clang-format -i -style=Google $(C_FILES)
+	goimports -l -w $(GO_FILES)
+	clang-format -i -style=Google $(C_FILES)
 
 format-check:
 	@goimports -d $(GO_FILES) \
@@ -191,7 +192,7 @@ test-teardown:
 travis-install: go-tools test-setup
 	go get -u github.com/mattn/goveralls
 
-travis-script: lint format-check default
+travis-script: lint format-check test default
 	goveralls -service=travis-ci
 	@govendor list +missing +external +unused \
 	| ./input_fail.py "Incorrect vendored dependencies. Run \"make update\"."
