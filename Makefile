@@ -147,6 +147,20 @@ lint:
 	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
 	@megacheck -unused.exported $(GO_PKGS)
 
+# Create fscrypt's man pages from markdown, requires ronn
+MARKDOWN_PAGES = $(wildcard man/*.md)
+MAN_PAGES = $(patsubst man/%.md, man/man8/%.gz, $(MARKDOWN_PAGES))
+MANUAL = "fscrypt Manual"
+ORG = "fscrypt $(VERSION)"
+RONN_FLAGS = -w --manual=$(MANUAL) --organization=$(ORG)
+
+
+man/man8/%.gz: man/%.md
+	ronn $(RONN_FLAGS) --pipe $< | gzip > $@
+
+.PHONY: man
+man: $(MAN_PAGES)
+
 ###### Installation commands #####
 .PHONY: install_bin install_pam install uninstall
 install_bin: $(NAME)
