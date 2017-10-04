@@ -26,6 +26,7 @@ INSTALL ?= install
 DESTDIR ?= /usr/local/bin
 PAM_MODULE_DIR ?= /lib/security
 PAM_CONFIG_DIR ?= /usr/share/pam-configs
+MAN_PAGE_DIR ?= /usr/local/share/man
 
 CMD_PKG = github.com/google/$(NAME)/cmd/$(NAME)
 PAM_PKG = github.com/google/$(NAME)/$(PAM_NAME)
@@ -156,7 +157,7 @@ RONN_FLAGS = -w --manual=$(MANUAL) --organization=$(ORG)
 
 
 man/man8/%.gz: man/%.md
-	ronn $(RONN_FLAGS) --pipe $< | gzip > $@
+	ronn $(RONN_FLAGS) --pipe --roff $< | gzip > $@
 
 .PHONY: man
 man: $(MAN_PAGES)
@@ -173,7 +174,12 @@ install_pam: $(PAM_MODULE)
 	$(INSTALL) -d $(PAM_CONFIG_DIR)
 	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
 
-install: install_bin install_pam 
+install_man: $(MAN_PAGES)
+	$(INSTALL) -d $(MAN_PAGE_DIR)/man8
+	$(INSTALL) $(MAN_PAGES) $(MAN_PAGE_DIR)/man8
+	mandb
+
+install: install_bin install_pam install_man
 
 uninstall:
 	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
