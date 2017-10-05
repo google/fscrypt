@@ -19,6 +19,7 @@
 RELEASE_VERSION = 0.2.0
 
 NAME = fscrypt
+EXT4_NAME = $(NAME)-ext4
 PAM_NAME = pam_$(NAME)
 PAM_MODULE = $(PAM_NAME).so
 
@@ -27,8 +28,10 @@ DESTDIR ?= /usr/local/bin
 PAM_MODULE_DIR ?= /lib/security
 PAM_CONFIG_DIR ?= /usr/share/pam-configs
 
-CMD_PKG = github.com/google/$(NAME)/cmd/$(NAME)
-PAM_PKG = github.com/google/$(NAME)/$(PAM_NAME)
+PKG_DIR = github.com/google/$(NAME)
+CMD_PKG = $(PKG_DIR)/cmd/$(NAME)
+EXT4_PKG =$(PKG_DIR)/ext4
+PAM_PKG = $(PKG_DIR)/$(PAM_NAME)
 
 SRC_FILES = $(shell find . -type f -name '*.go' -o -name "*.h" -o -name "*.c")
 GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
@@ -95,11 +98,14 @@ override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
 .PHONY: default all
 
-default: $(NAME) $(PAM_MODULE)
+default: $(NAME) $(EXT4_NAME) $(PAM_MODULE)
 all: format lint default test
 
 $(NAME): $(SRC_FILES)
 	go build $(GO_FLAGS) -o $(NAME) $(CMD_PKG)
+
+$(EXT4_NAME): $(SRC_FILES)
+	go build $(GO_FLAGS) -o $(EXT4_NAME) $(EXT4_PKG)
 
 $(PAM_MODULE): $(SRC_FILES)
 	go build -buildmode=c-shared $(GO_FLAGS) -o $(PAM_MODULE) $(PAM_PKG)
@@ -130,8 +136,8 @@ update:
 # Format all the Go and C code
 .PHONY: format format-check
 format:
-	goimports -l -w $(GO_FILES)
-	clang-format -i -style=Google $(C_FILES)
+	@goreturns -l -w $(GO_FILES)
+	@clang-format -i -style=Google $(C_FILES)
 
 format-check:
 	@goimports -d $(GO_FILES) \
@@ -148,10 +154,14 @@ lint:
 	@megacheck -unused.exported $(GO_PKGS)
 
 ###### Installation commands #####
-.PHONY: install_bin install_pam install uninstall
+.PHONY: install_bin install_ext4 install_pam install uninstall
 install_bin: $(NAME)
 	$(INSTALL) -d $(DESTDIR)
 	$(INSTALL) $(NAME) $(DESTDIR)
+
+install_ext4: $(EXT4_NAME)
+	$(INSTALL) -d $(DESTDIR)
+	$(INSTALL) $(EXT4_NAME) $(DESTDIR)
 
 install_pam: $(PAM_MODULE)
 	$(INSTALL) -d $(PAM_MODULE_DIR)
@@ -159,7 +169,7 @@ install_pam: $(PAM_MODULE)
 	$(INSTALL) -d $(PAM_CONFIG_DIR)
 	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
 
-install: install_bin install_pam 
+install: install_bin install_ext4 install_pam 
 
 uninstall:
 	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
