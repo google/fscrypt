@@ -129,7 +129,7 @@ Once all the dependencies are installed, you can get the repository by running:
 go get -d github.com/google/fscrypt/...
 ```
 and then you can run `make` in `$GOPATH/github.com/google/fscrypt` to build the
-executable and PAM moudle in that directory. Running `sudo make install` installs the binary to
+executable and PAM module in that directory. Running `sudo make install` installs the binary to
 `/usr/local/bin`.
 
 See the `Makefile` for instructions on how to customize the build. This includes
@@ -539,7 +539,7 @@ Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee.
 ## Contributing
 
 We would love to accept your contributions to fscrypt. See the `CONTRIBUTING.md`
-file for more information about singing the CLA and submitting a pull request.
+file for more information about signing the CLA and submitting a pull request.
 
 ## Troubleshooting
 
