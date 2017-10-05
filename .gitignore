@@ -1,5 +1,5 @@
 fscrypt
-fscrypt.*
+fscrypt-ext4
 fscrypt_image
 pam_fscrypt.so
 .vscode
