@@ -113,7 +113,7 @@ $(PAM_MODULE): $(SRC_FILES)
 
 .PHONY: clean
 clean:
-	rm -f $(NAME) $(PAM_MODULE) $(IMAGE)
+	rm -f $(NAME) $(EXT4_NAME) $(PAM_MODULE) $(IMAGE)
 
 # Make sure go files build and tests pass.
 .PHONY: test
@@ -169,7 +169,7 @@ install_pam: $(PAM_MODULE)
 	$(INSTALL) -d $(PAM_CONFIG_DIR)
 	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
 
-install: install_bin install_ext4 install_pam 
+install: install_bin install_ext4 install_pam
 
 uninstall:
 	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
@@ -180,7 +180,7 @@ go-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/golang/lint/golint
 	go get -u github.com/kardianos/govendor
-	go get -u golang.org/x/tools/cmd/goimports
+	go get -u sourcegraph.com/sqs/goreturns
 	go get -u honnef.co/go/tools/cmd/megacheck
 
 ##### Setup/Teardown for integration tests (need root permissions) #####

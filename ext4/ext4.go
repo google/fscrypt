@@ -1,3 +1,22 @@
+/*
+ * ext4.go - Handles command line processing for fscrypt-ext4.
+ *
+ * Copyright 2017 Google Inc.
+ * Author: Joe Richey (joerichey@google.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
 package main
 
 import (
@@ -34,7 +53,7 @@ Arguments:
 `
 )
 
-func printUsageAndExit(err error) {
+func printAndExit(err error, printUsage bool) {
 	var w io.Writer
 	var rc int
 	if err == nil {
@@ -46,45 +65,44 @@ func printUsageAndExit(err error) {
 		rc = 1
 		fmt.Fprintf(w, "%s: %v\n", cmdName, err)
 	}
-
-	fmt.Fprintf(w, usageFmt, cmdName)
-	fmt.Fprintln(w, "\nOptions:")
-	set.VisitAll(func(f *flag.Flag) {
-		fmt.Fprintf(w, "\t--%s\n\t\t%s\n", f.Name, f.Usage)
-	})
-	fmt.Fprintf(w, "\nSee the %s man page for more info.\n", manPage)
+	if printUsage {
+		fmt.Fprintf(w, usageFmt, cmdName)
+		fmt.Fprintln(w, "\nOptions:")
+		set.VisitAll(func(f *flag.Flag) {
+			fmt.Fprintf(w, "\t--%s\n\t\t%s\n", f.Name, f.Usage)
+		})
+		fmt.Fprintf(w, "\nSee the %s man page for more info.\n", manPage)
+	}
 	os.Exit(rc)
 }
 
 func main() {
 	set.SetOutput(ioutil.Discard)
 	if err := set.Parse(os.Args[1:]); err != nil {
-		printUsageAndExit(err)
+		printAndExit(err, true)
 	}
 	if *helpFlag {
-		printUsageAndExit(nil)
+		printAndExit(nil, true)
 	}
 	if *versionFlag {
 		fmt.Println(version)
 		return
 	}
 	if set.NArg() != 2 {
-		printUsageAndExit(fmt.Errorf("expected 2 arguments, got %d", set.NArg()))
+		printAndExit(fmt.Errorf("expected 2 arguments (got %d)", set.NArg()), true)
 	}
 
-	command, mountpoint := set.Arg(0), set.Arg(1)
-	switch command {
+	_, err := NewExt4Filesystem(set.Arg(1))
+	if err != nil {
+		printAndExit(err, false)
+	}
+
+	switch command := set.Arg(0); command {
 	case "enable":
-		fmt.Println("Enabling encryption!!")
+		fmt.Println("Enabling encryption not implemented")
 	case "disable":
-		fmt.Println("Disabling encryption!!")
+		fmt.Println("Disabling encryption not implemented")
 	default:
-		printUsageAndExit(fmt.Errorf("invalid command %q", command))
-	}
-
-	if isExt4EncryptionEnabled(mountpoint) {
-		fmt.Printf("%q has encryption\n", mountpoint)
-	} else {
-		fmt.Printf("%q doesn't have encryption\n", mountpoint)
+		printAndExit(fmt.Errorf("invalid command %q", command), true)
 	}
 }

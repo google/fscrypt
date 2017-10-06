@@ -122,12 +122,9 @@ Options:
 {{end}}`
 )
 
-// Add words to this map to have pluralize support them.
+// Add words to this map if pluralization does not just involve adding an s.
 var plurals = map[string]string{
-	"argument":   "arguments",
-	"filesystem": "filesystems",
-	"protector":  "protectors",
-	"policy":     "policies",
+	"policy": "policies",
 }
 
 // pluralize prints our the correct pluralization of a work along with the
@@ -135,7 +132,11 @@ var plurals = map[string]string{
 // pluralize(2, "policy") = "2 policies"
 func pluralize(count int, word string) string {
 	if count != 1 {
-		word = plurals[word]
+		if plural, ok := plurals[word]; ok {
+			word = plural
+		} else {
+			word += "s"
+		}
 	}
 	return fmt.Sprintf("%d %s", count, word)
 }
