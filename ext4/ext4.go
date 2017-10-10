@@ -25,6 +25,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"time"
+
+	"github.com/urfave/cli"
 )
 
 var (
@@ -77,6 +80,38 @@ func printAndExit(err error, printUsage bool) {
 }
 
 func main() {
+	// Create our command line application
+	app := cli.NewApp()
+	app.Usage = shortUsage
+	app.Authors = Authors
+	app.Copyright = apache2GoogleCopyright
+
+	// Grab the version and compilation time passed in from the Makefile.
+	app.Version = version
+	app.Compiled, _ = time.Parse(time.UnixDate, buildTime)
+	app.OnUsageError = onUsageError
+
+	// Setup global flags
+	cli.HelpFlag = helpFlag
+	cli.VersionFlag = versionFlag
+	cli.VersionPrinter = func(c *cli.Context) {
+		cli.HelpPrinter(c.App.Writer, versionInfoTemplate, c.App)
+	}
+	app.Flags = universalFlags
+
+	// We hide the help subcommand so that "fscrypt <command> --help" works
+	// and "fscrypt <command> help" does not.
+	app.HideHelp = true
+
+	// Initialize command list and setup all of the commands.
+	app.Action = defaultAction
+	app.Commands = []cli.Command{Setup, Encrypt, Unlock, Purge, Status, Metadata}
+	for i := range app.Commands {
+		setupCommand(&app.Commands[i])
+	}
+
+	app.Run(os.Args)
+
 	set.SetOutput(ioutil.Discard)
 	if err := set.Parse(os.Args[1:]); err != nil {
 		printAndExit(err, true)

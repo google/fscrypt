@@ -27,7 +27,6 @@ import (
 	"bufio"
 	"math"
 	"os"
-	"os/user"
 	"strconv"
 	"unsafe"
 )
@@ -116,14 +115,4 @@ func AtoiOrPanic(input string) int {
 		panic(err)
 	}
 	return i
-}
-
-// EffectiveUser returns the user entry corresponding to the effective user.
-func EffectiveUser() (*user.User, error) {
-	return user.LookupId(strconv.Itoa(os.Geteuid()))
-}
-
-// IsUserRoot checks if the effective user is root.
-func IsUserRoot() bool {
-	return os.Geteuid() == 0
 }
