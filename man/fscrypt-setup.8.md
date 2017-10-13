@@ -1,5 +1,5 @@
-fscrypt-unlock(8) -- setup a system or filesystem to use fscrypt
-================================================================
+fscrypt-unlock(8) -- setup a system/filesystem to use fscrypt
+=============================================================
 
 ## SYNOPSIS
 
