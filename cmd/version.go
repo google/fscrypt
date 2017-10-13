@@ -19,44 +19,61 @@
 
 package cmd
 
+import (
+	"fmt"
+
+	"github.com/blang/semver"
+)
+
 // Templates for use with the version command, which both parse the Info var.
 var (
-	VersionShortTemplate = "{{.Command}} version {{.VersionTag}}\n"
-	VersionLongTemplate  = VersionShortTemplate + `{{if .Compiled}}
+	VersionTemplate     = "{{.FullName}} {{.Info.Version}}\n"
+	VersionLongTemplate = `{{if .Info.BuildTime}}
 Compiled:
-	{{.Compiled}}
-{{end}}{{if len .Authors}}
-Author{{with $length := len .Authors}}{{if ne 1 $length}}s{{end}}{{end}}:{{range .Authors}}
-	{{.}}{{end}}
-{{end}}{{if .Copyright}}
+	{{.Info.BuildTime}}
+{{end}}
+
+{{with $length := len .Info.Authors}}
+{{if $length}}
+Author{{if ne 1 $length}}s{{end}}:
+{{range .Info.Authors}}
+	{{.Name}}{{if .Email}} <{{.Email}}>{{end}}
+{{end}}
+{{end}}
+{{end}}
+
+{{if .Info.Copyright}}
 Copyright:
-	{{.Copyright}}
+{{.Info.Copyright}}
 {{end}}`
 )
 
-// Version is a command which will display either the VersionTag (by default) or
-// the full version information (version, copyright, authors).
-var Version = &Command{
+// VersionCommand is a command which will display either the VersionTag (by
+// default) or the full version information: version, copyright, authors, etc...
+var VersionCommand = &Command{
 	Name:       "version",
-	UsageLines: []string{""},
-	Flags:      []Flag{longFlag},
+	Title:      "display this program's version information",
+	UsageLines: []string{fmt.Sprintf("[%v]", longFlag)},
+	Flags:      []Flag{longFlag, HelpFlag},
 	Action:     versionAction,
 }
 
-// Using longFlag with the version command displays the longer version info.
+// VersionUsage is a UsageLine to add to a Command with a version Subcommand.
+var VersionUsage = VersionCommand.Name + " " + VersionCommand.UsageLines[0]
+
+// longFlag tells the version command to display the longer version info.
 var longFlag = &BoolFlag{
 	Name:  "long",
-	Usage: "Print the detailed version and copyright information.",
+	Usage: "Print the detailed version, build, and copyright information.",
 }
 
-func versionAction(_ []string) error {
-	if Info.VersionTag == "" {
+func versionAction(ctx *Context) error {
+	if ctx.Info.Version.Equals(semver.Version{}) {
 		return ErrUnknownVersion
 	}
+	ctx.executeTemplate(Output, VersionTemplate)
 	if longFlag.Value {
-
-	} else {
-
+		ctx.executeTemplate(Output, VersionLongTemplate)
 	}
 	return nil
 }

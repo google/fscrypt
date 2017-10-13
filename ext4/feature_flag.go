@@ -42,11 +42,7 @@ type Ext4Filesystem struct {
 
 // NewExt4Filesystem creates a new Ext4Filesystem from a mountpoint path. Fail
 // if the path is not the mountpoint of an ext4 filesystem or cannot be opened.
-func NewExt4Filesystem(mountpoint string) (*Ext4Filesystem, error) {
-	mount, err := filesystem.FindMount(set.Arg(1))
-	if err != nil {
-		return nil, err
-	}
+func NewExt4Filesystem(mount *filesystem.Mount) (*Ext4Filesystem, error) {
 	if mount.Filesystem != "ext4" {
 		err := fmt.Errorf("%q is not an ext4 filesystem (type %q)", mount.Path, mount.Filesystem)
 		return nil, err

@@ -51,7 +51,7 @@ var (
 	// HelpFlag writes help to Stdout
 	HelpFlag = &BoolFlag{
 		Name:  "help",
-		Usage: "Prints this 🧗help text for commands and subcommands",
+		Usage: "Prints this help text for commands and subcommands",
 	}
 	// VerboseFlag indicates that all logging output should be printed.
 	VerboseFlag = &BoolFlag{
@@ -101,7 +101,7 @@ func wrapText(text string, numTabs int) string {
 	spaceLeft := 0
 	maxTextLen := LineLength - numTabs*TabWidth
 	delimiter := strings.Repeat("\t", numTabs)
-	for i, word := range strings.Fields(text) {
+	for _, word := range strings.Fields(text) {
 		wordLen := utf8.RuneCountInString(word)
 		if wordLen >= spaceLeft {
 			// If no room left, write the word on the next line.

@@ -18,17 +18,3 @@
  */
 
 package cmd
-
-import (
-	"io"
-	"text/template"
-)
-
-// ExecuteTemplate creates an anonymous template the text, and runs it with the
-// provided writer and data. Panics if text has bad format or execution fails.
-func ExecuteTemplate(w io.Writer, text string, data interface{}) {
-	tmpl := template.Must(template.New("").Parse(text))
-	if err := tmpl.Execute(w, data); err != nil {
-		panic(err)
-	}
-}

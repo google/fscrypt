@@ -87,10 +87,10 @@ GO_LINK_FLAGS ?= -s -w
 # Pass the version to the command line program (pulled from tags).
 TAG_VERSION = $(shell git describe --tags)
 VERSION = $(if $(TAG_VERSION),$(TAG_VERSION),$(RELEASE_VERSION))
-VERSION_FLAG = -X "main.version=$(VERSION)"
+VERSION_FLAG = -X "$(PKG_DIR)/cmd.VersionTag=$(VERSION)"
 
 # Pass the current date and time to the command line program.
-DATE_FLAG = -X "main.buildTime=$(shell date)"
+DATE_FLAG = -X "$(PKG_DIR)/cmd.BuildTimeTag=$(shell date)"
 # Add the version, date, and any specified LDFLAGS to any user-specified flags.
 override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
 # Add the link flags to any user-specified flags.

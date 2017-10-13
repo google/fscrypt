@@ -20,124 +20,63 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"time"
 
-	"github.com/urfave/cli"
+	"github.com/google/fscrypt/cmd"
 )
 
+// Arguments used with the ext4 enable/disable commands.
 var (
-	// Setup command parsing
-	cmdName = os.Args[0]
-	set     = flag.NewFlagSet(cmdName, flag.ContinueOnError)
-	// Flags for our command
-	forceFlag   = set.Bool("force", false, "Suppress all warnings and do not prompt")
-	versionFlag = set.Bool("version", false, "Print the fscrypt version.")
-	helpFlag    = set.Bool("help", false, "Print this help text.")
-	// fscrypt's version (set by Makefile)
-	version string
+	MountpointArg = &cmd.Argument{
+		ArgName: "mountpoint",
+		Usage:   "the path to an ext4 filesystem's mountpoint",
+	}
+	DeviceArg = &cmd.Argument{
+		ArgName: "device",
+		Usage:   "the path to a device containing an ext4 filesystem",
+	}
+	Ext4Usage = fmt.Sprintf("(%s | %s) [options]", MountpointArg, DeviceArg)
 )
 
-const (
-	manPage  = "fscrypt-ext4(8)"
-	manBrief = "enable or disable encryption on an ext4 filesystem"
-	usageFmt = `
-Usage:
-	%[1]s [enable | disable] <mountpoint> [--force]
-	%[1]s --help
-	%[1]s --version
+// Commands for running the ext4 enable/disable commands.
+var ()
 
-Arguments:
-  	<mountpoint> - path to an ext4 filesystem
-`
-)
-
-func printAndExit(err error, printUsage bool) {
-	var w io.Writer
-	var rc int
-	if err == nil {
-		w = os.Stdout
-		rc = 0
-		fmt.Fprintf(w, "%s - %s\n", cmdName, manBrief)
-	} else {
-		w = os.Stderr
-		rc = 1
-		fmt.Fprintf(w, "%s: %v\n", cmdName, err)
-	}
-	if printUsage {
-		fmt.Fprintf(w, usageFmt, cmdName)
-		fmt.Fprintln(w, "\nOptions:")
-		set.VisitAll(func(f *flag.Flag) {
-			fmt.Fprintf(w, "\t--%s\n\t\t%s\n", f.Name, f.Usage)
-		})
-		fmt.Fprintf(w, "\nSee the %s man page for more info.\n", manPage)
-	}
-	os.Exit(rc)
+var Ext4Command = &cmd.Command{
+	Title: "toggle ext4 filesystem encryption flag",
+	UsageLines: []string{
+		fmt.Sprintf("(enable | disable) %s", Ext4Usage),
+		cmd.VersionUsage,
+	},
+	SubCommands: []*cmd.Command{EnableCommand, DisableCommand, cmd.VersionCommand},
+	Arguments:   []*cmd.Argument{MountpointArg, DeviceArg},
+	Flags:       []cmd.Flag{cmd.ForceFlag, cmd.VerboseFlag, cmd.HelpFlag},
+	ManPage: &cmd.ManPage{
+		Title:   "fscrypt-ext4",
+		Section: 8,
+	},
 }
 
-func main() {
-	// Create our command line application
-	app := cli.NewApp()
-	app.Usage = shortUsage
-	app.Authors = Authors
-	app.Copyright = apache2GoogleCopyright
+var EnableCommand = &cmd.Command{
+	Name:             "enable",
+	Title:            "turn on encryption for an ext4 filesystem",
+	UsageLines:       []string{Ext4Usage},
+	InheritArguments: true,
+	InheritFlags:     true,
+	Action:           func(ctx *cmd.Context) error { return toggleState(ctx, true) },
+}
 
-	// Grab the version and compilation time passed in from the Makefile.
-	app.Version = version
-	app.Compiled, _ = time.Parse(time.UnixDate, buildTime)
-	app.OnUsageError = onUsageError
+var DisableCommand = &cmd.Command{
+	Name:             "disable",
+	Title:            "turn off encryption for an ext4 filesystem",
+	UsageLines:       []string{Ext4Usage},
+	InheritArguments: true,
+	InheritFlags:     true,
+	Action:           func(ctx *cmd.Context) error { return toggleState(ctx, false) },
+}
 
-	// Setup global flags
-	cli.HelpFlag = helpFlag
-	cli.VersionFlag = versionFlag
-	cli.VersionPrinter = func(c *cli.Context) {
-		cli.HelpPrinter(c.App.Writer, versionInfoTemplate, c.App)
-	}
-	app.Flags = universalFlags
+func main() { Ext4Command.Run() }
 
-	// We hide the help subcommand so that "fscrypt <command> --help" works
-	// and "fscrypt <command> help" does not.
-	app.HideHelp = true
-
-	// Initialize command list and setup all of the commands.
-	app.Action = defaultAction
-	app.Commands = []cli.Command{Setup, Encrypt, Unlock, Purge, Status, Metadata}
-	for i := range app.Commands {
-		setupCommand(&app.Commands[i])
-	}
-
-	app.Run(os.Args)
-
-	set.SetOutput(ioutil.Discard)
-	if err := set.Parse(os.Args[1:]); err != nil {
-		printAndExit(err, true)
-	}
-	if *helpFlag {
-		printAndExit(nil, true)
-	}
-	if *versionFlag {
-		fmt.Println(version)
-		return
-	}
-	if set.NArg() != 2 {
-		printAndExit(fmt.Errorf("expected 2 arguments (got %d)", set.NArg()), true)
-	}
-
-	_, err := NewExt4Filesystem(set.Arg(1))
-	if err != nil {
-		printAndExit(err, false)
-	}
-
-	switch command := set.Arg(0); command {
-	case "enable":
-		fmt.Println("Enabling encryption not implemented")
-	case "disable":
-		fmt.Println("Disabling encryption not implemented")
-	default:
-		printAndExit(fmt.Errorf("invalid command %q", command), true)
-	}
+func toggleState(ctx *cmd.Context, enable bool) error {
+	fmt.Fprintf(cmd.Output, "Toggle value = %v", enable)
+	return nil
 }

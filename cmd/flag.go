@@ -26,48 +26,31 @@ import (
 	"time"
 )
 
-// Flag represents a command line flag that can be passed to a command. Note
-// that Flag also conforms to the cli.Flag interface. The Name, ArgName, and
-// Usage of the Flag can be used to format it in a short form with ShortFormat,
-// or in it's full format with the String method.
+// Flag represents a flag that can be passed to a command. The Name, ArgName,
+// and Usage are used to format and display the flag.
 type Flag interface {
+	// String formats the flag as either "--name" or "--name=<argName>".
 	fmt.Stringer
+	// FullUsage is the usage for this flag with an optional default note.
+	FullUsage() string
+	// Apply sets up this flag on a flag set.
 	Apply(*flag.FlagSet)
-	GetName() string
-	GetArgName() string
-	GetUsage() string
 }
 
-// How the first usage line for a Flag should appear. We have two formats:
-//  --name
-//  --name=<argName>
-// The <argName> appears if the prettyFlag's GetArgName() method returns a
-// non-empty string. The returned string from shortFormat() does not include
-// any leading or trailing whitespace.
-func ShortFormat(f Flag) string {
-	if argName := f.GetArgName(); argName != "" {
-		return fmt.Sprintf("--%s=%s", f.GetName(), argName)
+// Formats as "--name" or as "--name=<argName>" if argName is present.
+func formatHelper(name, argName string) string {
+	if argName != "" {
+		return fmt.Sprintf("--%s=<%s>", name, argName)
 	}
-	return fmt.Sprintf("--%s", f.GetName())
+	return fmt.Sprintf("--%s", name)
 }
 
-// How our flags should appear when displaying their usage. An example would be:
-//	--help
-//		Prints help screen for commands and subcommands.
-//
-// If defaultString is specified, this if appended to the usage. Example:
-//
-//	--legacy
-//		Allow for support of older kernels with ext4 (before v4.8) and
-//		F2FS (before v4.6) filesystems. (default: true)
-func longFormat(f Flag, defaultString ...string) string {
-	usage := f.GetUsage()
-	if len(defaultString) > 0 {
-		usage += fmt.Sprintf(" (default: %v)", defaultString[0])
+// Appends (default: <default>) to the usage if defaultString is present.
+func usageHelper(usage, defaultString string) string {
+	if defaultString != "" {
+		usage += fmt.Sprintf(" (default: %s)", defaultString)
 	}
-
-	usage = wrapText(usage, 2)
-	return fmt.Sprintf("\t%s\n%s", ShortFormat(f), usage)
+	return usage
 }
 
 // BoolFlag is a Flag of type bool.
@@ -78,24 +61,19 @@ type BoolFlag struct {
 	Value   bool
 }
 
-func (f *BoolFlag) String() string {
+// String always uses the smaller format, as it has no ArgName.
+func (f *BoolFlag) String() string { return formatHelper(f.Name, "") }
+
+// FullUsage shows the default if it's true (flag is implicitly passed).
+func (f *BoolFlag) FullUsage() string {
 	if !f.Default {
-		return longFormat(f)
+		return usageHelper(f.Usage, "")
 	}
-	return longFormat(f, strconv.FormatBool(f.Default))
+	return usageHelper(f.Usage, "true")
 }
 
 // Apply uses BoolFlag's value to set a flag.BoolVar on the FlagSet.
 func (f *BoolFlag) Apply(s *flag.FlagSet) { s.BoolVar(&f.Value, f.Name, f.Default, f.Usage) }
-
-// GetName just returns BoolFlag's name.
-func (f *BoolFlag) GetName() string { return f.Name }
-
-// GetArgName returns nothing as BoolFlags don't have an argument name.
-func (f *BoolFlag) GetArgName() string { return "" }
-
-// GetUsage returns BoolFlag's usage.
-func (f *BoolFlag) GetUsage() string { return f.Usage }
 
 // StringFlag is a Flag of type string.
 type StringFlag struct {
@@ -106,24 +84,18 @@ type StringFlag struct {
 	Value   string
 }
 
-func (f *StringFlag) String() string {
+func (f *StringFlag) String() string { return formatHelper(f.Name, f.ArgName) }
+
+// FullUsage shows the deafult if the string is non-empty.
+func (f *StringFlag) FullUsage() string {
 	if f.Default == "" {
-		return longFormat(f)
+		return usageHelper(f.Usage, "")
 	}
-	return longFormat(f, strconv.Quote(f.Default))
+	return usageHelper(f.Usage, strconv.Quote(f.Default))
 }
 
 // Apply uses StringFlag's value to set a flag.StringVar on the FlagSet.
 func (f *StringFlag) Apply(s *flag.FlagSet) { s.StringVar(&f.Value, f.Name, f.Default, f.Usage) }
-
-// GetName just returns StringFlag's name.
-func (f *StringFlag) GetName() string { return f.Name }
-
-// GetArgName returns StringFlag's argument name.
-func (f *StringFlag) GetArgName() string { return f.ArgName }
-
-// GetUsage returns StringFlag's usage.
-func (f *StringFlag) GetUsage() string { return f.Usage }
 
 // DurationFlag is a Flag of type time.Duration.
 type DurationFlag struct {
@@ -134,21 +106,15 @@ type DurationFlag struct {
 	Value   time.Duration
 }
 
-func (f *DurationFlag) String() string {
+func (f *DurationFlag) String() string { return formatHelper(f.Name, f.ArgName) }
+
+// FullUsage shows the default if the duration is non-zero.
+func (f *DurationFlag) FullUsage() string {
 	if f.Default == 0 {
-		return longFormat(f)
+		return usageHelper(f.Usage, "")
 	}
-	return longFormat(f, f.Default.String())
+	return usageHelper(f.Usage, f.Default.String())
 }
 
 // Apply uses DurationFlag's value to set a flag.DurationVar on the FlagSet.
 func (f *DurationFlag) Apply(s *flag.FlagSet) { s.DurationVar(&f.Value, f.Name, f.Default, f.Usage) }
-
-// GetName just returns DurationFlag's name.
-func (f *DurationFlag) GetName() string { return f.Name }
-
-// GetArgName returns DurationFlag's argument name.
-func (f *DurationFlag) GetArgName() string { return f.ArgName }
-
-// GetUsage returns DurationFlag's usage.
-func (f *DurationFlag) GetUsage() string { return f.Usage }
