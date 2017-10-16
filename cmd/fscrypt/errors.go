@@ -22,10 +22,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
@@ -163,40 +160,6 @@ func newExitError(c *cli.Context, err error) error {
 	}
 
 	return cli.NewExitError(message, failureExitCode)
-}
-
-// usageError implements cli.ExitCoder to will print the usage and the return a
-// non-zero value. This error should be used when a command is used incorrectly.
-type usageError struct {
-	c       *cli.Context
-	message string
-}
-
-func (u *usageError) Error() string {
-	return fmt.Sprintf("%s: %s", getFullName(u.c), u.message)
-}
-
-// We get the help to print after the error by having it run right before the
-// application exits. This is very nasty, but there isn't a better way to do it
-// with the constraints of urfave/cli.
-func (u *usageError) ExitCode() int {
-	// Redirect help output to a buffer, so we can customize it.
-	buf := new(bytes.Buffer)
-	oldWriter := u.c.App.Writer
-	u.c.App.Writer = buf
-
-	// Get the appropriate help
-	if getFullName(u.c) == filepath.Base(os.Args[0]) {
-		cli.ShowAppHelp(u.c)
-	} else {
-		cli.ShowCommandHelp(u.c, u.c.Command.Name)
-	}
-
-	// Remove first line from help and print it out
-	buf.ReadBytes('\n')
-	buf.WriteTo(oldWriter)
-	u.c.App.Writer = oldWriter
-	return failureExitCode
 }
 
 // expectedArgsErr creates a usage error for the incorrect number of arguments

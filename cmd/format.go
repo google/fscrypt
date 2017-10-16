@@ -1,5 +1,5 @@
 /*
- * output.go - Functions for handling command line formatting and output.
+ * format.go - Functions for handling output formatting.
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
@@ -23,16 +23,22 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
 	"os"
 	"strings"
+	"text/template"
 	"unicode/utf8"
 
 	"github.com/google/fscrypt/util"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// Suffixes for questions with a yes or no default
+const (
+	defaultYesSuffix = "[Y/n]"
+	defaultNoSuffix  = "[y/N]"
+)
+
+// Variables which control how output is formmatted and where it goes.
 var (
 	// TabWidth is the number of spaces used to display a tab.
 	TabWidth = 8
@@ -48,34 +54,6 @@ var (
 	// output (errors should just return the appropriate error). If not set,
 	// it is automatically set based on the provided flags.
 	Output io.Writer
-	// HelpFlag writes help to Stdout
-	HelpFlag = &BoolFlag{
-		Name:  "help",
-		Usage: "Prints this help text for commands and subcommands",
-	}
-	// VerboseFlag indicates that all logging output should be printed.
-	VerboseFlag = &BoolFlag{
-		Name:  "verbose",
-		Usage: "Prints additional debug messages.",
-	}
-	// QuietFlag indicates that no normal output should be printed.
-	QuietFlag = &BoolFlag{
-		Name: "quiet",
-		Usage: `Prints nothing except for errors and uses any default
-		option instead of prompting the user.`,
-	}
-	// ForceFlag indicates that the operation should proceed if possible.
-	ForceFlag = &BoolFlag{
-		Name: "force",
-		Usage: `Print no confirmation prompts or warnings and
-		automatically proceed with the requested action.`,
-	}
-)
-
-// Suffixes for questions with a yes or no default
-const (
-	defaultYesSuffix = "[Y/n]"
-	defaultNoSuffix  = "[y/N]"
 )
 
 // We use the width of the terminal unless we cannot get the width.
@@ -92,18 +70,21 @@ func init() {
 }
 
 // Takes an input string text, and wraps the text so that each line begins with
-// numTabs tabs and ends with a newline (except the last line), and each line
-// has length less than lineLength. If the text contains a word which is too
-// long, that word gets its own line.
+// numTabs tabs (except the first line) and ends with a newline (except the last
+// line), and each line has length less than lineLength. If the text contains a
+// word which is too long, that word gets its own line.
 func wrapText(text string, numTabs int) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
 	spaceLeft := 0
 	maxTextLen := LineLength - numTabs*TabWidth
 	delimiter := strings.Repeat("\t", numTabs)
-	for _, word := range strings.Fields(text) {
+	for i, word := range strings.Fields(text) {
 		wordLen := utf8.RuneCountInString(word)
-		if wordLen >= spaceLeft {
+		if i == 0 {
+			buffer.WriteString(word)
+			spaceLeft = maxTextLen - wordLen
+		} else if wordLen >= spaceLeft {
 			// If no room left, write the word on the next line.
 			buffer.WriteString("\n")
 			buffer.WriteString(delimiter)
@@ -120,22 +101,22 @@ func wrapText(text string, numTabs int) string {
 	return buffer.String()
 }
 
-// Configures the Output and log output io.Writers. Called before running
-// commands but after processing flags.
-func setupOutput() {
-	if VerboseFlag.Value {
-		log.SetOutput(os.Stdout)
-	} else {
-		log.SetOutput(ioutil.Discard)
+// Add words to this map if pluralization does not just involve adding an s.
+var plurals = map[string]string{
+	"policy": "policies",
+}
+
+// Pluralize returns the correct pluralization of a work along with the
+// specified count. This means Pluralize(1, "policy") = "1 policy" but
+// Pluralize(2, "policy") = "2 policies".
+func Pluralize(count int, word string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, word)
 	}
-	if Output != nil {
-		return
+	if plural, ok := plurals[word]; ok {
+		return fmt.Sprintf("%d %s", count, plural)
 	}
-	if QuietFlag.Value {
-		Output = ioutil.Discard
-	} else {
-		Output = os.Stdout
-	}
+	return fmt.Sprintf("%d %ss", count, word)
 }
 
 // AskQuestion asks the user a yes or no question. Returning a boolean on a
@@ -198,4 +179,15 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 		return ErrCanceled
 	}
 	return nil
+}
+
+// ExecuteTemplate creates an anonymous template from the text, and runs it with
+// the provided Context and writer. Panics if text cannot be executed.
+func ExecuteTemplate(w io.Writer, text string, ctx *Context) {
+	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
+		"wrapText": wrapText,
+	}).Parse(text))
+	if err := tmpl.Execute(w, ctx); err != nil {
+		panic(err)
+	}
 }

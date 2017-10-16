@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/user"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 
@@ -45,67 +44,6 @@ var sourceDescriptions = map[metadata.SourceType]string{
 	metadata.SourceType_pam_passphrase:    "Your login passphrase",
 	metadata.SourceType_custom_passphrase: "A custom passphrase",
 	metadata.SourceType_raw_key:           "A raw 256-bit key",
-}
-
-// askQuestion asks the user a yes or no question. Returning a boolean on a
-// successful answer and an error if there was not a response from the user.
-// Returns the defaultChoice on empty input (or in quiet mode).
-func askQuestion(question string, defaultChoice bool) (bool, error) {
-	// If in quiet mode, we just use the default
-	if quietFlag.Value {
-		return defaultChoice, nil
-	}
-	// Loop until failure or valid input
-	for {
-		if defaultChoice {
-			fmt.Print(question + defaultYesSuffix)
-		} else {
-			fmt.Print(question + defaultNoSuffix)
-		}
-
-		input, err := util.ReadLine()
-		if err != nil {
-			return false, err
-		}
-
-		switch strings.ToLower(input) {
-		case "y", "yes":
-			return true, nil
-		case "n", "no":
-			return false, nil
-		case "":
-			return defaultChoice, nil
-		}
-	}
-}
-
-// askConfirmation asks the user for confirmation of a specific action. An error
-// is returned if the user declines or IO fails.
-func askConfirmation(question string, defaultChoice bool, warning string) error {
-	// All confirmations are "yes" if we are forcing.
-	if forceFlag.Value {
-		return nil
-	}
-
-	// Defaults of "no" require forcing.
-	if !defaultChoice {
-		if quietFlag.Value {
-			return ErrNoDesctructiveOps
-		}
-	}
-
-	if warning != "" && !quietFlag.Value {
-		fmt.Println(wrapText("WARNING: "+warning, 0))
-	}
-
-	confirmed, err := askQuestion(question, defaultChoice)
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		return ErrCanceled
-	}
-	return nil
 }
 
 // usernameFromID returns the username for the provided UID. If the UID does not

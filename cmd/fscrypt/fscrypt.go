@@ -22,127 +22,63 @@
 fscrypt is a command line tool for managing linux filesystem encryption.
 */
 
-// +build linux,cgo
-
 package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
-	"os"
-	"time"
 
-	"github.com/urfave/cli"
+	"github.com/google/fscrypt/cmd"
 )
 
-var (
-	// Current version of the program (set by Makefile)
-	version string
-	// Formatted build time (set by Makefile)
-	buildTime string
-	// Authors to display in the info command
-	Authors = []cli.Author{{
-		Name:  "Joe Richey",
-		Email: "joerichey@google.com",
-	}}
-)
+func main() { fscryptCommand.Run() }
 
-func main() {
-	cli.AppHelpTemplate = appHelpTemplate
-	cli.CommandHelpTemplate = commandHelpTemplate
-	cli.SubcommandHelpTemplate = subcommandHelpTemplate
-
-	// Create our command line application
-	app := cli.NewApp()
-	app.Usage = shortUsage
-	app.Authors = Authors
-	app.Copyright = apache2GoogleCopyright
-
-	// Grab the version and compilation time passed in from the Makefile.
-	app.Version = version
-	app.Compiled, _ = time.Parse(time.UnixDate, buildTime)
-	app.OnUsageError = onUsageError
-
-	// Setup global flags
-	cli.HelpFlag = helpFlag
-	cli.VersionFlag = versionFlag
-	cli.VersionPrinter = func(c *cli.Context) {
-		cli.HelpPrinter(c.App.Writer, versionInfoTemplate, c.App)
-	}
-	app.Flags = universalFlags
-
-	// We hide the help subcommand so that "fscrypt <command> --help" works
-	// and "fscrypt <command> help" does not.
-	app.HideHelp = true
-
-	// Initialize command list and setup all of the commands.
-	app.Action = defaultAction
-	app.Commands = []cli.Command{Setup, Encrypt, Unlock, Purge, Status, Metadata}
-	for i := range app.Commands {
-		setupCommand(&app.Commands[i])
-	}
-
-	app.Run(os.Args)
+var fscryptCommand = cmd.Command{
+	Title: "manage linux filesystem encryption",
+	UsageLines: []string{
+		fmt.Sprintf("<command> [arguments] [command options] [%s | %s]",
+			cmd.VerboseFlag, cmd.QuietFlag),
+		cmd.VersionUsage,
+	},
+	SubCommands: []*Command{
+		&setupCommand,
+		&encryptCommand,
+		// unlockCommand,
+		// purgeCommand,
+		// statusCommand,
+		// metadataCommand,
+		cmd.VersionCommand,
+	},
+	Flags:   []cmd.Flag{cmd.VerboseFlag, cmd.QuietFlag, cmd.HelpFlag},
+	ManPage: &cmd.ManPage{Name: "fscrypt", Section: 8},
 }
 
-// setupCommand performs some common setup for each command. This includes
-// hiding the help, formating the description, adding in the necessary
-// flags, setting up error handlers, etc... Note that the command is modified
-// in place and its subcommands are also setup.
-func setupCommand(command *cli.Command) {
-	command.Description = wrapText(command.Description, indentLength)
-	command.HideHelp = true
-	command.Flags = append(command.Flags, universalFlags...)
+// setup performs global or per-filesystem initialization of fscrypt data.
+var setupCommand = &cmd.Command{
+	Name:  "setup",
+	Title: "setup a system/filesystem to use fscrypt",
+	UsageLines: []string{
+		fmt.Sprintf("[options]"),
+		fmt.Sprintf("%s [%s]", mountpointArg, cmd.ForceFlag),
+	},
+	Arguments:    []*cmd.Argument{mountpointArg},
+	InheritFlags: true,
+	Flags:        []cmd.Flag{configFileFlag, targetFlag, legacyFlag, cmd.ForceFlag},
+	ManPage:      &cmd.ManPage{Name: "fscrypt-setup", Section: 8},
+	Action:       setupAction,
+}
 
-	if command.Action == nil {
-		command.Action = defaultAction
-	}
-
-	// Setup function handlers
-	command.OnUsageError = onUsageError
-	if len(command.Subcommands) == 0 {
-		command.Before = setupBefore
-	} else {
-		// Cleanup subcommands (if applicable)
-		for i := range command.Subcommands {
-			setupCommand(&command.Subcommands[i])
-		}
+func setupAction(c *cmd.Context) error {
+	switch len(c.Args) {
+	case 0:
+		// Case (1) - global setup
+		return createGlobalConfig(configFileFlag.Value)
+	case 1:
+		// Case (2) - filesystem setup
+		return setupFilesystem(c.Args[0])
+	default:
+		return cmd.CheckExpectedArgs(c, 1, true)
 	}
 }
 
-// setupBefore makes sure our logs, errors, and output are going to the correct
-// io.Writers and that we haven't over-specified our flags. We only print the
-// logs when using verbose, and only print normal stuff when not using quiet.
-// When running with sudo, this function also verifies that we have the proper
-// keyring linkage enabled.
-func setupBefore(c *cli.Context) error {
-	log.SetOutput(ioutil.Discard)
-	c.App.Writer = ioutil.Discard
-
-	if verboseFlag.Value {
-		log.SetOutput(os.Stdout)
-	}
-	if !quietFlag.Value {
-		c.App.Writer = os.Stdout
-	}
-	return nil
-}
-
-// defaultAction will be run when no command is specified.
-func defaultAction(c *cli.Context) error {
-	// Always default to showing the help
-	if helpFlag.Value {
-		cli.ShowAppHelp(c)
-		return nil
-	}
-
-	// Only exit when not calling with the help command
-	var message string
-	if args := c.Args(); args.Present() {
-		message = fmt.Sprintf("command \"%s\" not found", args.First())
-	} else {
-		message = "no command was specified"
-	}
-	return &usageError{c, message}
-}
+// encrypt performs the functions of setupDirectory and Unlock in one command.
+var encryptCommand = &cmd.Command{}

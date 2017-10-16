@@ -22,46 +22,45 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/google/fscrypt/actions"
-	"github.com/google/fscrypt/util"
+	"github.com/google/fscrypt/cmd"
 )
 
 // createGlobalConfig creates (or overwrites) the global config file
-func createGlobalConfig(w io.Writer, path string) error {
-	if !util.IsUserRoot() {
-		return ErrMustBeRoot
+func createGlobalConfig(path string) error {
+	if err := cmd.CheckIfRoot(); err != nil {
+		return err
 	}
 
 	// Ask to create or replace the config file
 	_, err := os.Stat(path)
 	switch {
 	case err == nil:
-		err = askConfirmation(fmt.Sprintf("Replace %q?", path), false, "")
+		err = cmd.AskConfirmation(fmt.Sprintf("Replace %q?", path), "", false)
 		if err == nil {
 			err = os.Remove(path)
 		}
 	case os.IsNotExist(err):
-		err = askConfirmation(fmt.Sprintf("Create %q?", path), true, "")
+		err = cmd.AskConfirmation(fmt.Sprintf("Create %q?", path), "", true)
 	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(w, "Customizing passphrase hashing difficulty for this system...")
+	fmt.Fprintln(cmd.Output, "Customizing passphrase hashing difficulty for this system...")
 	err = actions.CreateConfigFile(timeTargetFlag.Value, legacyFlag.Value)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(w, "Created global config file at %q.\n", path)
+	fmt.Fprintf(cmd.Output, "Created global config file at %q.\n", path)
 	return nil
 }
 
 // setupFilesystem creates the directories for a filesystem to use fscrypt.
-func setupFilesystem(w io.Writer, path string) error {
+func setupFilesystem(path string) error {
 	ctx, err := actions.NewContextFromMountpoint(path, nil)
 	if err != nil {
 		return err
@@ -71,8 +70,8 @@ func setupFilesystem(w io.Writer, path string) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "Metadata directories created at %q.\n", ctx.Mount.BaseDir())
-	fmt.Fprintf(w, "Filesystem %q (%s) ready for use with %s encryption.\n",
+	fmt.Fprintf(Output, "Metadata directories created at %q.\n", ctx.Mount.BaseDir())
+	fmt.Fprintf(Output, "Filesystem %q (%s) ready for use with %s encryption.\n",
 		ctx.Mount.Path, ctx.Mount.Device, ctx.Mount.Filesystem)
 	return nil
 }

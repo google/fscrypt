@@ -25,58 +25,50 @@ import (
 	"github.com/google/fscrypt/cmd"
 )
 
-// Arguments used with the ext4 enable/disable commands.
 var (
-	MountpointArg = &cmd.Argument{
+	mountpointArg = &cmd.Argument{
 		ArgName: "mountpoint",
 		Usage:   "the path to an ext4 filesystem's mountpoint",
 	}
-	DeviceArg = &cmd.Argument{
+	deviceArg = &cmd.Argument{
 		ArgName: "device",
 		Usage:   "the path to a device containing an ext4 filesystem",
 	}
-	Ext4Usage = fmt.Sprintf("(%s | %s) [options]", MountpointArg, DeviceArg)
+	ext4Usage = fmt.Sprintf("(%s | %s) [options]", mountpointArg, deviceArg)
 )
 
-// Commands for running the ext4 enable/disable commands.
-var ()
+func main() { ext4Command.Run() }
 
-var Ext4Command = &cmd.Command{
-	Title: "toggle ext4 filesystem encryption flag",
+var ext4Command = &cmd.Command{
+	Title: "manage ext4 encryption feature flag",
 	UsageLines: []string{
-		fmt.Sprintf("(enable | disable) %s", Ext4Usage),
+		fmt.Sprintf("enable %s", ext4Usage),
+		fmt.Sprintf("disable %s", ext4Usage),
 		cmd.VersionUsage,
 	},
-	SubCommands: []*cmd.Command{EnableCommand, DisableCommand, cmd.VersionCommand},
-	Arguments:   []*cmd.Argument{MountpointArg, DeviceArg},
+	SubCommands: []*cmd.Command{enableCommand, disableCommand, cmd.VersionCommand},
+	Arguments:   []*cmd.Argument{mountpointArg, deviceArg},
 	Flags:       []cmd.Flag{cmd.ForceFlag, cmd.VerboseFlag, cmd.HelpFlag},
-	ManPage: &cmd.ManPage{
-		Title:   "fscrypt-ext4",
-		Section: 8,
-	},
+	ManPage:     &cmd.ManPage{Name: "fscrypt-ext4", Section: 8},
 }
-
-var EnableCommand = &cmd.Command{
+var enableCommand = &cmd.Command{
 	Name:             "enable",
 	Title:            "turn on encryption for an ext4 filesystem",
-	UsageLines:       []string{Ext4Usage},
+	UsageLines:       []string{ext4Usage},
 	InheritArguments: true,
 	InheritFlags:     true,
-	Action:           func(ctx *cmd.Context) error { return toggleState(ctx, true) },
+	Action:           func(c *cmd.Context) error { return toggleState(c, true) },
 }
-
-var DisableCommand = &cmd.Command{
+var disableCommand = &cmd.Command{
 	Name:             "disable",
 	Title:            "turn off encryption for an ext4 filesystem",
-	UsageLines:       []string{Ext4Usage},
+	UsageLines:       []string{ext4Usage},
 	InheritArguments: true,
 	InheritFlags:     true,
-	Action:           func(ctx *cmd.Context) error { return toggleState(ctx, false) },
+	Action:           func(c *cmd.Context) error { return toggleState(c, false) },
 }
 
-func main() { Ext4Command.Run() }
-
-func toggleState(ctx *cmd.Context, enable bool) error {
+func toggleState(c *cmd.Context, enable bool) error {
 	fmt.Fprintf(cmd.Output, "Toggle value = %v", enable)
 	return nil
 }

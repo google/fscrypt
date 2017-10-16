@@ -1,5 +1,5 @@
 /*
- * cmd.go - Main interface to cmd package (running, Cmd and Flag structs, etc)
+ * cmd.go - Main interface to cmd package (Context, Command, Flag, etc...)
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
@@ -17,105 +17,20 @@
  * the License.
  */
 
-// Package cmd is the common library for writing command line binaries.
-// This package is mainly a wrapper around github.com/urfave/cli, but provides
-// additional support to make the usage look similar to the man page.
-//
-// The main componets are the `Cmd`, `Argument`, and `Flag` types which can be
-// used to define a top-level command with many potential subcommands. This
-// package also presents a smaller interface than urfave/cli, making it easier
-// to use for other commands.
+// Package cmd is the common library for writing command line binaries. The main
+// componets are the `Command`, `Context`, `Argument`, and `Flag` types which
+// can be used to define a top-level command with many potential subcommands.
 package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"text/template"
-	"time"
+	"path/filepath"
 
-	"github.com/blang/semver"
+	"github.com/pkg/errors"
 )
 
-// Context represents the state of a running application, and is the only thing
-// passed to a CommandFunc.
-type Context struct {
-	Command  *Command
-	Parent   *Context
-	Info     *Info
-	Args     []string
-	flagArgs []string
-}
-
-// FullName returns the space-separated name of the command and all parents.
-func (ctx *Context) FullName() string {
-	if ctx.Parent == nil {
-		return ctx.Command.Name
-	}
-	return fmt.Sprintf("%s %s", ctx.Parent.FullName(), ctx.Command.Name)
-}
-
-// ManPage returns the man page entry for this context. It is either the ManPage
-// for the the current command or the closet Parent.
-func (ctx *Context) ManPage() *ManPage {
-	if ctx.Command.ManPage.Section != 0 || ctx.Parent == nil {
-		return ctx.Command.ManPage
-	}
-	return ctx.Parent.ManPage()
-}
-
-// Creates an anonymous template from the text, and runs it with the provided
-// Context and writer. Panics if text has a bad format or execution fails.
-func (ctx *Context) executeTemplate(w io.Writer, text string) {
-	tmpl := template.Must(template.New("").Parse(text))
-	if err := tmpl.Execute(w, ctx); err != nil {
-		panic(err)
-	}
-}
-
-func (ctx *Context) execute() {
-	fmt.Printf("%+v\n", ctx)
-	return
-}
-
-// Info is a parsed view of the corresponding global variables.
-type Info struct {
-	Version   semver.Version
-	BuildTime time.Time
-	Authors   []Author
-	Copyright string
-}
-
-// Author contains the contact information for a contributor.
-type Author struct {
-	Name  string
-	Email string
-}
-
-// Argument represents a parameter passed to a function. It has an optional
-// usage explains how it should be used.
-type Argument struct {
-	ArgName string
-	Usage   string
-}
-
-func (a *Argument) String() string { return fmt.Sprintf("<%s>", a.ArgName) }
-
-// ManPage a man page with a title and section.
-type ManPage struct {
-	Title   string
-	Section int
-}
-
-// CommandFunc contains the implementation of a command. If a normal error is
-// returned, the error will be printed out (with an optional explanation) and
-// Run will exit with FailureCode. If a usage error is returned, the error and
-// the commnd's usage are printed out and Run will exit with UsageFailureCode.
-// Returning nil causes Run to return.
-type CommandFunc func(ctx *Context) error
-
-// Command represents a command with many potential top-level commands. This is
-// transformed into a cli.Command in Run().
+// Command represents a command with many potential sub-commands.
 type Command struct {
 	Name             string
 	Title            string
@@ -126,7 +41,7 @@ type Command struct {
 	InheritFlags     bool
 	Flags            []Flag
 	ManPage          *ManPage
-	Action           CommandFunc
+	Action           Action
 }
 
 // Run executes the command with os.Args, equivalent to c.RunArgs(os.Args).
@@ -138,40 +53,106 @@ func (c *Command) Run() {
 // empty, args[0]'s basename is used instead. If the command fails, this method
 // will not return.
 func (c *Command) RunArgs(args []string) {
-	binaryName, args := args[0], args[1:]
+	binaryPath, args := args[0], args[1:]
 	if c.Name == "" {
-		c.Name = binaryName
+		c.Name = filepath.Base(binaryPath)
 	}
 
-	// Create our initial context by sorting the args and parsing the tags.
-	ctx := &Context{
-		Command: c,
-		Info:    parseInfo(),
-	}
+	// Create our initial context by sorting the arguments.
+	ctx := &Context{Command: c}
 	ctx.Args, ctx.flagArgs = sortArgs(args)
 
-	ctx.execute()
+	ctx.run()
 }
 
-// Divide the arguments into flag arguments (those starting with "-") and normal
-// arguments. If "--" appears in the list, it will classified as a normal
-// argument as well as all arguments following it. Also removes empty args.
-func sortArgs(args []string) (normalArgs, flagArgs []string) {
-	var arg string
-	for len(args) > 0 {
-		arg, args = args[0], args[1:]
-		if arg == "" {
-			continue
-		}
-		if arg == "--" {
-			normalArgs = append(normalArgs, arg)
-			normalArgs = append(normalArgs, args...)
-			return
-		} else if arg[0] == '-' {
-			flagArgs = append(flagArgs, arg)
-		} else {
-			normalArgs = append(normalArgs, arg)
-		}
-	}
-	return
+// Action contains the implementation of a command. If a normal error is
+// returned, the error will be printed out (with an optional explanation) and
+// Run will exit with FailureCode. If a usage error is returned, the error and
+// the commnd's usage are printed out and Run will exit with UsageFailureCode.
+// Returning nil causes Run to return.
+type Action func(ctx *Context) error
+
+// Context represents the state of a running application, and is the only thing
+// passed to an Action.
+type Context struct {
+	// The current command being executed
+	Command *Command
+	// The context of the parent command before this command was executed.
+	// Nil if this is the root context.
+	Parent *Context
+	// The non-flag arguments being passed to the command.
+	Args []string
+	// The flag arguments being passed to the command.
+	flagArgs []string
+	// The mapping of error causes to help strings
+	errorMap map[error]string
 }
+
+// FullArguments returns the list of arguments for the current command and its
+// parent arguments (if InheritArguments) is true.
+func (ctx *Context) FullArguments() []*Argument {
+	if ctx.Parent == nil || !ctx.Command.InheritArguments {
+		return ctx.Command.Arguments
+	}
+	return append(ctx.Command.Arguments, ctx.Parent.FullArguments()...)
+}
+
+// FullFlags returns the list of flags for the current command and its parent
+// arguments (if InheritFlags) is true.
+func (ctx *Context) FullFlags() []Flag {
+	if ctx.Parent == nil || !ctx.Command.InheritFlags {
+		return ctx.Command.Flags
+	}
+	return append(ctx.Command.Flags, ctx.Parent.FullFlags()...)
+}
+
+// FullName returns the space-separated name of the command and all parents.
+func (ctx *Context) FullName() string {
+	if ctx.Parent == nil {
+		return ctx.Command.Name
+	}
+	return fmt.Sprintf("%s %s", ctx.Parent.FullName(), ctx.Command.Name)
+}
+
+// Info returns the same information as cmd.Info. This method only exists so
+// that Info can be accessed in an output template.
+func (*Context) Info() *InfoData {
+	return Info
+}
+
+// ManPage returns the man page entry for this context. It is either the ManPage
+// for the the current command or the closet Parent.
+func (ctx *Context) ManPage() *ManPage {
+	if ctx.Parent == nil || ctx.Command.ManPage != nil {
+		return ctx.Command.ManPage
+	}
+	return ctx.Parent.ManPage()
+}
+
+// getHelp tries to find a helpMap and then lookup the error by it's cause.
+func (ctx *Context) getHelp(err error) string {
+	if ctx.errorMap != nil {
+		return ctx.errorMap[errors.Cause(err)]
+	}
+	if ctx.Parent == nil {
+		return ""
+	}
+	return ctx.Parent.getHelp(err)
+}
+
+// Argument represents a parameter passed to a function. It has an optional
+// usage explains how it should be used.
+type Argument struct {
+	ArgName string
+	Usage   string
+}
+
+func (a *Argument) String() string { return fmt.Sprintf("<%s>", a.ArgName) }
+
+// ManPage a man page with a name and section.
+type ManPage struct {
+	Name    string
+	Section int
+}
+
+func (m *ManPage) String() string { return fmt.Sprintf("%s(%d)", m.Name, m.Section) }

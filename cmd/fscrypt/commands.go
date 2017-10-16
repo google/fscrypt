@@ -35,7 +35,6 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Setup is a command which can to global or per-filesystem initialization.
 var Setup = cli.Command{
 	Name:      "setup",
 	ArgsUsage: fmt.Sprintf("[%s]", mountpointArg),

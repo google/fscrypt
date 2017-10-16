@@ -26,6 +26,29 @@ import (
 	"time"
 )
 
+// Useful flags that can be used with a variety of commands.
+var (
+	HelpFlag = &BoolFlag{
+		Name:      "help",
+		ShortName: 'h',
+		Usage:     "Prints a help text for any command or sub-command.",
+	}
+	VerboseFlag = &BoolFlag{
+		Name:  "verbose",
+		Usage: "Prints additional debug messages.",
+	}
+	QuietFlag = &BoolFlag{
+		Name: "quiet",
+		Usage: `Prints nothing except for errors and uses any default
+		option instead of prompting the user.`,
+	}
+	ForceFlag = &BoolFlag{
+		Name: "force",
+		Usage: `Print no confirmation prompts or warnings and
+		automatically proceed with the requested action.`,
+	}
+)
+
 // Flag represents a flag that can be passed to a command. The Name, ArgName,
 // and Usage are used to format and display the flag.
 type Flag interface {
@@ -38,7 +61,7 @@ type Flag interface {
 }
 
 // Formats as "--name" or as "--name=<argName>" if argName is present.
-func formatHelper(name, argName string) string {
+func flagFormatHelper(name, argName string) string {
 	if argName != "" {
 		return fmt.Sprintf("--%s=<%s>", name, argName)
 	}
@@ -46,7 +69,7 @@ func formatHelper(name, argName string) string {
 }
 
 // Appends (default: <default>) to the usage if defaultString is present.
-func usageHelper(usage, defaultString string) string {
+func flagUsageHelper(usage, defaultString string) string {
 	if defaultString != "" {
 		usage += fmt.Sprintf(" (default: %s)", defaultString)
 	}
@@ -55,25 +78,37 @@ func usageHelper(usage, defaultString string) string {
 
 // BoolFlag is a Flag of type bool.
 type BoolFlag struct {
-	Name    string
-	Usage   string
-	Default bool
-	Value   bool
+	Name      string
+	ShortName byte
+	Usage     string
+	Default   bool
+	Value     bool
 }
 
 // String always uses the smaller format, as it has no ArgName.
-func (f *BoolFlag) String() string { return formatHelper(f.Name, "") }
+func (f *BoolFlag) String() string {
+	name := f.Name
+	if f.ShortName != 0 {
+		name += ", -" + string(f.ShortName)
+	}
+	return flagFormatHelper(name, "")
+}
 
 // FullUsage shows the default if it's true (flag is implicitly passed).
 func (f *BoolFlag) FullUsage() string {
 	if !f.Default {
-		return usageHelper(f.Usage, "")
+		return flagUsageHelper(f.Usage, "")
 	}
-	return usageHelper(f.Usage, "true")
+	return flagUsageHelper(f.Usage, "true")
 }
 
 // Apply uses BoolFlag's value to set a flag.BoolVar on the FlagSet.
-func (f *BoolFlag) Apply(s *flag.FlagSet) { s.BoolVar(&f.Value, f.Name, f.Default, f.Usage) }
+func (f *BoolFlag) Apply(s *flag.FlagSet) {
+	s.BoolVar(&f.Value, f.Name, f.Default, f.Usage)
+	if f.ShortName != 0 {
+		s.BoolVar(&f.Value, string(f.ShortName), f.Default, f.Usage)
+	}
+}
 
 // StringFlag is a Flag of type string.
 type StringFlag struct {
@@ -84,14 +119,14 @@ type StringFlag struct {
 	Value   string
 }
 
-func (f *StringFlag) String() string { return formatHelper(f.Name, f.ArgName) }
+func (f *StringFlag) String() string { return flagFormatHelper(f.Name, f.ArgName) }
 
 // FullUsage shows the deafult if the string is non-empty.
 func (f *StringFlag) FullUsage() string {
 	if f.Default == "" {
-		return usageHelper(f.Usage, "")
+		return flagUsageHelper(f.Usage, "")
 	}
-	return usageHelper(f.Usage, strconv.Quote(f.Default))
+	return flagUsageHelper(f.Usage, strconv.Quote(f.Default))
 }
 
 // Apply uses StringFlag's value to set a flag.StringVar on the FlagSet.
@@ -106,14 +141,14 @@ type DurationFlag struct {
 	Value   time.Duration
 }
 
-func (f *DurationFlag) String() string { return formatHelper(f.Name, f.ArgName) }
+func (f *DurationFlag) String() string { return flagFormatHelper(f.Name, f.ArgName) }
 
 // FullUsage shows the default if the duration is non-zero.
 func (f *DurationFlag) FullUsage() string {
 	if f.Default == 0 {
-		return usageHelper(f.Usage, "")
+		return flagUsageHelper(f.Usage, "")
 	}
-	return usageHelper(f.Usage, f.Default.String())
+	return flagUsageHelper(f.Usage, f.Default.String())
 }
 
 // Apply uses DurationFlag's value to set a flag.DurationVar on the FlagSet.

@@ -1,3 +1,5 @@
+// +build linux,cgo
+
 /*
  * feature_flag.go - Changes encryption flag for an ext4 filesystem.
  *

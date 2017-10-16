@@ -22,133 +22,19 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os/user"
 	"regexp"
-	"strconv"
 	"time"
-
-	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
-// We define the types boolFlag, durationFlag, and stringFlag here instead of
-// using those present in urfave/cli because we need them to conform to the
-// prettyFlag interface (in format.go). The Getters just get the corresponding
-// variables, String() just uses longDisplay, and Apply just sets the
-// corresponding type of flag.
-type boolFlag struct {
-	Name    string
-	Usage   string
-	Default bool
-	Value   bool
-}
-
-func (b *boolFlag) GetName() string    { return b.Name }
-func (b *boolFlag) GetArgName() string { return "" }
-func (b *boolFlag) GetUsage() string   { return b.Usage }
-
-func (b *boolFlag) String() string {
-	if !b.Default {
-		return longDisplay(b)
-	}
-	return longDisplay(b, strconv.FormatBool(b.Default))
-}
-
-func (b *boolFlag) Apply(set *flag.FlagSet) {
-	set.BoolVar(&b.Value, b.Name, b.Default, b.Usage)
-}
-
-type durationFlag struct {
-	Name    string
-	ArgName string
-	Usage   string
-	Default time.Duration
-	Value   time.Duration
-}
-
-func (d *durationFlag) GetName() string    { return d.Name }
-func (d *durationFlag) GetArgName() string { return d.ArgName }
-func (d *durationFlag) GetUsage() string   { return d.Usage }
-
-func (d *durationFlag) String() string {
-	if d.Default == 0 {
-		return longDisplay(d)
-	}
-	return longDisplay(d, d.Value.String())
-}
-
-func (d *durationFlag) Apply(set *flag.FlagSet) {
-	set.DurationVar(&d.Value, d.Name, d.Default, d.Usage)
-}
-
-type stringFlag struct {
-	Name    string
-	ArgName string
-	Usage   string
-	Default string
-	Value   string
-}
-
-func (s *stringFlag) GetName() string    { return s.Name }
-func (s *stringFlag) GetArgName() string { return s.ArgName }
-func (s *stringFlag) GetUsage() string   { return s.Usage }
-
-func (s *stringFlag) String() string {
-	if s.Default == "" {
-		return longDisplay(s)
-	}
-	return longDisplay(s, strconv.Quote(s.Default))
-}
-
-func (s *stringFlag) Apply(set *flag.FlagSet) {
-	set.StringVar(&s.Value, s.Name, s.Default, s.Usage)
-}
-
-var (
-	// allFlags contains every defined flag (used for formatting).
-	// UPDATE THIS ARRAY WHEN ADDING NEW FLAGS!!!
-	// TODO(joerichey) add presubmit rule to enforce this
-	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
-		forceFlag, legacyFlag, skipUnlockFlag, timeTargetFlag,
-		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
-		unlockWithFlag, policyFlag}
-	// universalFlags contains flags that should be on every command
-	universalFlags = []cli.Flag{verboseFlag, quietFlag, helpFlag}
-)
-
 // Bool flags: used to switch some behavior on or off
 var (
-	helpFlag = &boolFlag{
-		Name:  "help",
-		Usage: `Prints help screen for commands and subcommands.`,
-	}
-	versionFlag = &boolFlag{
-		Name:  "version",
-		Usage: `Prints version and license information.`,
-	}
-	verboseFlag = &boolFlag{
-		Name:  "verbose",
-		Usage: `Prints additional debug messages to standard output.`,
-	}
-	quietFlag = &boolFlag{
-		Name: "quiet",
-		Usage: `Prints nothing to standard output except for errors.
-			Selects the default for any options that would normally
-			show a prompt.`,
-	}
-	forceFlag = &boolFlag{
-		Name: "force",
-		Usage: fmt.Sprintf(`Suppresses all confirmation prompts and
-			warnings, causing any action to automatically proceed.
-			WARNING: This bypasses confirmations for protective
-			operations, use with care.`),
-	}
 	legacyFlag = &boolFlag{
 		Name: "legacy",
 		Usage: `Allow for support of older kernels with ext4 (before
