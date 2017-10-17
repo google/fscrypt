@@ -63,7 +63,7 @@ Commands:
 Arguments:
 {{- range $arguments}}
 	{{.}}
-		{{wrapText .Usage 2 -}}
+		{{WrapText .Usage 2 -}}
 {{end}}
 {{end -}}
 
@@ -71,7 +71,7 @@ Arguments:
 Options:
 {{- range $flags}}
 	{{.}}
-		{{wrapText .FullUsage 2 -}}
+		{{WrapText .FullUsage 2 -}}
 {{end}}
 {{end -}}
 

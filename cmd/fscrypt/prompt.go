@@ -23,20 +23,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/user"
 	"strconv"
-
-	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
-)
-
-const (
-	// Suffixes for questions with a yes or no default
-	defaultYesSuffix = " [Y/n] "
-	defaultNoSuffix  = " [y/N] "
 )
 
 // Descriptions for each of the protector sources
@@ -44,26 +35,6 @@ var sourceDescriptions = map[metadata.SourceType]string{
 	metadata.SourceType_pam_passphrase:    "Your login passphrase",
 	metadata.SourceType_custom_passphrase: "A custom passphrase",
 	metadata.SourceType_raw_key:           "A raw 256-bit key",
-}
-
-// usernameFromID returns the username for the provided UID. If the UID does not
-// correspond to a user or the username is blank, an error is returned.
-func usernameFromID(uid int64) (string, error) {
-	u, err := user.LookupId(strconv.Itoa(int(uid)))
-	if err != nil || u.Username == "" {
-		return "", errors.Wrapf(ErrUnknownUser, "uid %d", uid)
-	}
-	return u.Username, nil
-}
-
-// formatUsername either returns the username for the provided UID, or a string
-// containing the error for unknown UIDs.
-func formatUsername(uid int64) string {
-	username, err := usernameFromID(uid)
-	if err != nil {
-		return fmt.Sprintf("[%v]", err)
-	}
-	return username
 }
 
 // formatInfo gives a string description of metadata.ProtectorData.

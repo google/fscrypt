@@ -30,7 +30,7 @@ PAM_CONFIG_DIR ?= /usr/share/pam-configs
 
 PKG_DIR = github.com/google/$(NAME)
 CMD_PKG = $(PKG_DIR)/cmd/$(NAME)
-EXT4_PKG =$(PKG_DIR)/ext4
+EXT4_PKG =$(PKG_DIR)/cmd/ext4
 PAM_PKG = $(PKG_DIR)/$(PAM_NAME)
 
 SRC_FILES = $(shell find . -type f -name '*.go' -o -name "*.h" -o -name "*.c")

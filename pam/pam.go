@@ -65,9 +65,7 @@ func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
 	if h.PamUser, err = user.Lookup(C.GoString(pamUsername)); err != nil {
 		return nil, err
 	}
-	if h.OrigUser, err = util.EffectiveUser(); err != nil {
-		return nil, err
-	}
+	h.OrigUser = util.CurrentUser()
 	return h, nil
 }
 

@@ -49,11 +49,11 @@ type UsageError string
 
 func (u UsageError) Error() string { return string(u) }
 
-// CheckExpectedArgs returns a UsageError if the number of arguements in the
+// CheckExpectedArgs returns a UsageError if the number of arguments in the
 // context does not match expectedArgs. If atMost is set, the number of args
 // is allowed to be less than expectedArgs.
 func CheckExpectedArgs(ctx *Context, expectedArgs int, atMost bool) error {
-	// Check the number of arguements and build the message.
+	// Check the number of arguments and build the message.
 	nArgs := len(ctx.Args)
 	message := "expected"
 	if atMost {
@@ -107,9 +107,9 @@ func (ctx *Context) processError(err error) {
 	}
 
 	// Errors with a help text should print it out.
-	if helpText := ctx.getHelp(err); helpText != "" {
+	if helpText := ctx.getHelpText(err); helpText != "" {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, wrapText(helpText, 0))
+		fmt.Fprintln(os.Stderr, WrapText(helpText, 0))
 	}
 	os.Exit(FailureCode)
 	return

@@ -44,22 +44,24 @@ type Command struct {
 	Action           Action
 }
 
-// Run executes the command with os.Args, equivalent to c.RunArgs(os.Args).
-func (c *Command) Run() {
-	c.RunArgs(os.Args)
+// Run executes the command with os.Args as the provided args, equivalent to
+// c.RunArgs(os.Args, helpTextMap).
+func (c *Command) Run(helpTextMap map[error]string) {
+	c.RunArgs(os.Args, helpTextMap)
 }
 
 // RunArgs executes the command with the provided args. If the Name argument is
-// empty, args[0]'s basename is used instead. If the command fails, this method
-// will not return.
-func (c *Command) RunArgs(args []string) {
+// empty, args[0]'s basename is used instead. The helpTextMap provides a
+// translation from error causes to explanation strings. If the command fails,
+// this method will not return.
+func (c *Command) RunArgs(args []string, helpTextMap map[error]string) {
 	binaryPath, args := args[0], args[1:]
 	if c.Name == "" {
 		c.Name = filepath.Base(binaryPath)
 	}
 
 	// Create our initial context by sorting the arguments.
-	ctx := &Context{Command: c}
+	ctx := &Context{Command: c, helpTextMap: helpTextMap}
 	ctx.Args, ctx.flagArgs = sortArgs(args)
 
 	ctx.run()
@@ -85,7 +87,7 @@ type Context struct {
 	// The flag arguments being passed to the command.
 	flagArgs []string
 	// The mapping of error causes to help strings
-	errorMap map[error]string
+	helpTextMap map[error]string
 }
 
 // FullArguments returns the list of arguments for the current command and its
@@ -129,15 +131,17 @@ func (ctx *Context) ManPage() *ManPage {
 	return ctx.Parent.ManPage()
 }
 
-// getHelp tries to find a helpMap and then lookup the error by it's cause.
-func (ctx *Context) getHelp(err error) string {
-	if ctx.errorMap != nil {
-		return ctx.errorMap[errors.Cause(err)]
+// getHelpText first tries to find a helpTextMap in either this context, or a
+// parent context. Then, it looks up an error by it's cause, returning the
+// appropriate help text. If no help text can be found, return an empty string.
+func (ctx *Context) getHelpText(err error) string {
+	if ctx.helpTextMap != nil {
+		return ctx.helpTextMap[errors.Cause(err)]
 	}
 	if ctx.Parent == nil {
 		return ""
 	}
-	return ctx.Parent.getHelp(err)
+	return ctx.Parent.getHelpText(err)
 }
 
 // Argument represents a parameter passed to a function. It has an optional

@@ -69,11 +69,11 @@ func init() {
 	}
 }
 
-// Takes an input string text, and wraps the text so that each line begins with
-// numTabs tabs (except the first line) and ends with a newline (except the last
-// line), and each line has length less than lineLength. If the text contains a
-// word which is too long, that word gets its own line.
-func wrapText(text string, numTabs int) string {
+// WrapText wraps an input string so that each line begins with numTabs tabs
+// (except the first line) and ends with a newline (except the last line), and
+// each line has length less than lineLength. If the text contains a word which
+// is too long, that word gets its own line.
+func WrapText(text string, numTabs int) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
 	spaceLeft := 0
@@ -168,7 +168,7 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 	}
 
 	if warning != "" {
-		fmt.Fprintln(Output, wrapText("WARNING: "+warning, 0))
+		fmt.Fprintln(Output, WrapText("WARNING: "+warning, 0))
 	}
 
 	confirmed, err := AskQuestion(question, defaultChoice)
@@ -185,7 +185,7 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 // the provided Context and writer. Panics if text cannot be executed.
 func ExecuteTemplate(w io.Writer, text string, ctx *Context) {
 	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
-		"wrapText": wrapText,
+		"WrapText": WrapText,
 	}).Parse(text))
 	if err := tmpl.Execute(w, ctx); err != nil {
 		panic(err)

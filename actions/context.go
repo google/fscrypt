@@ -102,13 +102,11 @@ func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, e
 
 // newContextFromUser makes a context with the corresponding target user, and
 // whose Config is loaded from the global config file. If the target is nil, the
-// effecitive user is used.
+// effective user is used.
 func newContextFromUser(target *user.User) (*Context, error) {
 	var err error
 	if target == nil {
-		if target, err = util.EffectiveUser(); err != nil {
-			return nil, err
-		}
+		target = util.CurrentUser()
 	}
 
 	ctx := &Context{TargetUser: target}

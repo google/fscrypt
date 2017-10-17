@@ -29,90 +29,46 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
-	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
-	"github.com/google/fscrypt/util"
 )
 
-var Setup = cli.Command{
-	Name:      "setup",
-	ArgsUsage: fmt.Sprintf("[%s]", mountpointArg),
-	Usage:     "perform global setup or filesystem setup",
-	Description: fmt.Sprintf(`This command creates fscrypt's global config
-		file or enables fscrypt on a filesystem.
+// var Setup = cli.Command{
+// 	Name:      "setup",
+// 	ArgsUsage: fmt.Sprintf("[%s]", mountpointArg),
+// 	Usage:     "perform global setup or filesystem setup",
+// 	Description: fmt.Sprintf(`This command creates fscrypt's global config
+// 		file or enables fscrypt on a filesystem.
 
-		(1) When used without %[1]s, create the parameters in %[2]s.
-		This is primarily used to configure the passphrase hashing
-		parameters to the appropriate hardness (as determined by %[3]s).
-		Being root is required to write the config file.
+// 		(1) When used without %[1]s, create the parameters in %[2]s.
+// 		This is primarily used to configure the passphrase hashing
+// 		parameters to the appropriate hardness (as determined by %[3]s).
+// 		Being root is required to write the config file.
 
-		(2) When used with %[1]s, enable fscrypt on %[1]s. This involves
-		creating the necessary folders on the filesystem which will hold
-		the metadata structures. Begin root may be required to create
-		these folders.`, mountpointArg, actions.ConfigFileLocation,
-		shortDisplay(timeTargetFlag)),
-	Flags:  []cli.Flag{timeTargetFlag, legacyFlag, forceFlag},
-	Action: setupAction,
-}
+// 		(2) When used with %[1]s, enable fscrypt on %[1]s. This involves
+// 		creating the necessary folders on the filesystem which will hold
+// 		the metadata structures. Begin root may be required to create
+// 		these folders.`, mountpointArg, actions.ConfigFileLocation,
+// 		shortDisplay(timeTargetFlag)),
+// 	Flags:  []cli.Flag{timeTargetFlag, legacyFlag, forceFlag},
+// 	Action: setupAction,
+// }
 
-func setupAction(c *cli.Context) error {
-	var err error
-	switch c.NArg() {
-	case 0:
-		// Case (1) - global setup
-		err = createGlobalConfig(c.App.Writer, actions.ConfigFileLocation)
-	case 1:
-		// Case (2) - filesystem setup
-		err = setupFilesystem(c.App.Writer, c.Args().Get(0))
-	default:
-		return expectedArgsErr(c, 1, true)
-	}
-
-	if err != nil {
-		return newExitError(c, err)
-	}
-	return nil
-}
-
-// Encrypt performs the functions of setupDirectory and Unlock in one command.
-var Encrypt = cli.Command{
-	Name:      "encrypt",
-	ArgsUsage: directoryArg,
-	Usage:     "enable filesystem encryption for a directory",
-	Description: fmt.Sprintf(`This command enables filesystem encryption on
-		%[1]s. This may involve creating a new policy (if one is not
-		specified with %[2]s) or a new protector (if one is not
-		specified with %[3]s). This command requires that the
-		corresponding filesystem has been setup with "fscrypt setup
-		%[4]s". By default, after %[1]s is setup, it is unlocked and can
-		immediately be used.`, directoryArg, shortDisplay(policyFlag),
-		shortDisplay(protectorFlag), mountpointArg),
-	Flags: []cli.Flag{policyFlag, unlockWithFlag, protectorFlag, sourceFlag,
-		userFlag, nameFlag, keyFileFlag, skipUnlockFlag},
-	Action: encryptAction,
-}
-
-func encryptAction(c *cli.Context) error {
-	if c.NArg() != 1 {
-		return expectedArgsErr(c, 1, false)
-	}
-
-	path := c.Args().Get(0)
-	if err := encryptPath(path); err != nil {
-		return newExitError(c, err)
-	}
-
-	if !skipUnlockFlag.Value {
-		fmt.Fprintf(c.App.Writer,
-			"%q is now encrypted, unlocked, and ready for use.\n", path)
-	} else {
-		fmt.Fprintf(c.App.Writer,
-			"%q is now encrypted, but it is still locked.\n", path)
-		fmt.Fprintln(c.App.Writer, `It can be unlocked with "fscrypt unlock".`)
-	}
-	return nil
-}
+// var Encrypt = cli.Command{
+// 	Name:      "encrypt",
+// 	ArgsUsage: directoryArg,
+// 	Usage:     "enable filesystem encryption for a directory",
+// 	Description: fmt.Sprintf(`This command enables filesystem encryption on
+// 		%[1]s. This may involve creating a new policy (if one is not
+// 		specified with %[2]s) or a new protector (if one is not
+// 		specified with %[3]s). This command requires that the
+// 		corresponding filesystem has been setup with "fscrypt setup
+// 		%[4]s". By default, after %[1]s is setup, it is unlocked and can
+// 		immediately be used.`, directoryArg, shortDisplay(policyFlag),
+// 		shortDisplay(protectorFlag), mountpointArg),
+// 	Flags: []cli.Flag{policyFlag, unlockWithFlag, protectorFlag, sourceFlag,
+// 		userFlag, nameFlag, keyFileFlag, skipUnlockFlag},
+// 	Action: encryptAction,
+// }
 
 // encryptPath sets up encryption on path and provisions the policy to the
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
@@ -251,204 +207,114 @@ func selectOrCreateProtector(ctx *actions.Context) (*actions.Protector, bool, er
 	return protector, false, err
 }
 
-// Unlock takes an encrypted directory and unlocks it for reading and writing.
-var Unlock = cli.Command{
-	Name:      "unlock",
-	ArgsUsage: directoryArg,
-	Usage:     "unlock an encrypted directory",
-	Description: fmt.Sprintf(`This command takes %s, a directory setup for
-		use with fscrypt, and unlocks the directory by passing the
-		appropriate key into the keyring. This requires unlocking one of
-		the protectors protecting this directory (either by selecting a
-		protector or specifying one with %s). This directory will be
-		locked again upon reboot, or after running "fscrypt purge" and
-		unmounting the corresponding filesystem.`, directoryArg,
-		shortDisplay(unlockWithFlag)),
-	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag, userFlag},
-	Action: unlockAction,
-}
+// var Unlock = cli.Command{
+// 	Name:      "unlock",
+// 	ArgsUsage: directoryArg,
+// 	Usage:     "unlock an encrypted directory",
+// 	Description: fmt.Sprintf(`This command takes %s, a directory setup for
+// 		use with fscrypt, and unlocks the directory by passing the
+// 		appropriate key into the keyring. This requires unlocking one of
+// 		the protectors protecting this directory (either by selecting a
+// 		protector or specifying one with %s). This directory will be
+// 		locked again upon reboot, or after running "fscrypt purge" and
+// 		unmounting the corresponding filesystem.`, directoryArg,
+// 		shortDisplay(unlockWithFlag)),
+// 	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag, userFlag},
+// 	Action: unlockAction,
+// }
 
-func unlockAction(c *cli.Context) error {
-	if c.NArg() != 1 {
-		return expectedArgsErr(c, 1, false)
-	}
-
+func unlockPath(path string) error {
 	target, err := parseUserFlag(true)
 	if err != nil {
-		return newExitError(c, err)
+		return err
 	}
-	path := c.Args().Get(0)
 	ctx, err := actions.NewContextFromPath(path, target)
 	if err != nil {
-		return newExitError(c, err)
+		return err
 	}
 
 	log.Printf("performing sanity checks")
 	// Ensure path is encrypted and filesystem is using fscrypt.
 	policy, err := actions.GetPolicyFromPath(ctx, path)
 	if err != nil {
-		return newExitError(c, err)
+		return err
 	}
 	// Check if directory is already unlocked
 	if policy.IsProvisioned() {
 		log.Printf("policy %s is already provisioned", policy.Descriptor())
-		return newExitError(c, errors.Wrapf(ErrPolicyUnlocked, path))
+		return errors.Wrapf(ErrPolicyUnlocked, path)
 	}
 
 	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
-		return newExitError(c, err)
+		return err
 	}
 	defer policy.Lock()
 
-	if err := policy.Provision(); err != nil {
-		return newExitError(c, err)
-	}
-
-	fmt.Fprintf(c.App.Writer, "%q is now unlocked and ready for use.\n", path)
-	return nil
+	return policy.Provision()
 }
 
-// Purge removes all the policy keys from the keyring (also need unmount).
-var Purge = cli.Command{
-	Name:      "purge",
-	ArgsUsage: mountpointArg,
-	Usage:     "Remove a filesystem's keys",
-	Description: fmt.Sprintf(`This command removes a user's policy keys for
-		directories on %[1]s. This is intended to lock all files and
-		directories encrypted by the user on %[1]s, in that unlocking
-		them for reading will require providing a key again. However,
-		there are four important things to note about this command:
+// var Purge = cli.Command{
+// 	Name:      "purge",
+// 	ArgsUsage: mountpointArg,
+// 	Usage:     "Remove a filesystem's keys",
+// 	Description: fmt.Sprintf(`This command removes a user's policy keys for
+// 		directories on %[1]s. This is intended to lock all files and
+// 		directories encrypted by the user on %[1]s, in that unlocking
+// 		them for reading will require providing a key again. However,
+// 		there are four important things to note about this command:
 
-		(1) When run with the default options, this command also clears
-		the reclaimable dentries and inodes, so that the encrypted files
-		and directories will no longer be visible. However, this
-		requires root privileges. Note that any open file descriptors to
-		plaintext data will not be affected by this command.
+// 		(1) When run with the default options, this command also clears
+// 		the reclaimable dentries and inodes, so that the encrypted files
+// 		and directories will no longer be visible. However, this
+// 		requires root privileges. Note that any open file descriptors to
+// 		plaintext data will not be affected by this command.
 
-		(2) When run with %[2]s=false, the keyring is cleared and root
-		permissions are not required, but recently accessed encrypted
-		directories and files will remain cached for some time. Because
-		of this, after purging a filesystem's keys in this manner, it
-		is recommended to unmount the filesystem.
+// 		(2) When run with %[2]s=false, the keyring is cleared and root
+// 		permissions are not required, but recently accessed encrypted
+// 		directories and files will remain cached for some time. Because
+// 		of this, after purging a filesystem's keys in this manner, it
+// 		is recommended to unmount the filesystem.
 
-		(3) When run as root, this command removes the policy keys for
-		all users. However, this will only work if the PAM module has
-		been enabled. Otherwise, only root's keys may be removed.
+// 		(3) When run as root, this command removes the policy keys for
+// 		all users. However, this will only work if the PAM module has
+// 		been enabled. Otherwise, only root's keys may be removed.
 
-		(4) Even after unmounting the filesystem or clearing the
-		caches, the kernel may keep contents of files in memory. This
-		means direct memory access (either though physical compromise or
-		a kernel exploit) could compromise encrypted data. This weakness
-		can be eliminated by cycling the power or mitigated by using
-		page cache and slab cache poisoning.`, mountpointArg,
-		shortDisplay(dropCachesFlag)),
-	Flags:  []cli.Flag{forceFlag, dropCachesFlag, userFlag},
-	Action: purgeAction,
-}
+// 		(4) Even after unmounting the filesystem or clearing the
+// 		caches, the kernel may keep contents of files in memory. This
+// 		means direct memory access (either though physical compromise or
+// 		a kernel exploit) could compromise encrypted data. This weakness
+// 		can be eliminated by cycling the power or mitigated by using
+// 		page cache and slab cache poisoning.`, mountpointArg,
+// 		shortDisplay(dropCachesFlag)),
+// 	Flags:  []cli.Flag{forceFlag, dropCachesFlag, userFlag},
+// 	Action: purgeAction,
+// }
 
-func purgeAction(c *cli.Context) error {
-	if c.NArg() != 1 {
-		return expectedArgsErr(c, 1, false)
-	}
+// var Status = cli.Command{
+// 	Name:      "status",
+// 	ArgsUsage: fmt.Sprintf("[%s]", pathArg),
+// 	Usage:     "print the global, filesystem, or file status",
+// 	Description: fmt.Sprintf(`This command prints out the global,
+// 		per-filesystem, or per-file status.
 
-	if dropCachesFlag.Value {
-		if !util.IsUserRoot() {
-			return newExitError(c, ErrDropCachesPerm)
-		}
-	}
+// 		(1) When used without %[1]s, print all of the currently visible
+// 		filesystems which support use with fscrypt. For each of
+// 		the filesystems, this command also notes if they are actually
+// 		being used by fscrypt. This command will fail if no there is no
+// 		support for fscrypt anywhere on the system.
 
-	target, err := parseUserFlag(true)
-	if err != nil {
-		return newExitError(c, err)
-	}
-	mountpoint := c.Args().Get(0)
-	ctx, err := actions.NewContextFromMountpoint(mountpoint, target)
-	if err != nil {
-		return newExitError(c, err)
-	}
+// 		(2) When %[1]s is a filesystem mountpoint, list information
+// 		about all the policies and protectors which exist on %[1]s. This
+// 		command will fail if %[1]s is not being used with fscrypt. For
+// 		each policy, this command also notes if the policy is currently
+// 		unlocked.
 
-	question := fmt.Sprintf("Purge all policy keys from %q", ctx.Mount.Path)
-	if dropCachesFlag.Value {
-		question += " and drop global inode cache"
-	}
-	warning := "Encrypted data on this filesystem will be inaccessible until unlocked again!!"
-	if err = askConfirmation(question+"?", false, warning); err != nil {
-		return newExitError(c, err)
-	}
-
-	if err = actions.PurgeAllPolicies(ctx); err != nil {
-		return newExitError(c, err)
-	}
-	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
-
-	if dropCachesFlag.Value {
-		if err = security.DropFilesystemCache(); err != nil {
-			return newExitError(c, err)
-		}
-		fmt.Fprintf(c.App.Writer, "Encrypted data removed filesystem cache.\n")
-	} else {
-		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
-	}
-	return nil
-}
-
-// Status is a command with three subcommands relating to printing out status.
-var Status = cli.Command{
-	Name:      "status",
-	ArgsUsage: fmt.Sprintf("[%s]", pathArg),
-	Usage:     "print the global, filesystem, or file status",
-	Description: fmt.Sprintf(`This command prints out the global,
-		per-filesystem, or per-file status.
-
-		(1) When used without %[1]s, print all of the currently visible
-		filesystems which support use with fscrypt. For each of
-		the filesystems, this command also notes if they are actually
-		being used by fscrypt. This command will fail if no there is no
-		support for fscrypt anywhere on the system.
-
-		(2) When %[1]s is a filesystem mountpoint, list information
-		about all the policies and protectors which exist on %[1]s. This
-		command will fail if %[1]s is not being used with fscrypt. For
-		each policy, this command also notes if the policy is currently
-		unlocked.
-
-		(3) When %[1]s is just a normal path, print information about
-		the policy being used on %[1]s and the protectors protecting
-		this file or directory. This command will fail if %[1]s is not
-		setup for encryption with fscrypt.`, pathArg),
-	Action: statusAction,
-}
-
-func statusAction(c *cli.Context) error {
-	var err error
-
-	switch c.NArg() {
-	case 0:
-		// Case (1) - global status
-		err = writeGlobalStatus(c.App.Writer)
-	case 1:
-		path := c.Args().Get(0)
-		ctx, mntErr := actions.NewContextFromMountpoint(path, nil)
-
-		switch errors.Cause(mntErr) {
-		case nil:
-			// Case (2) - mountpoint status
-			err = writeFilesystemStatus(c.App.Writer, ctx)
-		case filesystem.ErrNotAMountpoint:
-			// Case (3) - file or directory status
-			err = writePathStatus(c.App.Writer, path)
-		default:
-			err = mntErr
-		}
-	default:
-		return expectedArgsErr(c, 1, true)
-	}
-
-	if err != nil {
-		return newExitError(c, err)
-	}
-	return nil
-}
+// 		(3) When %[1]s is just a normal path, print information about
+// 		the policy being used on %[1]s and the protectors protecting
+// 		this file or directory. This command will fail if %[1]s is not
+// 		setup for encryption with fscrypt.`, pathArg),
+// 	Action: statusAction,
+// }
 
 // Metadata is a collection of commands for manipulating the metadata files.
 var Metadata = cli.Command{

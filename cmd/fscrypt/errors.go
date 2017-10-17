@@ -23,10 +23,8 @@ package main
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
@@ -41,8 +39,6 @@ const failureExitCode = 1
 
 // Various errors used for the top level user interface
 var (
-	ErrCanceled           = errors.New("operation canceled")
-	ErrNoDesctructiveOps  = errors.New("operation would be destructive")
 	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
 	ErrInvalidSource      = errors.New("invalid source type")
 	ErrPassphraseMismatch = errors.New("entered passphrases do not match")
@@ -51,7 +47,6 @@ var (
 	ErrSpecifyKeyFile     = errors.New("no key file specified")
 	ErrKeyFileLength      = errors.Errorf("key file must be %d bytes", metadata.InternalKeyLen)
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
-	ErrMustBeRoot         = errors.New("this command must be run as root")
 	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
 	ErrBadOwners          = errors.New("you do not own this directory")
 	ErrNotEmptyDir        = errors.New("not an empty directory")
@@ -63,12 +58,8 @@ var (
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
 
-// getFullName returns the full name of the application or command being used.
-func getFullName(c *cli.Context) string {
-	if c.Command.HelpName != "" {
-		return c.Command.HelpName
-	}
-	return c.App.HelpName
+var fscryptHelpTextMap = map[error]string{
+	actions.ErrBadConfigFile: `Run "sudo fscrypt setup" to recreate the file.`,
 }
 
 // getErrorSuggestions returns a string containing suggestions about how to fix
@@ -99,8 +90,6 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
 			shortDisplay(userFlag))
-	case actions.ErrBadConfigFile:
-		return `Run "sudo fscrypt setup" to recreate the file.`
 	case actions.ErrNoConfigFile:
 		return `Run "sudo fscrypt setup" to create the file.`
 	case actions.ErrMissingPolicyMetadata:
@@ -145,49 +134,4 @@ func getErrorSuggestions(err error) string {
 	default:
 		return ""
 	}
-}
-
-// newExitError creates a new error for a given context and normal error. The
-// returned error prepends the name of the relevant command and will make
-// fscrypt return a non-zero exit value.
-func newExitError(c *cli.Context, err error) error {
-	// Prepend the full name and append suggestions (if any)
-	fullNamePrefix := getFullName(c) + ": "
-	message := fullNamePrefix + wrapText(err.Error(), utf8.RuneCountInString(fullNamePrefix))
-
-	if suggestion := getErrorSuggestions(err); suggestion != "" {
-		message += "\n\n" + wrapText(suggestion, 0)
-	}
-
-	return cli.NewExitError(message, failureExitCode)
-}
-
-// expectedArgsErr creates a usage error for the incorrect number of arguments
-// being specified. atMost should be true only if any number of arguments from 0
-// to expectedArgs would be acceptable.
-func expectedArgsErr(c *cli.Context, expectedArgs int, atMost bool) error {
-	message := "expected "
-	if atMost {
-		message += "at most "
-	}
-	message += fmt.Sprintf("%s, got %s",
-		pluralize(expectedArgs, "argument"), pluralize(c.NArg(), "argument"))
-	return &usageError{c, message}
-}
-
-// onUsageError is a function handler for the application and each command.
-func onUsageError(c *cli.Context, err error, _ bool) error {
-	return &usageError{c, err.Error()}
-}
-
-// checkRequiredFlags makes sure that all of the specified string flags have
-// been given nonempty values. Returns a usage error on failure.
-func checkRequiredFlags(c *cli.Context, flags []*stringFlag) error {
-	for _, flag := range flags {
-		if flag.Value == "" {
-			message := fmt.Sprintf("required flag %s not provided", shortDisplay(flag))
-			return &usageError{c, message}
-		}
-	}
-	return nil
 }

@@ -28,7 +28,7 @@ import (
 var (
 	mountpointArg = &cmd.Argument{
 		ArgName: "mountpoint",
-		Usage:   "the path to an ext4 filesystem's mountpoint",
+		Usage:   "the mountpoint of an ext4 filesystem",
 	}
 	deviceArg = &cmd.Argument{
 		ArgName: "device",
@@ -42,7 +42,7 @@ func main() { ext4Command.Run() }
 var ext4Command = &cmd.Command{
 	Title: "manage ext4 encryption feature flag",
 	UsageLines: []string{
-		fmt.Sprintf("enable %s", ext4Usage),
+		fmt.Sprintf("enable  %s", ext4Usage),
 		fmt.Sprintf("disable %s", ext4Usage),
 		cmd.VersionUsage,
 	},

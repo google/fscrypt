@@ -29,25 +29,26 @@ import (
 	"time"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/cmd"
 	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
 // Bool flags: used to switch some behavior on or off
 var (
-	legacyFlag = &boolFlag{
+	legacyFlag = &cmd.BoolFlag{
 		Name: "legacy",
 		Usage: `Allow for support of older kernels with ext4 (before
 			v4.8) and F2FS (before v4.6) filesystems.`,
 		Default: true,
 	}
-	skipUnlockFlag = &boolFlag{
+	skipUnlockFlag = &cmd.BoolFlag{
 		Name: "skip-unlock",
 		Usage: `Leave the directory in a locked state after setup.
 			"fscrypt unlock" will need to be run in order to use the
 			directory.`,
 	}
-	dropCachesFlag = &boolFlag{
+	dropCachesFlag = &cmd.BoolFlag{
 		Name: "drop-caches",
 		Usage: `After purging the keys from the keyring, drop the
 			associated caches for the purge to take effect. Without
@@ -59,7 +60,7 @@ var (
 
 // Option flags: used to specify options instead of being prompted for them
 var (
-	timeTargetFlag = &durationFlag{
+	timeTargetFlag = &cmd.DurationFlag{
 		Name:    "time",
 		ArgName: "TIME",
 		Usage: `Set the global options so that passphrase hashing takes
@@ -69,7 +70,7 @@ var (
 			units are "ms", "s", "m", and "h".`,
 		Default: 1 * time.Second,
 	}
-	sourceFlag = &stringFlag{
+	sourceFlag = &cmd.StringFlag{
 		Name:    "source",
 		ArgName: "SOURCE",
 		Usage: fmt.Sprintf(`New protectors will have type SOURCE. SOURCE
@@ -78,14 +79,14 @@ var (
 			the source, with a default pulled from %s.`,
 			actions.ConfigFileLocation),
 	}
-	nameFlag = &stringFlag{
+	nameFlag = &cmd.StringFlag{
 		Name:    "name",
 		ArgName: "PROTECTOR_NAME",
 		Usage: `New custom_passphrase and raw_key protectors will be
 			named PROTECTOR_NAME. If not specified, the user will be
 			prompted for a name.`,
 	}
-	keyFileFlag = &stringFlag{
+	keyFileFlag = &cmd.StringFlag{
 		Name:    "key",
 		ArgName: "FILE",
 		Usage: `Use the contents of FILE as the wrapping key when
@@ -93,20 +94,20 @@ var (
 			formatted as raw binary and should be exactly 32 bytes
 			long.`,
 	}
-	userFlag = &stringFlag{
+	userFlag = &cmd.StringFlag{
 		Name:    "user",
 		ArgName: "USERNAME",
 		Usage: `Specifiy which user should be used for login passphrases
 			or to which user's keyring keys should be provisioned.`,
 	}
-	protectorFlag = &stringFlag{
+	protectorFlag = &cmd.StringFlag{
 		Name:    "protector",
 		ArgName: "MOUNTPOINT:ID",
 		Usage: `Specify an existing protector on filesystem MOUNTPOINT
 			with protector descriptor ID which should be used in the
 			command.`,
 	}
-	unlockWithFlag = &stringFlag{
+	unlockWithFlag = &cmd.StringFlag{
 		Name:    "unlock-with",
 		ArgName: "MOUNTPOINT:ID",
 		Usage: `Specify an existing protector on filesystem MOUNTPOINT
@@ -116,7 +117,7 @@ var (
 			multiple protectors. If not specified, the user will be
 			prompted for a protector.`,
 	}
-	policyFlag = &stringFlag{
+	policyFlag = &cmd.StringFlag{
 		Name:    "policy",
 		ArgName: "MOUNTPOINT:ID",
 		Usage: `Specify an existing policy on filesystem MOUNTPOINT with
