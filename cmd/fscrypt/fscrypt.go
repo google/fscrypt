@@ -68,8 +68,7 @@ var fscryptCommand = cmd.Command{
 		cmd.VersionUsage,
 	},
 	SubCommands: []*cmd.Command{setupCommand, encryptCommand, unlockCommand,
-		purgeCommand, statusCommand, metadataCommand, cmd.VersionCommand},
-	Flags:   baseFlags,
+		purgeCommand, statusCommand, metadataCommand, cmd.VersionCommand}, Flags:   baseFlags,
 	ManPage: &cmd.ManPage{Name: "fscrypt", Section: 8},
 }
 
@@ -221,6 +220,7 @@ var statusCommand = &cmd.Command{
 	Name:       "status",
 	Title:      "get the status of the system or a path",
 	UsageLines: []string{"", usedMountpointArg.String(), encryptedPathArg.String()},
+	Arguments: []*cmd.Argument{usedMountpointArg, encryptedPathArg},
 	Flags:      []cmd.Flag{cmd.VerboseFlag, cmd.HelpFlag},
 	ManPage:    &cmd.ManPage{Name: "fscrypt-status", Section: 8},
 	Action:     statusAction,
@@ -361,3 +361,87 @@ func createPolicyAction(c *cmd.Context) error {
 		policy.Descriptor(), ctx.Mount.Path)
 	return nil
 }
+
+var destroyCommand = &cmd.Command{
+	Name: "destroy",
+	Title: "directly delete an existing protector or policy",
+	UsageLines: []string{
+		fmt.Sprintf("%s [%s]", protectorFlag, cmd.ForceFlag),
+		fmt.Sprintf("%s [%s]", policyFlag, cmd.ForceFlag),
+		fmt.Sprintf("%s [%s]", usedMountpointArg, cmd.ForceFlag),
+	},
+	Arguments: []*cmd.Argument{usedMountpointArg},
+	InheritFlags: true,
+	Flags: []cmd.Flag{cmd.ForceFlag},
+	Action: destroyAction,
+}
+
+func destoryAction(c *cmd.Context) error {
+	switch {
+	case protectorFlag.Value != "":
+		if len(c.Args) != 0 {
+			break
+		}
+		// Case (1) - protector destroy
+		protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+		if err != nil {
+			return newExitError(c, err)
+		}
+
+		prompt := fmt.Sprintf("Destroy protector %s on %q?",
+			protector.Descriptor(), protector.Context.Mount.Path)
+		warning := "All files protected only with this protector will be lost!!"
+		if err := askConfirmation(prompt, false, warning); err != nil {
+			return newExitError(c, err)
+		}
+		if err := protector.Destroy(); err != nil {
+			return newExitError(c, err)
+		}
+
+		fmt.Fprintf(c.App.Writer, "Protector %s deleted from filesystem %q.\n",
+			protector.Descriptor(), protector.Context.Mount.Path)
+	case policyFlag.Value != "":
+		if len(c.Args) != 0 {
+			break
+		}
+		// Case (2) - policy destroy
+		policy, err := getPolicyFromFlag(policyFlag.Value, nil)
+		if err != nil {
+			return newExitError(c, err)
+		}
+
+		prompt := fmt.Sprintf("Destroy policy %s on %q?",
+			policy.Descriptor(), policy.Context.Mount.Path)
+		warning := "All files using this policy will be lost!!"
+		if err := askConfirmation(prompt, false, warning); err != nil {
+			return newExitError(c, err)
+		}
+		if err := policy.Destroy(); err != nil {
+			return newExitError(c, err)
+		}
+
+		fmt.Fprintf(c.App.Writer, "Policy %s deleted from filesystem %q.\n",
+			policy.Descriptor(), policy.Context.Mount.Path)
+	case len(c.Args) == 1:
+		// Case (3) - mountpoint destroy
+		ctx, err := actions.NewContextFromMountpoint(c.Args[0], nil)
+		if err != nil {
+			return err
+		}
+
+		prompt := fmt.Sprintf("Destroy all the metadata on %q?", ctx.Mount.Path)
+		warning := "All the encrypted files on this filesystem will be lost!"
+		if err := cmd.AskConfirmation(prompt, warning, false); err != nil {
+			return err
+		}
+		if err := ctx.Mount.RemoveAllMetadata(); err != nil {
+			return err
+		}
+
+		fmt.Fprintf(cmd.Output, "All metadata on %q deleted.\n", ctx.Mount.Path)
+		return nil
+	}
+	return cmd.UsageError(fmt.Sprintf("Must specify exactly one of: %s, %s, or %s",
+		usedMountpointArg, protectorFlag, policyFlag))
+}
+
