@@ -100,16 +100,17 @@ var (
 		Usage: `Specifiy which user should be used for login passphrases
 			or to which user's keyring keys should be provisioned.`,
 	}
-	protectorFlag = &cmd.StringFlag{
+	mountpointIDArg = "MOUNTPOINT:ID"
+	protectorFlag   = &cmd.StringFlag{
 		Name:    "protector",
-		ArgName: "MOUNTPOINT:ID",
+		ArgName: mountpointIDArg,
 		Usage: `Specify an existing protector on filesystem MOUNTPOINT
 			with protector descriptor ID which should be used in the
 			command.`,
 	}
 	unlockWithFlag = &cmd.StringFlag{
 		Name:    "unlock-with",
-		ArgName: "MOUNTPOINT:ID",
+		ArgName: mountpointIDArg,
 		Usage: `Specify an existing protector on filesystem MOUNTPOINT
 			with protector descriptor ID which should be used to
 			unlock a policy (usually specified with --policy). This
@@ -119,7 +120,7 @@ var (
 	}
 	policyFlag = &cmd.StringFlag{
 		Name:    "policy",
-		ArgName: "MOUNTPOINT:ID",
+		ArgName: mountpointIDArg,
 		Usage: `Specify an existing policy on filesystem MOUNTPOINT with
 			key descriptor ID which should be used in the command.`,
 	}
@@ -175,19 +176,21 @@ func getPolicyFromFlag(flagValue string, target *user.User) (*actions.Policy, er
 // there are no problems accessing the user keyring.
 func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
 	if userFlag.Value != "" {
-		targetUser, err = user.Lookup(userFlag.Value)
+		if targetUser, err = user.Lookup(userFlag.Value); err != nil {
+			return nil, err
+		}
 	} else {
-		if util.IsUserRoot() {
+		targetID := util.CurrentUserID()
+		if targetID == 0 {
 			return nil, ErrSpecifyUser
 		}
-		targetUser, err = util.EffectiveUser()
-	}
-	if err != nil {
-		return nil, err
+		targetUser = util.GetUser(targetID)
 	}
 
 	if checkKeyring {
-		_, err = security.UserKeyringID(targetUser, true)
+		if _, err = security.UserKeyringID(targetUser, true); err != nil {
+			return nil, err
+		}
 	}
-	return targetUser, err
+	return targetUser, nil
 }

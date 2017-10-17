@@ -37,7 +37,7 @@ var (
 	ext4Usage = fmt.Sprintf("(%s | %s) [options]", mountpointArg, deviceArg)
 )
 
-func main() { ext4Command.Run() }
+func main() { ext4Command.Run(nil) }
 
 var ext4Command = &cmd.Command{
 	Title: "manage ext4 encryption feature flag",

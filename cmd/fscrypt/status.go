@@ -30,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/cmd"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 )
@@ -66,7 +67,7 @@ func yesNoString(b bool) string {
 }
 
 // writeGlobalStatus prints all the filesystem that use (or could use) fscrypt.
-func writeGlobalStatus(w io.Writer) error {
+func writeGlobalStatus() error {
 	mounts, err := filesystem.AllFilesystems()
 	if err != nil {
 		return err
@@ -75,7 +76,7 @@ func writeGlobalStatus(w io.Writer) error {
 	supportCount := 0
 	useCount := 0
 
-	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
+	t := makeTableWriter(cmd.Output, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
 	for _, mount := range mounts {
 		// Only print mountpoints backed by devices or using fscrypt.
 		usingFscrypt := mount.CheckSetup() == nil
@@ -102,14 +103,14 @@ func writeGlobalStatus(w io.Writer) error {
 		}
 	}
 
-	fmt.Fprintf(w, "filesystems supporting encryption: %d\n", supportCount)
-	fmt.Fprintf(w, "filesystems with fscrypt metadata: %d\n\n", useCount)
+	fmt.Fprintf(cmd.Output, "filesystems supporting encryption: %d\n", supportCount)
+	fmt.Fprintf(cmd.Output, "filesystems with fscrypt metadata: %d\n\n", useCount)
 	return t.Flush()
 }
 
 // writeOptions writes a table of the status for a slice of protector options.
-func writeOptions(w io.Writer, options []*actions.ProtectorOption) {
-	t := makeTableWriter(w, "PROTECTOR\tLINKED\tDESCRIPTION")
+func writeOptions(options []*actions.ProtectorOption) {
+	t := makeTableWriter(cmd.Output, "PROTECTOR\tLINKED\tDESCRIPTION")
 	for _, option := range options {
 		if option.LoadError != nil {
 			fmt.Fprintf(t, "%s\t\t[%s]\n", option.Descriptor(), option.LoadError)
@@ -128,7 +129,7 @@ func writeOptions(w io.Writer, options []*actions.ProtectorOption) {
 	t.Flush()
 }
 
-func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
+func writeFilesystemStatus(ctx *actions.Context) error {
 	options, err := ctx.ProtectorOptions()
 	if err != nil {
 		return err
@@ -143,15 +144,15 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 		pluralize(len(options), "protector"), pluralize(len(policyDescriptors), "policy"))
 
 	if len(options) > 0 {
-		writeOptions(w, options)
+		writeOptions(options)
 	}
 
 	if len(policyDescriptors) == 0 {
 		return nil
 	}
 
-	fmt.Fprintln(w)
-	t := makeTableWriter(w, "POLICY\tUNLOCKED\tPROTECTORS")
+	fmt.Fprintln(cmd.Output)
+	t := makeTableWriter(cmd.Output, "POLICY\tUNLOCKED\tPROTECTORS")
 	for _, descriptor := range policyDescriptors {
 		policy, err := actions.GetPolicy(ctx, descriptor)
 		if err != nil {
@@ -165,7 +166,7 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 	return t.Flush()
 }
 
-func writePathStatus(w io.Writer, path string) error {
+func writePathStatus(path string) error {
 	ctx, err := actions.NewContextFromPath(path, nil)
 	if err != nil {
 		return err
@@ -175,14 +176,14 @@ func writePathStatus(w io.Writer, path string) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "%q is encrypted with fscrypt.\n", path)
-	fmt.Fprintln(w)
-	fmt.Fprintf(w, "Policy:   %s\n", policy.Descriptor())
-	fmt.Fprintf(w, "Unlocked: %s\n", yesNoString(policy.IsProvisioned()))
-	fmt.Fprintln(w)
+	fmt.Fprintf(cmd.Output, "%q is encrypted with fscrypt.\n", path)
+	fmt.Fprintln(cmd.Output)
+	fmt.Fprintf(cmd.Output, "Policy:   %s\n", policy.Descriptor())
+	fmt.Fprintf(cmd.Output, "Unlocked: %s\n", yesNoString(policy.IsProvisioned()))
+	fmt.Fprintln(cmd.Output)
 
 	options := policy.ProtectorOptions()
-	fmt.Fprintf(w, "Protected with %s:\n", pluralize(len(options), "protector"))
-	writeOptions(w, options)
+	fmt.Fprintf(cmd.Output, "Protected with %s:\n", pluralize(len(options), "protector"))
+	writeOptions(cmd.Output, options)
 	return nil
 }

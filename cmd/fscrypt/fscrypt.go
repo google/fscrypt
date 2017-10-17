@@ -39,24 +39,26 @@ import (
 // Arguments used in fscrypt commands.
 var (
 	unusedMountpointArg = &cmd.Argument{
-		Name:  "mountpoint",
-		Usage: "path to a mountpoint on which to setup fscrypt",
+		ArgName: "mountpoint",
+		Usage:   "path to a mountpoint on which to setup fscrypt",
 	}
 	usedMountpointArg = &cmd.Argument{
-		Name:  "mountpoint",
-		Usage: "path to a mountpoint being used with fscrypt",
+		ArgName: "mountpoint",
+		Usage:   "path to a mountpoint being used with fscrypt",
 	}
 	directoryToEncryptArg = &cmd.Argument{
-		Name:  "directory",
-		Usage: "path to an empty directory to encrypt with fscrypt",
+		ArgName: "directory",
+		Usage:   "path to an empty directory to encrypt with fscrypt",
 	}
 	encryptedPathArg = &cmd.Argument{
-		Name:  "path",
-		Usage: "file or directory encrypted with fscrypt",
+		ArgName: "path",
+		Usage:   "file or directory encrypted with fscrypt",
 	}
 )
 
-func main() { fscryptCommand.Run() }
+func main() { fscryptCommand.Run(fscryptHelpTextMap) }
+
+var baseFlags = []cmd.Flag{cmd.VerboseFlag, cmd.QuietFlag, cmd.HelpFlag}
 
 var fscryptCommand = cmd.Command{
 	Title: "manage linux filesystem encryption",
@@ -65,16 +67,9 @@ var fscryptCommand = cmd.Command{
 			cmd.VerboseFlag, cmd.QuietFlag),
 		cmd.VersionUsage,
 	},
-	SubCommands: []*Command{
-		setupCommand,
-		encryptCommand,
-		unlockCommand,
-		purgeCommand,
-		// statusCommand,
-		// metadataCommand,
-		cmd.VersionCommand,
-	},
-	Flags:   []cmd.Flag{cmd.VerboseFlag, cmd.QuietFlag, cmd.HelpFlag},
+	SubCommands: []*cmd.Command{setupCommand, encryptCommand, unlockCommand,
+		purgeCommand, statusCommand, metadataCommand, cmd.VersionCommand},
+	Flags:   baseFlags,
 	ManPage: &cmd.ManPage{Name: "fscrypt", Section: 8},
 }
 
@@ -88,7 +83,7 @@ var setupCommand = &cmd.Command{
 	},
 	Arguments:    []*cmd.Argument{unusedMountpointArg},
 	InheritFlags: true,
-	Flags:        []cmd.Flag{configFileFlag, targetFlag, legacyFlag, cmd.ForceFlag},
+	Flags:        []cmd.Flag{timeTargetFlag, legacyFlag, cmd.ForceFlag},
 	ManPage:      &cmd.ManPage{Name: "fscrypt-setup", Section: 8},
 	Action:       setupAction,
 }
@@ -97,7 +92,7 @@ func setupAction(c *cmd.Context) error {
 	switch len(c.Args) {
 	case 0:
 		// Case (1) - global setup
-		return createGlobalConfig(configFileFlag.Value)
+		return createGlobalConfig(actions.ConfigFileLocation)
 	case 1:
 		// Case (2) - filesystem setup
 		return setupFilesystem(c.Args[0])
@@ -110,7 +105,7 @@ func setupAction(c *cmd.Context) error {
 var encryptCommand = &cmd.Command{
 	Name:         "encrypt",
 	Title:        "start encrypting an empty directory",
-	UsageLines:   nil, // TODO(joerichey)
+	UsageLines:   []string{"???"}, // TODO(joerichey)
 	Arguments:    []*cmd.Argument{directoryToEncryptArg},
 	InheritFlags: true,
 	Flags: []cmd.Flag{sourceFlag, nameFlag, protectorFlag, policyFlag,
@@ -143,7 +138,7 @@ func encryptAction(c *cmd.Context) error {
 var unlockCommand = &cmd.Command{
 	Name:         "unlock",
 	Title:        "unlock an encrypted file or directory",
-	UsageLines:   nil, // TODO(joerichey)
+	UsageLines:   []string{"???"}, // TODO(joerichey)
 	Arguments:    []*cmd.Argument{encryptedPathArg},
 	InheritFlags: true,
 	Flags:        []cmd.Flag{protectorFlag, policyFlag, keyFileFlag, userFlag},
@@ -192,7 +187,7 @@ func purgeAction(c *cmd.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx, err := actions.NewContextFromMountpoint(c.Args[0], target)
+	ctx, err := actions.NewContextFromMountpoint(c.Args[0], targetUser)
 	if err != nil {
 		return err
 	}
@@ -211,7 +206,7 @@ func purgeAction(c *cmd.Context) error {
 	fmt.Fprintf(cmd.Output, "Policies purged from filesystem %q.\n", ctx.Mount.Path)
 
 	if !dropCachesFlag.Value {
-		fmt.Fprintf(cmd.Output, "Filesystem %q should now be unmounted.\n", cmd.Mount.Path)
+		fmt.Fprintf(cmd.Output, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
 		return nil
 	}
 	if err = security.DropFilesystemCache(); err != nil {
@@ -251,6 +246,118 @@ func statusAction(c *cmd.Context) error {
 			return mntErr
 		}
 	default:
-		return expectedArgsErr(c, 1, true)
+		return cmd.CheckExpectedArgs(c, 1, true)
 	}
+}
+
+// metadata is a collection of commands for manipulating the metadata files.
+var metadataCommand = &cmd.Command{
+	Name:  "metadata",
+	Title: "manipulate fscrypt metadata directly",
+	UsageLines: []string{fmt.Sprintf("<command> [command options] [%s] [%s]",
+		protectorFlag, policyFlag)},
+	SubCommands: []*cmd.Command{createCommand}, // destroyCommand, changeCommand,
+	// addProtectorCommand, removeProtectorCommand, dumpCommand},
+	InheritFlags: true,
+	Flags:        []cmd.Flag{protectorFlag, policyFlag},
+	ManPage:      &cmd.ManPage{Name: "fscrypt-metadata", Section: 8},
+}
+
+var createCommand = &cmd.Command{
+	Name:  "create",
+	Title: "manually create metadata on a filesystem",
+	UsageLines: []string{
+		fmt.Sprintf("protector %s", usedMountpointArg),
+		fmt.Sprintf("policy %s, %s", usedMountpointArg, protectorFlag),
+	},
+	SubCommands: []*cmd.Command{createProtectorCommand, createPolicyCommand},
+	Arguments:   []*cmd.Argument{usedMountpointArg},
+	Flags:       baseFlags,
+}
+
+var createProtectorCommand = &cmd.Command{
+	Name:             "protector",
+	Title:            "create a protector without creating a policy",
+	UsageLines:       []string{"???"}, // TODO(joerichey)
+	InheritArguments: true,
+	InheritFlags:     true,
+	Flags:            []cmd.Flag{sourceFlag, nameFlag, keyFileFlag, userFlag},
+	Action:           createProtectorAction,
+}
+
+func createProtectorAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 1, false); err != nil {
+		return err
+	}
+
+	targetUser, err := parseUserFlag(true)
+	if err != nil {
+		return err
+	}
+	ctx, err := actions.NewContextFromMountpoint(c.Args[0], targetUser)
+	if err != nil {
+		return err
+	}
+
+	prompt := fmt.Sprintf("Create new protector on %q", ctx.Mount.Path)
+	if err := cmd.AskConfirmation(prompt, "", true); err != nil {
+		return err
+	}
+
+	protector, err := createProtectorFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	protector.Lock()
+
+	fmt.Fprintf(cmd.Output, "Protector %s created on filesystem %q.\n",
+		protector.Descriptor(), ctx.Mount.Path)
+	return nil
+}
+
+var createPolicyCommand = &cmd.Command{
+	Name:  "policy",
+	Title: "create a policy using an existing protector",
+	UsageLines: []string{fmt.Sprintf("%s %s [%s]",
+		usedMountpointArg, protectorFlag, keyFileFlag)},
+	InheritArguments: true,
+	InheritFlags:     true,
+	Flags:            []cmd.Flag{protectorFlag, keyFileFlag},
+	Action:           createPolicyAction,
+}
+
+func createPolicyAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 1, false); err != nil {
+		return err
+	}
+	if err := cmd.CheckRequiredFlags([]*cmd.StringFlag{protectorFlag}); err != nil {
+		return err
+	}
+
+	ctx, err := actions.NewContextFromMountpoint(c.Args[0], nil)
+	if err != nil {
+		return err
+	}
+	protector, err := getProtectorFromFlag(protectorFlag.Value, ctx.TargetUser)
+	if err != nil {
+		return err
+	}
+	if err := protector.Unlock(existingKeyFn); err != nil {
+		return err
+	}
+	defer protector.Lock()
+
+	prompt := fmt.Sprintf("Create new policy on %q", ctx.Mount.Path)
+	if err := cmd.AskConfirmation(prompt, "", true); err != nil {
+		return err
+	}
+	policy, err := actions.CreatePolicy(ctx, protector)
+	if err != nil {
+		return err
+	}
+	policy.Lock()
+
+	fmt.Fprintf(cmd.Output, "Policy %s created on filesystem %q.\n",
+		policy.Descriptor(), ctx.Mount.Path)
+	return nil
 }

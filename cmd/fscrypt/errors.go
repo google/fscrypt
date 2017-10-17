@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/cmd"
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
@@ -56,7 +57,7 @@ var (
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
 )
 
-var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
+var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", cmd.VerboseFlag)
 
 var fscryptHelpTextMap = map[error]string{
 	actions.ErrBadConfigFile: `Run "sudo fscrypt setup" to recreate the file.`,
@@ -67,7 +68,7 @@ var fscryptHelpTextMap = map[error]string{
 func getErrorSuggestions(err error) string {
 	switch errors.Cause(err) {
 	case filesystem.ErrNotSetup:
-		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
+		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, unusedMountpointArg)
 	case crypto.ErrKeyLock:
 		return `Too much memory was requested to be locked in RAM. The
 			current limit for this user can be checked with "ulimit
@@ -89,7 +90,7 @@ func getErrorSuggestions(err error) string {
 	case security.ErrAccessUserKeyring:
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
-			shortDisplay(userFlag))
+			userFlag)
 	case actions.ErrNoConfigFile:
 		return `Run "sudo fscrypt setup" to create the file.`
 	case actions.ErrMissingPolicyMetadata:
@@ -101,13 +102,13 @@ func getErrorSuggestions(err error) string {
 			inconsistent state. This most likely means the filesystem
 			metadata is corrupted.`
 	case actions.ErrMissingProtectorName:
-		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
-	case ErrNoDesctructiveOps:
-		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
+		return fmt.Sprintf("Use %s to specify a protector name.", nameFlag)
+	case cmd.ErrMustForce:
+		return fmt.Sprintf("Use %s to automatically run destructive operations.", cmd.ForceFlag)
 	case ErrSpecifyProtector:
-		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
+		return fmt.Sprintf("Use %s to specify a protector.", protectorFlag)
 	case ErrSpecifyKeyFile:
-		return fmt.Sprintf("Use %s to specify a key file.", shortDisplay(keyFileFlag))
+		return fmt.Sprintf("Use %s to specify a key file.", keyFileFlag)
 	case ErrBadOwners:
 		return `Encryption can only be setup on directories you own,
 			even if you have write permission for the directory.`
@@ -120,7 +121,7 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`Either this command should be run as root to
 			properly clear the inode cache, or it should be run with
 			%s=false (this may leave encrypted files and directories
-			in an accessible state).`, shortDisplay(dropCachesFlag))
+			in an accessible state).`, dropCachesFlag)
 	case ErrSpecifyUser:
 		return fmt.Sprintf(`When running this command as root, you
 			usually still want to provision/remove keys for a normal
@@ -128,7 +129,7 @@ func getErrorSuggestions(err error) string {
 			as a protector (so the corresponding files will be
 			accessible for that user). This can be done with %s. To
 			use the root user's keyring or passphrase, use
-			--%s=root.`, shortDisplay(userFlag), userFlag.GetName())
+			--%s=root.`, userFlag, userFlag.Name)
 	case ErrAllLoadsFailed:
 		return loadHelpText
 	default:
