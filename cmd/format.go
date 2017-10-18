@@ -66,11 +66,20 @@ func init() {
 	}
 }
 
-// MaxSubcommandLength returns the length of the longest subcommand (where the
-// length of the command is Name + Title). Return 0 if there aren't subcommands.
+// MaxNameLength returns the length of the longest subcommand Name. Return 0 if
+// there aren't subcommands.
 func (c *Command) MaxNameLength() (max int) {
 	for _, s := range c.SubCommands {
 		max = util.MaxInt(max, len(s.Name))
+	}
+	return
+}
+
+// MaxTitleLength returns the length of the longest subcommand Title. Return 0
+// if there aren't subcommands.
+func (c *Command) MaxTitleLength() (max int) {
+	for _, s := range c.SubCommands {
+		max = util.MaxInt(max, len(s.Title))
 	}
 	return
 }

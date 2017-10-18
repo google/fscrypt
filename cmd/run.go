@@ -56,30 +56,27 @@ Usage:
 {{with $n := $.Command.MaxNameLength -}}
 {{with $fmt := printf "%%-%ds - %%s" $n -}}
 Commands:
-{{if le (add 8 $n 3 $.Command.MaxTitleLength) LineLength -}}
+{{- if le (add 8 $n 3 $.Command.MaxTitleLength) LineLength -}}
 
 {{range $commands -}}
-
+	{{if not .Title}}
+	{{.Name -}}
+	{{else}}
+	{{printf $fmt .Name .Title -}}
+	{{end -}}
 {{end -}}
 
 {{else -}}
 
-{{range $commands}}
-{{end -}}
-
-{{end}}{{end}}{{end}}
-{{end -}}
-
-
-{{- range $commands}}
-	{{if not .Title -}}
+{{range $commands -}}
+	{{if not .Title}}
 	{{.Name -}}
-	{{else if le (add 8 $n 3 (len .Title)) LineLength -}}
-	{{printf $fmt .Name .Title -}}
-	{{else -}}
+	{{else}}
 	{{.Name}}
 		{{WrapText 16 2 .Title -}}
 	{{end -}}
+{{end -}}
+
 {{end}}{{end}}{{end}}
 {{end -}}
 
