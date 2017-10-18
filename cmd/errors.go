@@ -109,7 +109,7 @@ func (ctx *Context) processError(err error) {
 	// Errors with a help text should print it out.
 	if helpText := ctx.getHelpText(err); helpText != "" {
 		fmt.Fprintln(os.Stderr)
-		fmt.Fprintln(os.Stderr, WrapText(helpText, 0))
+		fmt.Fprintln(os.Stderr, helpText)
 	}
 	os.Exit(FailureCode)
 	return

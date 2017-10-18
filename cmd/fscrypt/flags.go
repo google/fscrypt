@@ -37,23 +37,18 @@ import (
 // Bool flags: used to switch some behavior on or off
 var (
 	legacyFlag = &cmd.BoolFlag{
-		Name: "legacy",
-		Usage: `Allow for support of older kernels with ext4 (before
-			v4.8) and F2FS (before v4.6) filesystems.`,
+		Name:    "legacy",
+		Usage:   `Configure fscrypt to support older kernels.`,
 		Default: true,
 	}
 	skipUnlockFlag = &cmd.BoolFlag{
-		Name: "skip-unlock",
-		Usage: `Leave the directory in a locked state after setup.
-			"fscrypt unlock" will need to be run in order to use the
-			directory.`,
+		Name:  "skip-unlock",
+		Usage: "Leave the directory in a locked state after setup.",
 	}
 	dropCachesFlag = &cmd.BoolFlag{
 		Name: "drop-caches",
 		Usage: `After purging the keys from the keyring, drop the
-			associated caches for the purge to take effect. Without
-			this flag, cached encrypted files may still have their
-			plaintext visible. Requires root privileges.`,
+			associated caches for the purge to take effect.`,
 		Default: true,
 	}
 )
@@ -62,78 +57,62 @@ var (
 var (
 	timeTargetFlag = &cmd.DurationFlag{
 		Name:    "time",
-		ArgName: "TIME",
+		ArgName: "time",
 		Usage: `Set the global options so that passphrase hashing takes
-			TIME long. TIME should be formatted as a sequence of
-			decimal numbers, each with optional fraction and a unit
-			suffix, such as "300ms", "1.5s" or "2h45m". Valid time
-			units are "ms", "s", "m", and "h".`,
+			<time> long.`,
 		Default: 1 * time.Second,
 	}
 	sourceFlag = &cmd.StringFlag{
 		Name:    "source",
-		ArgName: "SOURCE",
-		Usage: fmt.Sprintf(`New protectors will have type SOURCE. SOURCE
-			can be one of pam_passphrase, custom_passphrase, or
-			raw_key. If not specified, the user will be prompted for
-			the source, with a default pulled from %s.`,
-			actions.ConfigFileLocation),
+		ArgName: "source",
+		Usage: `New protectors will have type <source> (one of
+			pam_passphrase, custom_passphrase, or raw_key).`,
 	}
 	nameFlag = &cmd.StringFlag{
 		Name:    "name",
-		ArgName: "PROTECTOR_NAME",
-		Usage: `New custom_passphrase and raw_key protectors will be
-			named PROTECTOR_NAME. If not specified, the user will be
-			prompted for a name.`,
+		ArgName: "name",
+		Usage:   "Use <name> as the name for a new protector.",
 	}
 	keyFileFlag = &cmd.StringFlag{
 		Name:    "key",
-		ArgName: "FILE",
-		Usage: `Use the contents of FILE as the wrapping key when
-			creating or unlocking raw_key protectors. FILE should be
-			formatted as raw binary and should be exactly 32 bytes
-			long.`,
+		ArgName: "path",
+		Usage:   "Use the file at <path> as the protector key.",
 	}
 	userFlag = &cmd.StringFlag{
 		Name:    "user",
-		ArgName: "USERNAME",
-		Usage: `Specifiy which user should be used for login passphrases
+		ArgName: "username",
+		Usage: `Specify which user should be used for login passphrases
 			or to which user's keyring keys should be provisioned.`,
 	}
-	mountpointIDArg = "MOUNTPOINT:ID"
+	mountpointIDArg = usedMountpointArg.ArgName + ":id"
 	protectorFlag   = &cmd.StringFlag{
 		Name:    "protector",
 		ArgName: mountpointIDArg,
-		Usage: `Specify an existing protector on filesystem MOUNTPOINT
-			with protector descriptor ID which should be used in the
-			command.`,
+		Usage: fmt.Sprintf(`An existing protector on %s with hexadecimal
+			id <id>.`, usedMountpointArg),
 	}
 	unlockWithFlag = &cmd.StringFlag{
 		Name:    "unlock-with",
 		ArgName: mountpointIDArg,
-		Usage: `Specify an existing protector on filesystem MOUNTPOINT
-			with protector descriptor ID which should be used to
-			unlock a policy (usually specified with --policy). This
-			flag is only useful if a policy is protected with
-			multiple protectors. If not specified, the user will be
-			prompted for a protector.`,
+		Usage: fmt.Sprintf(`The protector that should be used to unlock
+			the policy specified with %s.`, policyFlag),
 	}
 	policyFlag = &cmd.StringFlag{
 		Name:    "policy",
 		ArgName: mountpointIDArg,
-		Usage: `Specify an existing policy on filesystem MOUNTPOINT with
-			key descriptor ID which should be used in the command.`,
+		Usage: fmt.Sprintf(`An existing policy on %s with hexadecimal id
+			<id>.`, usedMountpointArg),
 	}
 )
 
-// The first group is optional and corresponds to the mountpoint. The second
-// group is required and corresponds to the descriptor.
+// The first group corresponds to the mountpoint string. The second group
+// corresponds to the hexideciamal descriptor.
 var idFlagRegex = regexp.MustCompile("^([[:print:]]+):([[:alnum:]]+)$")
 
 func matchMetadataFlag(flagValue string) (mountpoint, descriptor string, err error) {
 	matches := idFlagRegex.FindStringSubmatch(flagValue)
 	if matches == nil {
-		return "", "", fmt.Errorf("flag value %q does not have format %s",
+		return "", "", fmt.Errorf("flag value %q does not have format %q",
 			flagValue, mountpointIDArg)
 	}
 	log.Printf("parsed flag: mountpoint=%q descriptor=%s", matches[1], matches[2])

@@ -38,7 +38,7 @@ import (
 // Creates a writer which correctly aligns tabs with the specified header.
 // Must call Flush() when done.
 func makeTableWriter(w io.Writer, header string) *tabwriter.Writer {
-	tableWriter := tabwriter.NewWriter(w, 0, indentLength, indentLength, ' ', 0)
+	tableWriter := tabwriter.NewWriter(cmd.Output, 0, cmd.TabWidth, cmd.TabWidth, ' ', 0)
 	fmt.Fprintln(tableWriter, header)
 	return tableWriter
 }
@@ -140,8 +140,10 @@ func writeFilesystemStatus(ctx *actions.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.Filesystem, ctx.Mount.Path,
-		pluralize(len(options), "protector"), pluralize(len(policyDescriptors), "policy"))
+	fmt.Fprintf(cmd.Output, "%s filesystem %q has %s and %s\n\n",
+		ctx.Mount.Filesystem, ctx.Mount.Path,
+		cmd.Pluralize(len(options), "protector"),
+		cmd.Pluralize(len(policyDescriptors), "policy"))
 
 	if len(options) > 0 {
 		writeOptions(options)
@@ -183,7 +185,7 @@ func writePathStatus(path string) error {
 	fmt.Fprintln(cmd.Output)
 
 	options := policy.ProtectorOptions()
-	fmt.Fprintf(cmd.Output, "Protected with %s:\n", pluralize(len(options), "protector"))
-	writeOptions(cmd.Output, options)
+	fmt.Fprintf(cmd.Output, "Protected with %s:\n", cmd.Pluralize(len(options), "protector"))
+	writeOptions(options)
 	return nil
 }

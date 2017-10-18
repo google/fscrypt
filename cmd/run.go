@@ -48,22 +48,46 @@ var TemplateTitle = "{{.FullName}}{{if .Command.Title}} - {{.Command.Title}}{{en
 var TemplateUsage = `{{with $lines := .Command.UsageLines}}
 Usage:
 {{- range $lines}}
-	{{$.FullName}} {{. -}}
+	{{printf "%s %s" $.FullName . | WrapText 8 2 -}}
 {{end}}
 {{end -}}
 
 {{with $commands := .Command.SubCommands}}
+{{with $n := $.Command.MaxNameLength -}}
+{{with $fmt := printf "%%-%ds - %%s" $n -}}
 Commands:
+{{if le (add 8 $n 3 $.Command.MaxTitleLength) LineLength -}}
+
+{{range $commands -}}
+
+{{end -}}
+
+{{else -}}
+
+{{range $commands}}
+{{end -}}
+
+{{end}}{{end}}{{end}}
+{{end -}}
+
+
 {{- range $commands}}
-	{{.Name}}{{if .Title}}	- {{.Title}}{{end -}}
-{{end}}
+	{{if not .Title -}}
+	{{.Name -}}
+	{{else if le (add 8 $n 3 (len .Title)) LineLength -}}
+	{{printf $fmt .Name .Title -}}
+	{{else -}}
+	{{.Name}}
+		{{WrapText 16 2 .Title -}}
+	{{end -}}
+{{end}}{{end}}{{end}}
 {{end -}}
 
 {{with $arguments := .FullArguments}}
 Arguments:
 {{- range $arguments}}
 	{{.}}
-		{{WrapText .Usage 2 -}}
+		{{WrapText 16 2 .Usage -}}
 {{end}}
 {{end -}}
 
@@ -71,7 +95,7 @@ Arguments:
 Options:
 {{- range $flags}}
 	{{.}}
-		{{WrapText .FullUsage 2 -}}
+		{{WrapText 16 2 .FullUsage -}}
 {{end}}
 {{end -}}
 

@@ -31,9 +31,11 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/cmd"
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/pam"
+	"github.com/google/fscrypt/util"
 )
 
 // The file descriptor for standard input
@@ -71,7 +73,7 @@ func (p passphraseReader) Read(buf []byte) (int, error) {
 		case '\r', '\n':
 			return position, io.EOF
 		case 3, 4:
-			return position, ErrCanceled
+			return position, cmd.ErrCanceled
 		case 8, 127:
 			if position > 0 {
 				position--
@@ -86,9 +88,7 @@ func (p passphraseReader) Read(buf []byte) (int, error) {
 // passphrase into a key. If we are not reading from a terminal, just read into
 // the passphrase into the key normally.
 func getPassphraseKey(prompt string) (*crypto.Key, error) {
-	if !quietFlag.Value {
-		fmt.Print(prompt)
-	}
+	fmt.Fprint(cmd.Output, prompt)
 
 	// Only disable echo if stdin is actually a terminal.
 	if terminal.IsTerminal(stdinFd) {
@@ -116,7 +116,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 				panic("this KeyFunc does not support retrying")
 			}
 			// Don't retry for non-interactive sessions
-			if quietFlag.Value {
+			if cmd.QuietFlag.Value {
 				return nil, ErrWrongKey
 			}
 			fmt.Println("Incorrect Passphrase")
@@ -124,8 +124,8 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 
 		switch info.Source() {
 		case metadata.SourceType_pam_passphrase:
-			prompt := fmt.Sprintf("Enter %slogin passphrase for %s: ",
-				prefix, formatUsername(info.UID()))
+			username := util.GetUser(int(info.UID())).Username
+			prompt := fmt.Sprintf("Enter %s%s: ", prefix, formatInfo(info))
 			key, err := getPassphraseKey(prompt)
 			if err != nil {
 				return nil, err
@@ -134,13 +134,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			// To confirm, check that the passphrase is the user's
 			// login passphrase.
 			if shouldConfirm {
-				username, err := usernameFromID(info.UID())
-				if err != nil {
-					key.Wipe()
-					return nil, err
-				}
-
-				err = pam.IsUserLoginToken(username, key, quietFlag.Value)
+				err = pam.IsUserLoginToken(username, key, cmd.QuietFlag.Value)
 				if err != nil {
 					key.Wipe()
 					return nil, err
@@ -149,8 +143,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			return key, nil
 
 		case metadata.SourceType_custom_passphrase:
-			prompt := fmt.Sprintf("Enter %scustom passphrase for protector %q: ",
-				prefix, info.Name())
+			prompt := fmt.Sprintf("Enter %s%s: ", prefix, formatInfo(info))
 			key, err := getPassphraseKey(prompt)
 			if err != nil {
 				return nil, err
@@ -158,7 +151,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 
 			// To confirm, make sure the user types the same
 			// passphrase in again.
-			if shouldConfirm && !quietFlag.Value {
+			if shouldConfirm && !cmd.QuietFlag.Value {
 				key2, err := getPassphraseKey("Confirm passphrase: ")
 				if err != nil {
 					key.Wipe()
@@ -178,7 +171,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			if prefix != "" {
 				return nil, ErrNotPassphrase
 			}
-			prompt := fmt.Sprintf("Enter key file for protector %q: ", info.Name())
+			prompt := fmt.Sprintf("Enter path to %s: ", formatInfo(info))
 			// Raw keys use a file containing the key data.
 			file, err := promptForKeyFile(prompt)
 			if err != nil {

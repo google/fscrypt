@@ -63,12 +63,12 @@ var baseFlags = []cmd.Flag{cmd.VerboseFlag, cmd.QuietFlag, cmd.HelpFlag}
 var fscryptCommand = cmd.Command{
 	Title: "manage linux filesystem encryption",
 	UsageLines: []string{
-		fmt.Sprintf("<command> [arguments] [command options] [%s | %s]",
+		fmt.Sprintf("<command> [arguments] [options] [%s|%s]",
 			cmd.VerboseFlag, cmd.QuietFlag),
 		cmd.VersionUsage,
 	},
 	SubCommands: []*cmd.Command{setupCommand, encryptCommand, unlockCommand,
-		purgeCommand, statusCommand, metadataCommand, cmd.VersionCommand}, Flags:   baseFlags,
+		purgeCommand, statusCommand, metadataCommand, cmd.VersionCommand}, Flags: baseFlags,
 	ManPage: &cmd.ManPage{Name: "fscrypt", Section: 8},
 }
 
@@ -108,7 +108,7 @@ var encryptCommand = &cmd.Command{
 	Arguments:    []*cmd.Argument{directoryToEncryptArg},
 	InheritFlags: true,
 	Flags: []cmd.Flag{sourceFlag, nameFlag, protectorFlag, policyFlag,
-		keyFileFlag, userFlag, skipUnlockFlag},
+		unlockWithFlag, keyFileFlag, userFlag, skipUnlockFlag},
 	ManPage: &cmd.ManPage{Name: "fscrypt-encrypt", Section: 8},
 	Action:  encryptAction,
 }
@@ -140,7 +140,7 @@ var unlockCommand = &cmd.Command{
 	UsageLines:   []string{"???"}, // TODO(joerichey)
 	Arguments:    []*cmd.Argument{encryptedPathArg},
 	InheritFlags: true,
-	Flags:        []cmd.Flag{protectorFlag, policyFlag, keyFileFlag, userFlag},
+	Flags:        []cmd.Flag{unlockWithFlag, keyFileFlag, userFlag},
 	ManPage:      &cmd.ManPage{Name: "fscrypt-unlock", Section: 8},
 	Action:       unlockAction,
 }
@@ -220,7 +220,7 @@ var statusCommand = &cmd.Command{
 	Name:       "status",
 	Title:      "get the status of the system or a path",
 	UsageLines: []string{"", usedMountpointArg.String(), encryptedPathArg.String()},
-	Arguments: []*cmd.Argument{usedMountpointArg, encryptedPathArg},
+	Arguments:  []*cmd.Argument{usedMountpointArg, encryptedPathArg},
 	Flags:      []cmd.Flag{cmd.VerboseFlag, cmd.HelpFlag},
 	ManPage:    &cmd.ManPage{Name: "fscrypt-status", Section: 8},
 	Action:     statusAction,
@@ -254,10 +254,10 @@ func statusAction(c *cmd.Context) error {
 var metadataCommand = &cmd.Command{
 	Name:  "metadata",
 	Title: "manipulate fscrypt metadata directly",
-	UsageLines: []string{fmt.Sprintf("<command> [command options] [%s] [%s]",
+	UsageLines: []string{fmt.Sprintf("<command> [options] [%s] [%s]",
 		protectorFlag, policyFlag)},
-	SubCommands: []*cmd.Command{createCommand}, // destroyCommand, changeCommand,
-	// addProtectorCommand, removeProtectorCommand, dumpCommand},
+	SubCommands: []*cmd.Command{createCommand, destroyCommand, changeCommand,
+		addProtectorCommand, removeProtectorCommand, dumpCommand},
 	InheritFlags: true,
 	Flags:        []cmd.Flag{protectorFlag, policyFlag},
 	ManPage:      &cmd.ManPage{Name: "fscrypt-metadata", Section: 8},
@@ -268,7 +268,7 @@ var createCommand = &cmd.Command{
 	Title: "manually create metadata on a filesystem",
 	UsageLines: []string{
 		fmt.Sprintf("protector %s", usedMountpointArg),
-		fmt.Sprintf("policy %s, %s", usedMountpointArg, protectorFlag),
+		fmt.Sprintf("policy    %s %s", usedMountpointArg, protectorFlag),
 	},
 	SubCommands: []*cmd.Command{createProtectorCommand, createPolicyCommand},
 	Arguments:   []*cmd.Argument{usedMountpointArg},
@@ -363,66 +363,73 @@ func createPolicyAction(c *cmd.Context) error {
 }
 
 var destroyCommand = &cmd.Command{
-	Name: "destroy",
+	Name:  "destroy",
 	Title: "directly delete an existing protector or policy",
 	UsageLines: []string{
 		fmt.Sprintf("%s [%s]", protectorFlag, cmd.ForceFlag),
 		fmt.Sprintf("%s [%s]", policyFlag, cmd.ForceFlag),
 		fmt.Sprintf("%s [%s]", usedMountpointArg, cmd.ForceFlag),
 	},
-	Arguments: []*cmd.Argument{usedMountpointArg},
+	Arguments:    []*cmd.Argument{usedMountpointArg},
 	InheritFlags: true,
-	Flags: []cmd.Flag{cmd.ForceFlag},
-	Action: destroyAction,
+	Flags:        []cmd.Flag{cmd.ForceFlag},
+	Action:       destroyAction,
 }
 
-func destoryAction(c *cmd.Context) error {
+func destroyAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 1, true); err != nil {
+		return err
+	}
+	hasProtector := protectorFlag.Value != ""
+	hasPolicy := policyFlag.Value != ""
+	hasMount := len(c.Args) == 1
+	if (hasProtector && hasPolicy) || (hasPolicy && hasMount) || (hasMount && hasProtector) {
+		return cmd.UsageError(fmt.Sprintf("Multiple of %s, %s, %s provided",
+			protectorFlag, policyFlag, usedMountpointArg))
+	}
+
 	switch {
-	case protectorFlag.Value != "":
-		if len(c.Args) != 0 {
-			break
-		}
+	case hasProtector:
 		// Case (1) - protector destroy
 		protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
 		if err != nil {
-			return newExitError(c, err)
+			return err
 		}
 
 		prompt := fmt.Sprintf("Destroy protector %s on %q?",
 			protector.Descriptor(), protector.Context.Mount.Path)
 		warning := "All files protected only with this protector will be lost!!"
-		if err := askConfirmation(prompt, false, warning); err != nil {
-			return newExitError(c, err)
+		if err = cmd.AskConfirmation(prompt, warning, false); err != nil {
+			return err
 		}
-		if err := protector.Destroy(); err != nil {
-			return newExitError(c, err)
+		if err = protector.Destroy(); err != nil {
+			return err
 		}
 
-		fmt.Fprintf(c.App.Writer, "Protector %s deleted from filesystem %q.\n",
+		fmt.Fprintf(cmd.Output, "Protector %s deleted from filesystem %q.\n",
 			protector.Descriptor(), protector.Context.Mount.Path)
-	case policyFlag.Value != "":
-		if len(c.Args) != 0 {
-			break
-		}
+		return nil
+	case hasPolicy:
 		// Case (2) - policy destroy
 		policy, err := getPolicyFromFlag(policyFlag.Value, nil)
 		if err != nil {
-			return newExitError(c, err)
+			return err
 		}
 
 		prompt := fmt.Sprintf("Destroy policy %s on %q?",
 			policy.Descriptor(), policy.Context.Mount.Path)
-		warning := "All files using this policy will be lost!!"
-		if err := askConfirmation(prompt, false, warning); err != nil {
-			return newExitError(c, err)
+		warning := "All files and directories using this policy will be lost!"
+		if err = cmd.AskConfirmation(prompt, warning, false); err != nil {
+			return err
 		}
-		if err := policy.Destroy(); err != nil {
-			return newExitError(c, err)
+		if err = policy.Destroy(); err != nil {
+			return err
 		}
 
-		fmt.Fprintf(c.App.Writer, "Policy %s deleted from filesystem %q.\n",
+		fmt.Fprintf(cmd.Output, "Policy %s deleted from filesystem %q.\n",
 			policy.Descriptor(), policy.Context.Mount.Path)
-	case len(c.Args) == 1:
+		return nil
+	case hasMount:
 		// Case (3) - mountpoint destroy
 		ctx, err := actions.NewContextFromMountpoint(c.Args[0], nil)
 		if err != nil {
@@ -440,8 +447,182 @@ func destoryAction(c *cmd.Context) error {
 
 		fmt.Fprintf(cmd.Output, "All metadata on %q deleted.\n", ctx.Mount.Path)
 		return nil
+	default:
+		return cmd.UsageError(fmt.Sprintf("None of %s, %s, %s provided",
+			protectorFlag, policyFlag, usedMountpointArg))
 	}
-	return cmd.UsageError(fmt.Sprintf("Must specify exactly one of: %s, %s, or %s",
-		usedMountpointArg, protectorFlag, policyFlag))
 }
 
+var changeCommand = &cmd.Command{
+	Name:         "change-passphrase",
+	Title:        "change the passphrase for a protector",
+	UsageLines:   []string{protectorFlag.String()},
+	InheritFlags: true,
+	Flags:        []cmd.Flag{protectorFlag},
+	Action:       changeAction,
+}
+
+func changeAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 0, false); err != nil {
+		return err
+	}
+	if err := cmd.CheckRequiredFlags([]*cmd.StringFlag{protectorFlag}); err != nil {
+		return err
+	}
+
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+	if err != nil {
+		return err
+	}
+	if err := protector.Unlock(oldExistingKeyFn); err != nil {
+		return err
+	}
+	defer protector.Lock()
+	if err := protector.Rewrap(newCreateKeyFn); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(cmd.Output, "Passphrase for protector %s successfully changed.\n",
+		protector.Descriptor())
+	return nil
+}
+
+var addProtectorCommand = &cmd.Command{
+	Name:  "add-protector-to-policy",
+	Title: "start protecting a policy with a protector",
+	UsageLines: []string{fmt.Sprintf("%s [%s] %s [%s]", protectorFlag,
+		keyFileFlag, policyFlag, unlockWithFlag)},
+	InheritFlags: true,
+	Flags:        []cmd.Flag{keyFileFlag, unlockWithFlag},
+	Action:       addProtectorAction,
+}
+
+func addProtectorAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 0, false); err != nil {
+		return err
+	}
+	err := cmd.CheckRequiredFlags([]*cmd.StringFlag{protectorFlag, policyFlag})
+	if err != nil {
+		return err
+	}
+
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+	if err != nil {
+		return err
+	}
+	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
+	if err != nil {
+		return err
+	}
+	// Sanity check before unlocking everything
+	if err := policy.AddProtector(protector); errors.Cause(err) != actions.ErrLocked {
+		return err
+	}
+
+	prompt := fmt.Sprintf("Protect policy %s with protector %s?",
+		policy.Descriptor(), protector.Descriptor())
+	warning := "All files using this policy will be accessible with this protector!"
+	if err := cmd.AskConfirmation(prompt, warning, true); err != nil {
+		return err
+	}
+
+	if err := protector.Unlock(existingKeyFn); err != nil {
+		return err
+	}
+	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
+		return err
+	}
+	if err := policy.AddProtector(protector); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(cmd.Output, "Protector %s now protecting policy %s.\n",
+		protector.Descriptor(), policy.Descriptor())
+	return nil
+}
+
+var removeProtectorCommand = &cmd.Command{
+	Name:  "remove-protector-from-policy",
+	Title: "stop protecting a policy with a protector",
+	UsageLines: []string{fmt.Sprintf("%s %s [%s]", protectorFlag,
+		policyFlag, cmd.ForceFlag)},
+	InheritFlags: true,
+	Flags:        []cmd.Flag{keyFileFlag, unlockWithFlag},
+	Action:       removeProtectorAction,
+}
+
+func removeProtectorAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 0, false); err != nil {
+		return err
+	}
+	err := cmd.CheckRequiredFlags([]*cmd.StringFlag{protectorFlag, policyFlag})
+	if err != nil {
+		return err
+	}
+
+	// We do not need to unlock anything for this operation
+	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+	if err != nil {
+		return err
+	}
+	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
+	if err != nil {
+		return err
+	}
+
+	prompt := fmt.Sprintf("Stop protecting policy %s with protector %s?",
+		policy.Descriptor(), protector.Descriptor())
+	warning := "All files using this policy will NOT BE ACCESSIBLE with this protector!"
+	if err := cmd.AskConfirmation(prompt, warning, false); err != nil {
+		return err
+	}
+	if err := policy.RemoveProtector(protector); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(cmd.Output, "Protector %s no longer protecting policy %s.\n",
+		protector.Descriptor(), policy.Descriptor())
+	return nil
+}
+
+var dumpCommand = &cmd.Command{
+	Name:       "dump",
+	Title:      "display debug info about protectors and policies",
+	UsageLines: []string{protectorFlag.String(), policyFlag.String()},
+	Flags:      []cmd.Flag{protectorFlag, policyFlag, cmd.VerboseFlag, cmd.HelpFlag},
+	Action:     dumpAction,
+}
+
+func dumpAction(c *cmd.Context) error {
+	if err := cmd.CheckExpectedArgs(c, 0, false); err != nil {
+		return err
+	}
+	hasProtector := protectorFlag.Value != ""
+	hasPolicy := policyFlag.Value != ""
+	if hasProtector && hasPolicy {
+		return cmd.UsageError(fmt.Sprintf("Multiple of %s, %s provided",
+			protectorFlag, policyFlag))
+	}
+
+	switch {
+	case hasProtector:
+		// Case (1) - protector dump
+		protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.Output, protector)
+		return nil
+	case hasPolicy:
+		// Case (2) - policy dump
+		policy, err := getPolicyFromFlag(policyFlag.Value, nil)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.Output, policy)
+		return nil
+	default:
+		return cmd.UsageError(fmt.Sprintf("None of %s, %s provided",
+			protectorFlag, policyFlag))
+	}
+}

@@ -26,6 +26,7 @@ import (
 	"strconv"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/cmd"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
 )
@@ -41,11 +42,11 @@ var sourceDescriptions = map[metadata.SourceType]string{
 func formatInfo(data actions.ProtectorInfo) string {
 	switch data.Source() {
 	case metadata.SourceType_pam_passphrase:
-		return "login protector for " + formatUsername(data.UID())
+		return "login passphrase for " + util.GetUser(int(data.UID())).Username
 	case metadata.SourceType_custom_passphrase:
-		return fmt.Sprintf("custom protector %q", data.Name())
+		return fmt.Sprintf("custom passphrase for protector %q", data.Name())
 	case metadata.SourceType_raw_key:
-		return fmt.Sprintf("raw key protector %q", data.Name())
+		return fmt.Sprintf("raw key for protector %q", data.Name())
 	default:
 		panic(ErrInvalidSource)
 	}
@@ -59,13 +60,13 @@ func promptForName(ctx *actions.Context) (string, error) {
 	}
 
 	// Don't ask for a name if we do not need it
-	if quietFlag.Value || ctx.Config.Source == metadata.SourceType_pam_passphrase {
+	if cmd.QuietFlag.Value || ctx.Config.Source == metadata.SourceType_pam_passphrase {
 		return "", nil
 	}
 
 	for {
-		fmt.Print("Enter a name for the new protector: ")
-		name, err := util.ReadLine()
+		fmt.Fprint(cmd.Output, "Enter a name for the new protector: ")
+		name, err := cmd.ReadLine()
 		if err != nil {
 			return "", err
 		}
@@ -88,23 +89,18 @@ func promptForSource(ctx *actions.Context) error {
 		return nil
 	}
 
-	// Just use the default in quiet mode
-	if quietFlag.Value {
-		return nil
-	}
-
 	// We print all the sources with their number, description, and name.
-	fmt.Println("Your data can be protected with one of the following sources:")
+	fmt.Fprintln(cmd.Output, "Your data can be protected with one of the following sources:")
 	for idx := 1; idx < len(metadata.SourceType_value); idx++ {
 		source := metadata.SourceType(idx)
 		description := sourceDescriptions[source]
-		fmt.Printf("%d - %s (%s)\n", idx, description, source)
+		fmt.Fprintf(cmd.Output, "%d - %s (%s)\n", idx, description, source)
 	}
 
 	for {
-		fmt.Printf("Enter the source number for the new protector [%d - %s]: ",
+		fmt.Fprintf(cmd.Output, "Enter the source number for the new protector [%d - %s]: ",
 			ctx.Config.Source, ctx.Config.Source)
-		input, err := util.ReadLine()
+		input, err := cmd.ReadLine()
 		if err != nil {
 			return err
 		}
@@ -114,7 +110,7 @@ func promptForSource(ctx *actions.Context) error {
 			return nil
 		}
 
-		// Check for a valid index, reprompt if invalid.
+		// Check for a valid index, prompt again if invalid.
 		index, err := strconv.Atoi(input)
 		if err == nil && index >= 1 && index < len(metadata.SourceType_value) {
 			ctx.Config.Source = metadata.SourceType(index)
@@ -130,14 +126,14 @@ func promptForKeyFile(prompt string) (*os.File, error) {
 	if keyFileFlag.Value != "" {
 		return os.Open(keyFileFlag.Value)
 	}
-	if quietFlag.Value {
+	if cmd.QuietFlag.Value {
 		return nil, ErrSpecifyKeyFile
 	}
 
 	// Prompt for a valid path until we get a file we can open.
 	for {
-		fmt.Print(prompt)
-		filename, err := util.ReadLine()
+		fmt.Fprint(cmd.Output, prompt)
+		filename, err := cmd.ReadLine()
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +141,7 @@ func promptForKeyFile(prompt string) (*os.File, error) {
 		if err == nil {
 			return file, nil
 		}
-		fmt.Println(err)
+		fmt.Fprintln(cmd.Output, err)
 	}
 
 }
@@ -155,7 +151,7 @@ func promptForKeyFile(prompt string) (*os.File, error) {
 // from, that protector is automatically selected.
 func promptForProtector(options []*actions.ProtectorOption) (int, error) {
 	numOptions := len(options)
-	log.Printf("selecting from %s", pluralize(numOptions, "protector"))
+	log.Printf("selecting from %s", cmd.Pluralize(numOptions, "protector"))
 
 	// Get the number of load errors.
 	numLoadErrors := 0
@@ -172,12 +168,12 @@ func promptForProtector(options []*actions.ProtectorOption) (int, error) {
 	if numOptions == 1 {
 		return 0, nil
 	}
-	if quietFlag.Value {
+	if cmd.QuietFlag.Value {
 		return 0, ErrSpecifyProtector
 	}
 
 	// List all of the protector options which did not have a load error.
-	fmt.Println("The available protectors are: ")
+	fmt.Fprintln(cmd.Output, "The available protectors are: ")
 	for idx, option := range options {
 		if option.LoadError != nil {
 			continue
@@ -187,16 +183,16 @@ func promptForProtector(options []*actions.ProtectorOption) (int, error) {
 		if option.LinkedMount != nil {
 			description += fmt.Sprintf(" (linked protector on %q)", option.LinkedMount.Path)
 		}
-		fmt.Println(description)
+		fmt.Fprintln(cmd.Output, description)
 	}
 
 	if numLoadErrors > 0 {
-		fmt.Print(wrapText("NOTE: %d of the %d protectors failed to load. "+loadHelpText, 0))
+		fmt.Fprintln(cmd.Output, "NOTE: %d of the %d protectors failed to load. "+loadHelpText)
 	}
 
 	for {
-		fmt.Print("Enter the number of protector to use: ")
-		input, err := util.ReadLine()
+		fmt.Fprint(cmd.Output, "Enter the number of protector to use: ")
+		input, err := cmd.ReadLine()
 		if err != nil {
 			return 0, err
 		}

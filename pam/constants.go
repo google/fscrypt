@@ -52,6 +52,9 @@ package pam
 */
 import "C"
 
+// MaxMessageSize is the longest allowed responce length.
+const MaxMessageSize = C.PAM_MAX_MSG_SIZE
+
 // Item is a an PAM information type.
 type Item int
 
@@ -90,7 +93,7 @@ const (
 	// EstablishCred indicates that credentials should be established
 	// for the user.
 	EstablishCred = C.PAM_ESTABLISH_CRED
-	// DeleteCred inidicates that credentials should be deleted.
+	// DeleteCred indicates that credentials should be deleted.
 	DeleteCred = C.PAM_DELETE_CRED
 	// ReinitializeCred indicates that credentials should be fully
 	// reinitialized.

@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -45,11 +46,9 @@ var (
 	// LineLength is the maximum length of any output. If not set, the width
 	// of the terminal be detected and assigned to LineLength.
 	LineLength int
-	// FallbackLineLength is the LineLength used if detection fails. By
-	// default we fall back to punch cards.
-	FallbackLineLength = 80
-	// MaxLineLength is the maximum allowed detected value of LineLength.
-	MaxLineLength = 120
+	// DefaultLineLength is the LineLength we use if we cannot detect the
+	// terminal width. By default we fall back to punch cards.
+	DefaultLineLength = 80
 	// Output is the io.Writer all commands should use for their normal
 	// output (errors should just return the appropriate error). If not set,
 	// it is automatically set based on the provided flags.
@@ -58,26 +57,34 @@ var (
 
 // We use the width of the terminal unless we cannot get the width.
 func init() {
-	if LineLength > 0 {
-		return
+	if LineLength == 0 {
+		var err error
+		LineLength, _, err = terminal.GetSize(int(os.Stdout.Fd()))
+		if err != nil {
+			LineLength = DefaultLineLength
+		}
 	}
-	width, _, err := terminal.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		LineLength = FallbackLineLength
-	} else {
-		LineLength = util.MinInt(width, MaxLineLength)
+}
+
+// MaxSubcommandLength returns the length of the longest subcommand (where the
+// length of the command is Name + Title). Return 0 if there aren't subcommands.
+func (c *Command) MaxNameLength() (max int) {
+	for _, s := range c.SubCommands {
+		max = util.MaxInt(max, len(s.Name))
 	}
+	return
 }
 
 // WrapText wraps an input string so that each line begins with numTabs tabs
 // (except the first line) and ends with a newline (except the last line), and
 // each line has length less than lineLength. If the text contains a word which
-// is too long, that word gets its own line.
-func WrapText(text string, numTabs int) string {
+// is too long, that word gets its own line. The first line's calculated length
+// is startSpaces less (to account for strange offsets on the first line).
+func WrapText(startSpaces, numTabs int, text string) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
 	spaceLeft := 0
-	maxTextLen := LineLength - numTabs*TabWidth
+	maxTextLen := LineLength - startSpaces
 	delimiter := strings.Repeat("\t", numTabs)
 	for i, word := range strings.Fields(text) {
 		wordLen := utf8.RuneCountInString(word)
@@ -119,14 +126,23 @@ func Pluralize(count int, word string) string {
 	return fmt.Sprintf("%d %ss", count, word)
 }
 
+// ReadLine returns a line of input from standard input. An empty string is
+// returned if the user didn't insert anything, we're in quiet mode or on error.
+// This function should be the only way user input is acquired from an
+// application (except for passwords).
+func ReadLine() (string, error) {
+	if QuietFlag.Value {
+		return "", nil
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	return scanner.Text(), scanner.Err()
+}
+
 // AskQuestion asks the user a yes or no question. Returning a boolean on a
 // successful answer and an error if there was not a response from the user.
 // Returns the defaultChoice on empty input (or in quiet mode).
 func AskQuestion(question string, defaultChoice bool) (bool, error) {
-	// If in quiet mode, we just use the default.
-	if QuietFlag.Value {
-		return defaultChoice, nil
-	}
 	// Loop until failure or valid input.
 	for {
 		if defaultChoice {
@@ -135,7 +151,7 @@ func AskQuestion(question string, defaultChoice bool) (bool, error) {
 			fmt.Fprintf(Output, "%s %s ", question, defaultNoSuffix)
 		}
 
-		input, err := util.ReadLine()
+		input, err := ReadLine()
 		if err != nil {
 			return false, err
 		}
@@ -159,16 +175,8 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 		return nil
 	}
 
-	// Defaults of "no" require forcing.
-	if QuietFlag.Value {
-		if defaultChoice {
-			return nil
-		}
-		return ErrMustForce
-	}
-
 	if warning != "" {
-		fmt.Fprintln(Output, WrapText("WARNING: "+warning, 0))
+		fmt.Fprintln(Output, "WARNING: "+warning)
 	}
 
 	confirmed, err := AskQuestion(question, defaultChoice)
@@ -176,6 +184,10 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 		return err
 	}
 	if !confirmed {
+		// To override a "false" default, use ForceFlag.
+		if QuietFlag.Value {
+			return ErrMustForce
+		}
 		return ErrCanceled
 	}
 	return nil
@@ -185,7 +197,14 @@ func AskConfirmation(question, warning string, defaultChoice bool) error {
 // the provided Context and writer. Panics if text cannot be executed.
 func ExecuteTemplate(w io.Writer, text string, ctx *Context) {
 	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
-		"WrapText": WrapText,
+		"WrapText":   WrapText,
+		"LineLength": func() int { return LineLength },
+		"add": func(nums ...int) (sum int) {
+			for _, num := range nums {
+				sum += num
+			}
+			return
+		},
 	}).Parse(text))
 	if err := tmpl.Execute(w, ctx); err != nil {
 		panic(err)

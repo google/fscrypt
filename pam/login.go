@@ -26,14 +26,15 @@ package pam
 import "C"
 
 import (
+	"bufio"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
-	"github.com/google/fscrypt/util"
 )
 
 // Pam error values
@@ -53,12 +54,19 @@ var (
 // nil indicates an error occurred.
 //export userInput
 func userInput(prompt *C.char) *C.char {
-	fmt.Print(C.GoString(prompt))
-	input, err := util.ReadLine()
-	if err != nil {
-		log.Printf("getting input for PAM: %s", err)
+	goPrompt := C.GoString(prompt)
+	log.Printf("getting secret data for PAM: %q", goPrompt)
+
+	fmt.Print(goPrompt)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	input := scanner.Text()
+
+	if scanner.Err() != nil || len(input) >= MaxMessageSize {
+		log.Print("bad user input for PAM")
 		return nil
 	}
+	// The returned string will be owned by the PAM subsystem.
 	return C.CString(input)
 }
 
@@ -68,15 +76,15 @@ func userInput(prompt *C.char) *C.char {
 //export passphraseInput
 func passphraseInput(prompt *C.char) *C.char {
 	log.Printf("getting secret data for PAM: %q", C.GoString(prompt))
+
 	if tokenToCheck == nil {
 		log.Print("secret data requested multiple times")
 		return nil
 	}
-
-	// Subsequent calls to passphrase input should fail
-	input := (*C.char)(tokenToCheck.UnsafeToCString())
 	tokenToCheck = nil
-	return input
+
+	// The returned string will be owned by the PAM subsystem.
+	return (*C.char)(tokenToCheck.UnsafeToCString())
 }
 
 // IsUserLoginToken returns nil if the presented token is the user's login key,

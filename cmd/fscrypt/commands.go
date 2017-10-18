@@ -408,79 +408,6 @@ func unlockPath(path string) error {
 // 	Action: destoryMetadataAction,
 // }
 
-// func destoryMetadataAction(c *cli.Context) error {
-// 	switch c.NArg() {
-// 	case 0:
-// 		switch {
-// 		case protectorFlag.Value != "":
-// 			// Case (1) - protector destroy
-// 			protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
-// 			if err != nil {
-// 				return newExitError(c, err)
-// 			}
-
-// 			prompt := fmt.Sprintf("Destroy protector %s on %q?",
-// 				protector.Descriptor(), protector.Context.Mount.Path)
-// 			warning := "All files protected only with this protector will be lost!!"
-// 			if err := askConfirmation(prompt, false, warning); err != nil {
-// 				return newExitError(c, err)
-// 			}
-// 			if err := protector.Destroy(); err != nil {
-// 				return newExitError(c, err)
-// 			}
-
-// 			fmt.Fprintf(c.App.Writer, "Protector %s deleted from filesystem %q.\n",
-// 				protector.Descriptor(), protector.Context.Mount.Path)
-// 		case policyFlag.Value != "":
-// 			// Case (2) - policy destroy
-// 			policy, err := getPolicyFromFlag(policyFlag.Value, nil)
-// 			if err != nil {
-// 				return newExitError(c, err)
-// 			}
-
-// 			prompt := fmt.Sprintf("Destroy policy %s on %q?",
-// 				policy.Descriptor(), policy.Context.Mount.Path)
-// 			warning := "All files using this policy will be lost!!"
-// 			if err := askConfirmation(prompt, false, warning); err != nil {
-// 				return newExitError(c, err)
-// 			}
-// 			if err := policy.Destroy(); err != nil {
-// 				return newExitError(c, err)
-// 			}
-
-// 			fmt.Fprintf(c.App.Writer, "Policy %s deleted from filesystem %q.\n",
-// 				policy.Descriptor(), policy.Context.Mount.Path)
-// 		default:
-// 			message := fmt.Sprintf("Must specify one of: %s, %s, or %s",
-// 				mountpointArg,
-// 				shortDisplay(protectorFlag),
-// 				shortDisplay(policyFlag))
-// 			return &usageError{c, message}
-// 		}
-// 	case 1:
-// 		// Case (3) - mountpoint destroy
-// 		path := c.Args().Get(0)
-// 		ctx, err := actions.NewContextFromMountpoint(path, nil)
-// 		if err != nil {
-// 			return newExitError(c, err)
-// 		}
-
-// 		prompt := fmt.Sprintf("Destroy all the metadata on %q?", ctx.Mount.Path)
-// 		warning := "All the encrypted files on this filesystem will be lost!!"
-// 		if err := askConfirmation(prompt, false, warning); err != nil {
-// 			return newExitError(c, err)
-// 		}
-// 		if err := ctx.Mount.RemoveAllMetadata(); err != nil {
-// 			return newExitError(c, err)
-// 		}
-
-// 		fmt.Fprintf(c.App.Writer, "All metadata on %q deleted.\n", ctx.Mount.Path)
-// 	default:
-// 		return expectedArgsErr(c, 1, true)
-// 	}
-// 	return nil
-// }
-
 // var changePassphrase = cli.Command{
 // 	Name:      "change-passphrase",
 // 	ArgsUsage: shortDisplay(protectorFlag),
@@ -490,31 +417,6 @@ func unlockPath(path string) error {
 // 		create or destroy any protectors.`,
 // 	Flags:  []cli.Flag{protectorFlag},
 // 	Action: changePassphraseAction,
-// }
-
-// func changePassphraseAction(c *cli.Context) error {
-// 	if c.NArg() != 0 {
-// 		return expectedArgsErr(c, 0, false)
-// 	}
-// 	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
-// 		return err
-// 	}
-
-// 	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
-// 	if err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	if err := protector.Unlock(oldExistingKeyFn); err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	defer protector.Lock()
-// 	if err := protector.Rewrap(newCreateKeyFn); err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	fmt.Fprintf(c.App.Writer, "Passphrase for protector %s successfully changed.\n",
-// 		protector.Descriptor())
-// 	return nil
 // }
 
 // var addProtectorToPolicy = cli.Command{
@@ -528,49 +430,6 @@ func unlockPath(path string) error {
 // 		protected with this protector.`,
 // 	Flags:  []cli.Flag{protectorFlag, policyFlag, unlockWithFlag, keyFileFlag},
 // 	Action: addProtectorAction,
-// }
-
-// func addProtectorAction(c *cli.Context) error {
-// 	if c.NArg() != 0 {
-// 		return expectedArgsErr(c, 0, false)
-// 	}
-// 	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag, policyFlag}); err != nil {
-// 		return err
-// 	}
-
-// 	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
-// 	if err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
-// 	if err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	// Sanity check before unlocking everything
-// 	if err := policy.AddProtector(protector); errors.Cause(err) != actions.ErrLocked {
-// 		return newExitError(c, err)
-// 	}
-
-// 	prompt := fmt.Sprintf("Protect policy %s with protector %s?",
-// 		policy.Descriptor(), protector.Descriptor())
-// 	warning := "All files using this policy will be accessible with this protector!!"
-// 	if err := askConfirmation(prompt, true, warning); err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	if err := protector.Unlock(existingKeyFn); err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	if err := policy.AddProtector(protector); err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	fmt.Fprintf(c.App.Writer, "Protector %s now protecting policy %s.\n",
-// 		protector.Descriptor(), policy.Descriptor())
-// 	return nil
 // }
 
 // var removeProtectorFromPolicy = cli.Command{
@@ -587,40 +446,6 @@ func unlockPath(path string) error {
 // 	Action: removeProtectorAction,
 // }
 
-// func removeProtectorAction(c *cli.Context) error {
-// 	if c.NArg() != 0 {
-// 		return expectedArgsErr(c, 0, false)
-// 	}
-// 	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag, policyFlag}); err != nil {
-// 		return err
-// 	}
-
-// 	// We do not need to unlock anything for this operation
-// 	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
-// 	if err != nil {
-// 		return newExitError(c, err)
-// 	}
-// 	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
-// 	if err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	prompt := fmt.Sprintf("Stop protecting policy %s with protector %s?",
-// 		policy.Descriptor(), protector.Descriptor())
-// 	warning := "All files using this policy will NO LONGER be accessible with this protector!!"
-// 	if err := askConfirmation(prompt, false, warning); err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	if err := policy.RemoveProtector(protector); err != nil {
-// 		return newExitError(c, err)
-// 	}
-
-// 	fmt.Fprintf(c.App.Writer, "Protector %s no longer protecting policy %s.\n",
-// 		protector.Descriptor(), policy.Descriptor())
-// 	return nil
-// }
-
 // var dumpMetadata = cli.Command{
 // 	Name:      "dump",
 // 	ArgsUsage: fmt.Sprintf("[%s | %s]", shortDisplay(protectorFlag), shortDisplay(policyFlag)),
@@ -634,29 +459,4 @@ func unlockPath(path string) error {
 // 		shortDisplay(policyFlag), actions.ConfigFileLocation),
 // 	Flags:  []cli.Flag{protectorFlag, policyFlag},
 // 	Action: dumpMetadataAction,
-// }
-
-// func dumpMetadataAction(c *cli.Context) error {
-// 	switch {
-// 	case protectorFlag.Value != "":
-// 		// Case (1) - protector print
-// 		protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
-// 		if err != nil {
-// 			return newExitError(c, err)
-// 		}
-// 		fmt.Fprintln(c.App.Writer, protector)
-// 	case policyFlag.Value != "":
-// 		// Case (2) - policy print
-// 		policy, err := getPolicyFromFlag(policyFlag.Value, nil)
-// 		if err != nil {
-// 			return newExitError(c, err)
-// 		}
-// 		fmt.Fprintln(c.App.Writer, policy)
-// 	default:
-// 		message := fmt.Sprintf("Must specify one of: %s or %s",
-// 			shortDisplay(protectorFlag),
-// 			shortDisplay(policyFlag))
-// 		return &usageError{c, message}
-// 	}
-// 	return nil
 // }

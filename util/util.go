@@ -24,9 +24,7 @@
 package util
 
 import (
-	"bufio"
 	"math"
-	"os"
 	"strconv"
 	"unsafe"
 )
@@ -97,14 +95,6 @@ func MinInt64(a, b int64) int64 {
 		return a
 	}
 	return b
-}
-
-// ReadLine returns a line of input from standard input. An empty string is
-// returned if the user didn't insert anything or on error.
-func ReadLine() (string, error) {
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	return scanner.Text(), scanner.Err()
 }
 
 // AtoiOrPanic converts a string to an int or it panics. Should only be used in
