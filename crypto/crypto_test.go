@@ -62,10 +62,10 @@ var (
 	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
 	fakeWrappingKey, _      = makeKey(17, metadata.InternalKeyLen)
 
-	testUser, _ = util.EffectiveUser()
+	testUser = util.CurrentUser()
 )
 
-// As the passpharase hashing function clears the passphrase, we need to make
+// As the passphrase hashing function clears the passphrase, we need to make
 // a new passphrase key for each test
 func fakePassphraseKey() (*Key, error) {
 	return NewFixedLengthKeyFromReader(bytes.NewReader(fakePassword), len(fakePassword))
@@ -613,7 +613,7 @@ func BenchmarkUnwrap(b *testing.B) {
 	}
 }
 
-func BenchmarkUnwrapNolock(b *testing.B) {
+func BenchmarkUnwrapNoLock(b *testing.B) {
 	b.StopTimer()
 
 	UseMlock = false

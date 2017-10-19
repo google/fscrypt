@@ -282,25 +282,27 @@ func getPolicyFromFlag(flagValue string, target *user.User) (*actions.Policy, er
 	return actions.GetPolicy(ctx, descriptor)
 }
 
-// parseUserFlag returns the user specified by userFlag or the current effective
-// user if the flag value is missing. If the effective user is root, however, a
-// user must specified in the flag. If checkKeyring is true, we also make sure
-// there are no problems accessing the user keyring.
+// parseUserFlag returns the user specified by userFlag or the current user if
+// the flag is not given. If the effective user is root, however, a user must be
+// specified in the flag. If checkKeyring is true, we also make sure there are
+// no problems accessing the user keyring.
 func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
 	if userFlag.Value != "" {
-		targetUser, err = user.Lookup(userFlag.Value)
+		if targetUser, err = user.Lookup(userFlag.Value); err != nil {
+			return nil, err
+		}
 	} else {
-		if util.IsUserRoot() {
+		targetID := util.CurrentUserID()
+		if targetID == 0 {
 			return nil, ErrSpecifyUser
 		}
-		targetUser, err = util.EffectiveUser()
-	}
-	if err != nil {
-		return nil, err
+		targetUser = util.GetUser(targetID)
 	}
 
 	if checkKeyring {
-		_, err = security.UserKeyringID(targetUser, true)
+		if _, err = security.UserKeyringID(targetUser, true); err != nil {
+			return nil, err
+		}
 	}
-	return targetUser, err
+	return targetUser, nil
 }

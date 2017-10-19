@@ -52,8 +52,9 @@ type Handle struct {
 func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
 	var err error
 	h := &Handle{
-		handle: (*C.pam_handle_t)(pamh),
-		status: C.PAM_SUCCESS,
+		handle:   (*C.pam_handle_t)(pamh),
+		status:   C.PAM_SUCCESS,
+		OrigUser: util.CurrentUser(),
 	}
 
 	var pamUsername *C.char
@@ -63,9 +64,6 @@ func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
 	}
 
 	if h.PamUser, err = user.Lookup(C.GoString(pamUsername)); err != nil {
-		return nil, err
-	}
-	if h.OrigUser, err = util.EffectiveUser(); err != nil {
 		return nil, err
 	}
 	return h, nil

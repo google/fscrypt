@@ -67,7 +67,7 @@ type Context struct {
 // NewContextFromPath makes a context for the filesystem containing the
 // specified path and whose Config is loaded from the global config file. On
 // success, the Context contains a valid Config and Mount. The target defaults
-// the the current effective user if none is specified.
+// the the current user if none is specified.
 func NewContextFromPath(path string, target *user.User) (*Context, error) {
 	ctx, err := newContextFromUser(target)
 	if err != nil {
@@ -85,7 +85,7 @@ func NewContextFromPath(path string, target *user.User) (*Context, error) {
 // NewContextFromMountpoint makes a context for the filesystem at the specified
 // mountpoint and whose Config is loaded from the global config file. On
 // success, the Context contains a valid Config and Mount. The target defaults
-// the the current effective user if none is specified.
+// the the current user if none is specified.
 func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, error) {
 	ctx, err := newContextFromUser(target)
 	if err != nil {
@@ -102,13 +102,11 @@ func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, e
 
 // newContextFromUser makes a context with the corresponding target user, and
 // whose Config is loaded from the global config file. If the target is nil, the
-// effecitive user is used.
+// current user is used.
 func newContextFromUser(target *user.User) (*Context, error) {
 	var err error
 	if target == nil {
-		if target, err = util.EffectiveUser(); err != nil {
-			return nil, err
-		}
+		target = util.CurrentUser()
 	}
 
 	ctx := &Context{TargetUser: target}

@@ -19,15 +19,15 @@
 
 // Package util contains useful components for simplifying Go code.
 //
-// The package contains common error types (errors.go) and functions for
-// converting arrays to pointers.
+// The package contains functions missing from the standard library, error
+// utility functions, functions for converting arrays to pointers, and functions
+// for dealing with users and uids.
 package util
 
 import (
 	"bufio"
 	"math"
 	"os"
-	"os/user"
 	"strconv"
 	"unsafe"
 )
@@ -118,12 +118,7 @@ func AtoiOrPanic(input string) int {
 	return i
 }
 
-// EffectiveUser returns the user entry corresponding to the effective user.
-func EffectiveUser() (*user.User, error) {
-	return user.LookupId(strconv.Itoa(os.Geteuid()))
-}
-
 // IsUserRoot checks if the effective user is root.
 func IsUserRoot() bool {
-	return os.Geteuid() == 0
+	return CurrentUserID() == 0
 }
