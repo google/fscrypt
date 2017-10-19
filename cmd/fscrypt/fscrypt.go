@@ -18,12 +18,6 @@
  * the License.
  */
 
-/*
-fscrypt is a command line tool for managing linux filesystem encryption.
-*/
-
-// +build linux,cgo
-
 package main
 
 import (

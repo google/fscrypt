@@ -143,7 +143,7 @@ format-check:
 # Run lint rules (skipping generated files)
 .PHONY: lint
 lint:
-	@go tool vet -buildtags=false .
+	@go tool vet .
 	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
 	@megacheck -unused.exported $(GO_PKGS)
 
