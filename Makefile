@@ -130,8 +130,8 @@ update:
 # Format all the Go and C code
 .PHONY: format format-check
 format:
-	goimports -l -w $(GO_FILES)
-	clang-format -i -style=Google $(C_FILES)
+	@goimports -l -w $(GO_FILES)
+	@clang-format -i -style=Google $(C_FILES)
 
 format-check:
 	@goimports -d $(GO_FILES) \
