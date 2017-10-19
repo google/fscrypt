@@ -129,10 +129,7 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 		fallthrough
 	case metadata.SourceType_custom_passphrase:
 		// Our passphrase sources need costs and a random salt.
-		if protector.data.Salt, err = crypto.NewRandomBuffer(metadata.SaltLen); err != nil {
-			return nil, err
-		}
-
+		protector.data.Salt = crypto.NewRandomSlice(metadata.SaltLen)
 		protector.data.Costs = ctx.Config.HashCosts
 	}
 

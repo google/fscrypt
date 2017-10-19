@@ -42,6 +42,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -135,11 +136,13 @@ func Wrap(wrappingKey, secretKey *Key) (*metadata.WrappedKeyData, error) {
 		return nil, err
 	}
 
-	data := &metadata.WrappedKeyData{EncryptedKey: make([]byte, secretKey.Len())}
+	data := &metadata.WrappedKeyData{
+		EncryptedKey: make([]byte, secretKey.Len()),
+		IV:           make([]byte, metadata.IVLen),
+	}
 
 	// Get random IV
-	var err error
-	if data.IV, err = NewRandomBuffer(metadata.IVLen); err != nil {
+	if _, err := rand.Read(data.IV); err != nil {
 		return nil, err
 	}
 
