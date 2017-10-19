@@ -28,6 +28,26 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	// ErrSkipIntegration indicates integration tests shouldn't be run.
+	ErrSkipIntegration = errors.New("skipping integration test")
+)
+
+// testEnvVarName is the name on an environment variable that should be set to
+// an empty mountpoint. This is only used for integration tests. If not set,
+// integration tests are skipped.
+var testEnvVarName = "TEST_FILESYSTEM_ROOT"
+
+// TestRoot returns a the root of a filesystem specified by testEnvVarName. This
+// function is only used for integration tests.
+func TestRoot() (string, error) {
+	path := os.Getenv(testEnvVarName)
+	if path == "" {
+		return "", ErrSkipIntegration
+	}
+	return path, nil
+}
+
 // ErrReader wraps an io.Reader, passing along calls to Read() until a read
 // fails. Then, the error is stored, and all subsequent calls to Read() do
 // nothing. This allows you to write code which has many subsequent reads and
@@ -113,23 +133,4 @@ func NeverError(err error) {
 	if err != nil {
 		log.Panicf("NeverError() check failed: %v", err)
 	}
-}
-
-var (
-	// testEnvVarName is the name on an environment variable that should be
-	// set to an empty mountpoint. This is only used for integration tests.
-	// If not set, integration tests are skipped.
-	testEnvVarName = "TEST_FILESYSTEM_ROOT"
-	// ErrSkipIntegration indicates integration tests shouldn't be run.
-	ErrSkipIntegration = errors.New("skipping integration test")
-)
-
-// TestRoot returns a the root of a filesystem specified by testEnvVarName. This
-// function is only used for integration tests.
-func TestRoot() (string, error) {
-	path := os.Getenv(testEnvVarName)
-	if path == "" {
-		return "", ErrSkipIntegration
-	}
-	return path, nil
 }
