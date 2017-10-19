@@ -31,8 +31,8 @@ import (
 
 // createGlobalConfig creates (or overwrites) the global config file
 func createGlobalConfig(w io.Writer, path string) error {
-	if !util.IsUserRoot() {
-		return ErrMustBeRoot
+	if err := util.CheckIfRoot(); err != nil {
+		return err
 	}
 
 	// Ask to create or replace the config file

@@ -29,6 +29,8 @@ import (
 )
 
 var (
+	// ErrNotRoot indicates the action is restricted to the superuser.
+	ErrNotRoot = errors.New("only root can perform this action")
 	// ErrSkipIntegration indicates integration tests shouldn't be run.
 	ErrSkipIntegration = errors.New("skipping integration test")
 )

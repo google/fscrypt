@@ -48,3 +48,11 @@ func GetUser(uid int) *user.User {
 func CurrentUser() *user.User {
 	return GetUser(CurrentUserID())
 }
+
+// CheckIfRoot returns ErrNotRoot if the current user is not the root user.
+func CheckIfRoot() error {
+	if id := CurrentUserID(); id != 0 {
+		return ErrNotRoot
+	}
+	return nil
+}

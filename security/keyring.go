@@ -114,7 +114,7 @@ func UserKeyringID(target *user.User, checkSession bool) (int, error) {
 		return 0, errors.Wrap(ErrAccessUserKeyring, err.Error())
 	}
 
-	if !util.IsUserRoot() {
+	if util.CurrentUserID() != 0 {
 		// Make sure the returned keyring will be accessible by checking
 		// that it is in the session keyring.
 		if checkSession && !isUserKeyringInSession(uid) {

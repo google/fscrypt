@@ -353,7 +353,7 @@ func purgeAction(c *cli.Context) error {
 	}
 
 	if dropCachesFlag.Value {
-		if !util.IsUserRoot() {
+		if util.CurrentUserID() != 0 {
 			return newExitError(c, ErrDropCachesPerm)
 		}
 	}

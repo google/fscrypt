@@ -117,8 +117,3 @@ func AtoiOrPanic(input string) int {
 	}
 	return i
 }
-
-// IsUserRoot checks if the effective user is root.
-func IsUserRoot() bool {
-	return CurrentUserID() == 0
-}
