@@ -57,7 +57,7 @@ import (
 // Crypto error values
 var (
 	ErrBadAuth        = errors.New("key authentication check failed")
-	ErrNegitiveLength = errors.New("keys cannot have negative lengths")
+	ErrNegativeLength = errors.New("keys cannot have negative lengths")
 	ErrRecoveryCode   = errors.New("invalid recovery code")
 	ErrGetrandomFail  = util.SystemError("getrandom() failed")
 	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")

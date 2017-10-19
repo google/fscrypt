@@ -1,3 +1,5 @@
+// +build linux
+
 /*
  * privileges.go - Functions for managing users and privileges.
  *

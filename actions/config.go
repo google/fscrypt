@@ -73,10 +73,11 @@ func CreateConfigFile(target time.Duration, useLegacy bool) error {
 	}
 	defer configFile.Close()
 
-	config := &metadata.Config{
-		Source:  metadata.DefaultSource,
-		Options: metadata.DefaultOptions,
-	}
+	// config := &metadata.Config{
+	// 	Source:  metadata.DefaultSource,
+	// 	Options: metadata.DefaultOptions,
+	// }
+	config := &metadata.Config{Options: &metadata.EncryptionOptions{}}
 	if useLegacy {
 		config.Compatibility = LegacyConfig
 		log.Printf("Using %q compatibility option\n", LegacyConfig)

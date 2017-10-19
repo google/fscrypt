@@ -63,7 +63,7 @@ var baseFlags = []cmd.Flag{cmd.VerboseFlag, cmd.QuietFlag, cmd.HelpFlag}
 var fscryptCommand = cmd.Command{
 	Title: "manage linux filesystem encryption",
 	UsageLines: []string{
-		fmt.Sprintf("<command> [arguments] [options] [%s|%s]",
+		fmt.Sprintf("<command> [arguments] [options] [%s | %s]",
 			cmd.VerboseFlag, cmd.QuietFlag),
 		cmd.VersionUsage,
 	},
@@ -77,7 +77,7 @@ var setupCommand = &cmd.Command{
 	Name:  "setup",
 	Title: "setup a system/filesystem to use fscrypt",
 	UsageLines: []string{
-		fmt.Sprintf("[options]"),
+		fmt.Sprintf("[%s] [%]"),
 		fmt.Sprintf("%s [%s]", unusedMountpointArg, cmd.ForceFlag),
 	},
 	Arguments:    []*cmd.Argument{unusedMountpointArg},

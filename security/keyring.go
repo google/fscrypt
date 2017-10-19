@@ -1,3 +1,5 @@
+// +build linux
+
 /*
  * privileges.go - Handles inserting/removing into user keyrings.
  *

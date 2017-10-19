@@ -24,8 +24,6 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-
-	"github.com/google/fscrypt/util"
 )
 
 // Common errors used across tools
@@ -33,7 +31,6 @@ var (
 	ErrUnknownVersion = errors.New("unknown version (missing version tag)")
 	ErrCanceled       = errors.New("operation canceled by user")
 	ErrMustForce      = errors.New("operation must be forced")
-	ErrNotRoot        = errors.New("operation must be run as root")
 )
 
 // Error return codes
@@ -71,14 +68,6 @@ func CheckExpectedArgs(ctx *Context, expectedArgs int, atMost bool) error {
 		Pluralize(expectedArgs, "argument"),
 		Pluralize(nArgs, "argument"))
 	return UsageError(message)
-}
-
-// CheckIfRoot returns an error if the current user is not the root user.
-func CheckIfRoot() error {
-	if id := util.CurrentUserID(); id != 0 {
-		return errors.Wrapf(ErrNotRoot, "user %s", util.GetUser(id).Username)
-	}
-	return nil
 }
 
 // CheckRequiredFlags returns a UsageError if all of the required flags are not
