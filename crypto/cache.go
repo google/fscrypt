@@ -17,7 +17,7 @@
  * the License.
  */
 
-package security
+package crypto
 
 import (
 	"log"

@@ -41,7 +41,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -267,7 +266,7 @@ func InsertPolicyKey(key *Key, description string, target *user.User) error {
 	fscryptKey.Size = metadata.PolicyKeyLen
 	copy(fscryptKey.Raw[:], key.data)
 
-	return security.InsertKey(payload.data, description, target)
+	return InsertKey(payload.data, description, target)
 }
 
 var (
