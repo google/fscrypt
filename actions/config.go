@@ -48,6 +48,10 @@ const (
 	configPermissions = 0644
 	// Config file should be created for writing and not already exist
 	createFlags = os.O_CREATE | os.O_WRONLY | os.O_EXCL
+	// 128 MiB is a large enough amount of memory to make the password hash
+	// very difficult to brute force on specialized hardware, but small
+	// enough to work on most GNU/Linux systems.
+	maxMemoryBytes = 128 * 1024 * 1024
 )
 
 var (
@@ -163,15 +167,15 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 	}
 
 	// Now we start doubling the costs until we reach the target.
-	maxMemory := ramLimit()
+	memoryKiBLimit := memoryBytesLimit() / 1024
 	for {
 		// Store a copy of the previous costs
 		costsPrev := *costs
 		tPrev := t
 
 		// Double the memory up to the max, then the double the time.
-		if costs.Memory < maxMemory {
-			costs.Memory = util.MinInt64(2*costs.Memory, maxMemory)
+		if costs.Memory < memoryKiBLimit {
+			costs.Memory = util.MinInt64(2*costs.Memory, memoryKiBLimit)
 		} else {
 			costs.Time *= 2
 		}
@@ -196,15 +200,17 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 	}
 }
 
-// ramLimit returns the maximum amount of RAM (in kB) we will use for passphrase
-// hashing. Right now it is simply half of the total RAM on the system.
-func ramLimit() int64 {
+// memoryBytesLimit returns the maximum amount of memory we will use for
+// passphrase hashing. This will never be more than a reasonable maximum (for
+// compatibility) or half the available system RAM.
+func memoryBytesLimit() int64 {
+	// The sysinfo syscall only fails if given a bad address
 	var info unix.Sysinfo_t
 	err := unix.Sysinfo(&info)
-	// The sysinfo syscall only fails if given a bad address
 	util.NeverError(err)
-	// Use half the RAM and convert to kiB.
-	return int64(info.Totalram / 1024 / 2)
+
+	totalRAMBytes := int64(info.Totalram)
+	return util.MinInt64(totalRAMBytes/2, maxMemoryBytes)
 }
 
 // betweenCosts returns a cost between a and b. Specifically, it returns the
