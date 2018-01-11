@@ -210,7 +210,7 @@ func memoryBytesLimit() int64 {
 	util.NeverError(err)
 
 	totalRAMBytes := int64(info.Totalram)
-	return util.MinInt64(totalRAMBytes / 2, maxMemoryBytes)
+	return util.MinInt64(totalRAMBytes/2, maxMemoryBytes)
 }
 
 // betweenCosts returns a cost between a and b. Specifically, it returns the
