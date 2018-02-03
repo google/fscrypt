@@ -130,8 +130,8 @@ update:
 # Format all the Go and C code
 .PHONY: format format-check
 format:
-	goimports -l -w $(GO_FILES)
-	clang-format -i -style=Google $(C_FILES)
+	@goreturns -l -w $(GO_FILES)
+	@clang-format -i -style=Google $(C_FILES)
 
 format-check:
 	@goimports -d $(GO_FILES) \
@@ -170,7 +170,7 @@ go-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/golang/lint/golint
 	go get -u github.com/kardianos/govendor
-	go get -u golang.org/x/tools/cmd/goimports
+	go get -u sourcegraph.com/sqs/goreturns
 	go get -u honnef.co/go/tools/cmd/megacheck
 
 ##### Setup/Teardown for integration tests (need root permissions) #####
