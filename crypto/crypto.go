@@ -31,13 +31,6 @@
 //		- descriptor computation (double SHA512)
 package crypto
 
-/*
-#cgo LDFLAGS: -largon2
-#include <stdlib.h> // malloc(), free()
-#include <argon2.h>
-*/
-import "C"
-
 import (
 	"crypto/aes"
 	"crypto/cipher"
@@ -45,9 +38,9 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
-	"unsafe"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/hkdf"
 
 	"github.com/google/fscrypt/metadata"
@@ -182,42 +175,6 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 	return secretKey, nil
 }
 
-// newArgon2Context creates an argon2_context C struct given the hash and
-// passphrase keys, salt and costs. The structure must be freed by the caller.
-func newArgon2Context(hash, passphrase *Key,
-	salt []byte, costs *metadata.HashingCosts) *C.argon2_context {
-
-	ctx := (*C.argon2_context)(C.malloc(C.sizeof_argon2_context))
-
-	ctx.out = (*C.uint8_t)(util.Ptr(hash.data))
-	ctx.outlen = C.uint32_t(hash.Len())
-
-	ctx.pwd = (*C.uint8_t)(util.Ptr(passphrase.data))
-	ctx.pwdlen = C.uint32_t(passphrase.Len())
-
-	ctx.salt = (*C.uint8_t)(util.Ptr(salt))
-	ctx.saltlen = C.uint32_t(len(salt))
-
-	ctx.secret = nil // We don't use the secret field.
-	ctx.secretlen = 0
-	ctx.ad = nil // We don't use the associated data field.
-	ctx.adlen = 0
-
-	ctx.t_cost = C.uint32_t(costs.Time)
-	ctx.m_cost = C.uint32_t(costs.Memory)
-	ctx.lanes = C.uint32_t(costs.Parallelism)
-
-	ctx.threads = ctx.lanes
-	ctx.version = C.ARGON2_VERSION_13
-
-	// We use the built in malloc/free for memory.
-	ctx.allocate_cbk = nil
-	ctx.free_cbk = nil
-	ctx.flags = C.ARGON2_FLAG_CLEAR_PASSWORD
-
-	return ctx
-}
-
 // ComputeDescriptor computes the descriptor for a given cryptographic key. In
 // keeping with the process used in e4crypt, this uses the initial bytes
 // (formatted as hexadecimal) of the double application of SHA512 on the key.
@@ -228,43 +185,20 @@ func ComputeDescriptor(key *Key) string {
 	return hex.EncodeToString(h2[:length])
 }
 
-/*
-PassphraseHash uses Argon2id to produce a Key given the passphrase, salt, and
-hashing costs. This method is designed to take a long time and consume
-considerable memory. On success, passphrase will no longer have valid data.
-However, the caller should still call passphrase.Wipe().
-
-Argon2 is the winning algorithm of the Password Hashing Competition
-(see: https://password-hashing.net). It is designed to be "memory hard"
-in that a large amount of memory is required to compute the hash value.
-This makes it hard to use specialized hardware like GPUs and ASICs. We
-use it in "id" mode to provide extra protection against side-channel
-attacks. For more info see: https://github.com/P-H-C/phc-winner-argon2
-*/
+// PassphraseHash uses Argon2id to produce a Key given the passphrase, salt, and
+// hashing costs. This method is designed to take a long time and consume
+// considerable memory. For more information, see the documentation at
+// https://godoc.org/golang.org/x/crypto/argon2.
 func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) (*Key, error) {
-	if err := util.CheckValidLength(metadata.SaltLen, len(salt)); err != nil {
-		return nil, errors.Wrap(err, "passphrase hashing salt")
-	}
-	if err := costs.CheckValidity(); err != nil {
-		return nil, errors.Wrap(err, "passphrase hashing costs")
-	}
+	t := uint32(costs.Time)
+	m := uint32(costs.Memory)
+	p := uint8(costs.Parallelism)
+	key := argon2.IDKey(passphrase.data, salt, t, m, p, metadata.InternalKeyLen)
 
-	// This key will hold the hashing output
 	hash, err := newBlankKey(metadata.InternalKeyLen)
 	if err != nil {
 		return nil, err
 	}
-
-	ctx := newArgon2Context(hash, passphrase, salt, costs)
-	defer C.free(unsafe.Pointer(ctx))
-
-	// Run the hashing function (translating the error if there is one)
-	returnCode := C.argon2id_ctx(ctx)
-	if returnCode != C.ARGON2_OK {
-		hash.Wipe()
-		errorString := C.GoString(C.argon2_error_message(returnCode))
-		return nil, util.SystemError("argon2: " + errorString)
-	}
-
+	copy(hash.data, key)
 	return hash, nil
 }
