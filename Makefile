@@ -119,14 +119,6 @@ test:
 gen:
 	protoc --go_out=. $(PROTO_FILES)
 
-# Update the vendored dependencies.
-.PHONY: update
-update:
-	govendor init
-	govendor fetch +missing
-	govendor add +external
-	govendor remove +unused
-
 # Format all the Go and C code
 .PHONY: format format-check
 format:
@@ -169,7 +161,6 @@ uninstall:
 go-tools:
 	go get -u github.com/golang/protobuf/protoc-gen-go
 	go get -u github.com/golang/lint/golint
-	go get -u github.com/kardianos/govendor
 	go get -u sourcegraph.com/sqs/goreturns
 	go get -u honnef.co/go/tools/cmd/megacheck
 
@@ -190,9 +181,10 @@ test-teardown:
 ##### Travis CI Commands
 .PHONY: travis-setup travis-script
 travis-install: go-tools test-setup
+	curl -L -s https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 -o $(GOPATH)/bin/dep
+	chmod +x $(GOPATH)/bin/dep
 	go get -u github.com/mattn/goveralls
 
 travis-script: lint format-check test default
 	goveralls -service=travis-ci
-	@govendor list +missing +external +unused \
-	| ./input_fail.py "Incorrect vendored dependencies. Run \"make update\"."
+	dep status
