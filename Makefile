@@ -126,7 +126,7 @@ format:
 	@clang-format -i -style=Google $(C_FILES)
 
 format-check:
-	@goimports -d $(GO_FILES) \
+	@goreturns -d $(GO_FILES) \
 	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
 	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
 	| grep "<replacement " \
@@ -135,7 +135,7 @@ format-check:
 # Run lint rules (skipping generated files)
 .PHONY: lint
 lint:
-	@go tool vet -buildtags=false .
+	@go tool vet -buildtags=false $(SRC_FILES)
 	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
 	@megacheck -unused.exported $(GO_PKGS)
 
@@ -185,6 +185,6 @@ travis-install: go-tools test-setup
 	chmod +x $(GOPATH)/bin/dep
 	go get -u github.com/mattn/goveralls
 
-travis-script: lint format-check test default
+travis-script: lint format-check default
 	goveralls -service=travis-ci
 	dep status

@@ -21,12 +21,15 @@
   revision = "ac249472b7de27a9e8990819566d9be95ab5b816"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = [
+    "argon2",
+    "blake2b",
     "hkdf",
     "ssh/terminal"
   ]
-  revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
+  revision = "5119cf507ed5294cc409c092980c7497ee5d6fd2"
 
 [[projects]]
   name = "golang.org/x/sys"
@@ -39,6 +42,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "03ddbed64c3ae0f05a2d4e1db58c004d6a256e6c6a03b5a6f1675618d0b2cba7"
+  inputs-digest = "92e1ef38016af4664e4e89ff488f29b03c1d323569312f1dcccfa481d74dbec1"
   solver-name = "gps-cdcl"
   solver-version = 1
