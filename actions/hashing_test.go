@@ -43,10 +43,10 @@ func TestCostsSearch(t *testing.T) {
 			t.Error(err)
 		}
 
-		if actual*2 < target {
+		if actual*3 < target {
 			t.Errorf("actual=%v is too small (target=%v)", actual, target)
 		}
-		if target*2 < actual {
+		if target*3 < actual {
 			t.Errorf("actual=%v is too big (target=%v)", actual, target)
 		}
 	}

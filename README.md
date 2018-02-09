@@ -109,16 +109,6 @@ fscrypt has the following build dependencies:
 *   [Go](https://golang.org/doc/install)
 *   A C compiler (`gcc` or `clang`)
 *   `make`
-*   The [Argon2 Passphrase Hash](https://github.com/P-H-C/phc-winner-argon2)
-    library, which can be
-    [directly installed on Artful Ubuntu](https://packages.ubuntu.com/artful/libargon2-0-dev),
-    or installed from source by running:
-    ```bash
-    >>>>> git clone https://github.com/P-H-C/phc-winner-argon2 argon2
-    >>>>> cd argon2
-    >>>>> make
-    >>>>> sudo make install
-    ```
 *   Headers for `libpam`. Install them with the appropriate package manager.
     - `sudo apt-get install libpam0g-dev`
     - `sudo yum install pam-devel`
@@ -144,13 +134,10 @@ go get github.com/google/fscrypt/cmd/fscrypt
 
 ### Runtime Dependencies
 
-fscrypt has the following runtime dependencies:
+fscrypt has very few runtime dependencies:
 *   Kernel support for filesystem encryption (this will depend on your kernel
     configuration and specific filesystem)
-*   `libargon2.so` (see the above installation instructions for Argon2)
 *   `libpam.so` (almost certainly already on your system)
-
-The dynamic libraries are not needed if you built a static executable.
 
 ### Setting up the PAM module
 

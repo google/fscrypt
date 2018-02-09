@@ -533,65 +533,6 @@ func TestPassphraseHashing(t *testing.T) {
 	}
 }
 
-func TestBadTime(t *testing.T) {
-	pk, err := fakePassphraseKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pk.Wipe()
-
-	costs := *hashTestCases[0].costs
-	costs.Time = 0
-	_, err = PassphraseHash(pk, fakeSalt, &costs)
-	if err == nil {
-		t.Errorf("time cost of %d should be invalid", costs.Time)
-	}
-}
-
-func TestBadMemory(t *testing.T) {
-	pk, err := fakePassphraseKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pk.Wipe()
-
-	costs := *hashTestCases[0].costs
-	costs.Memory = 7
-	_, err = PassphraseHash(pk, fakeSalt, &costs)
-	if err == nil {
-		t.Errorf("memory cost of %d should be invalid", costs.Memory)
-	}
-}
-
-func TestBadParallelism(t *testing.T) {
-	pk, err := fakePassphraseKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pk.Wipe()
-
-	costs := *hashTestCases[0].costs
-	costs.Parallelism = 1 << 24
-	costs.Memory = 1 << 27 // Running n threads requires at least 8*n memory
-	_, err = PassphraseHash(pk, fakeSalt, &costs)
-	if err == nil {
-		t.Errorf("parallelism cost of %d should be invalid", costs.Parallelism)
-	}
-}
-
-func TestBadSalt(t *testing.T) {
-	pk, err := fakePassphraseKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pk.Wipe()
-
-	_, err = PassphraseHash(pk, []byte{1, 2, 3, 4}, hashTestCases[0].costs)
-	if err == nil {
-		t.Error("too short of salt should be invalid")
-	}
-}
-
 func BenchmarkWrap(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		Wrap(fakeWrappingKey, fakeValidPolicyKey)
