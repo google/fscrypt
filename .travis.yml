@@ -72,6 +72,6 @@ jobs:
             - bin/pam_fscrypt.so
           skip_cleanup: true
           on:
-            repo: google/master
+            repo: google/fscrypt
             branch: master
             tags: true
