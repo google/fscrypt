@@ -58,7 +58,7 @@ func NewHandle(pamh unsafe.Pointer) (*Handle, error) {
 
 	var pamUsername *C.char
 	h.status = C.pam_get_user(h.handle, &pamUsername, nil)
-	if err := h.err(); err != nil {
+	if err = h.err(); err != nil {
 		return nil, err
 	}
 

@@ -123,7 +123,7 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 		// UID for this kind of source.
 		protector.data.Uid = int64(util.AtoiOrPanic(ctx.TargetUser.Uid))
 		// Make sure we aren't duplicating protectors
-		if err := checkIfUserHasLoginProtector(ctx, protector.data.Uid); err != nil {
+		if err = checkIfUserHasLoginProtector(ctx, protector.data.Uid); err != nil {
 			return nil, err
 		}
 		fallthrough
@@ -142,7 +142,7 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 	}
 	protector.data.ProtectorDescriptor = crypto.ComputeDescriptor(protector.key)
 
-	if err := protector.Rewrap(keyFn); err != nil {
+	if err = protector.Rewrap(keyFn); err != nil {
 		protector.Lock()
 		return nil, err
 	}

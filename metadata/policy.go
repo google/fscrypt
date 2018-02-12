@@ -86,7 +86,7 @@ func GetPolicy(path string) (*PolicyData, error) {
 	defer file.Close()
 
 	var policy unix.FscryptPolicy
-	if err := policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY, &policy); err != nil {
+	if err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY, &policy); err != nil {
 		return nil, errors.Wrapf(err, "get encryption policy %s", path)
 	}
 
@@ -119,7 +119,7 @@ func SetPolicy(path string, data *PolicyData) error {
 	}
 	defer file.Close()
 
-	if err := data.CheckValidity(); err != nil {
+	if err = data.CheckValidity(); err != nil {
 		return errors.Wrap(err, "invalid policy")
 	}
 

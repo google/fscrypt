@@ -199,7 +199,7 @@ func AdjustCount(handle *pam.Handle, delta int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX); err != nil {
+	if err = unix.Flock(int(file.Fd()), unix.LOCK_EX); err != nil {
 		return 0, err
 	}
 	defer file.Close()
