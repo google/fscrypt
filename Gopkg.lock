@@ -2,14 +2,37 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/golang/lint"
+  packages = [
+    ".",
+    "golint"
+  ]
+  revision = "e14d9b0f1d332b1420c1ffa32562ad2dc84d645d"
+
+[[projects]]
   name = "github.com/golang/protobuf"
   packages = [
     "jsonpb",
     "proto",
+    "protoc-gen-go",
+    "protoc-gen-go/descriptor",
+    "protoc-gen-go/generator",
+    "protoc-gen-go/grpc",
+    "protoc-gen-go/plugin",
     "ptypes/struct"
   ]
   revision = "925541529c1fa6821df4e44ce2723319eb2be768"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/kisielk/gotool"
+  packages = [
+    ".",
+    "internal/load"
+  ]
+  revision = "d6ce6262d87e3a4e153e86023ff56ae771554a41"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -22,6 +45,12 @@
   packages = ["."]
   revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
   version = "v1.20.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/wadey/gocovmerge"
+  packages = ["."]
+  revision = "b5bfa59ec0adc420475f97f89b58045c721d761c"
 
 [[projects]]
   branch = "master"
@@ -43,9 +72,47 @@
   ]
   revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
 
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = [
+    "cmd/goimports",
+    "cover",
+    "go/ast/astutil",
+    "go/buildutil",
+    "go/gcexportdata",
+    "go/gcimporter15",
+    "go/loader",
+    "go/types/typeutil",
+    "imports"
+  ]
+  revision = "95b47aa5df4eda9bfbc0133f77c0e320f0275eba"
+
+[[projects]]
+  name = "honnef.co/go/tools"
+  packages = [
+    "callgraph",
+    "callgraph/static",
+    "cmd/megacheck",
+    "deprecated",
+    "functions",
+    "internal/sharedcheck",
+    "lint",
+    "lint/lintutil",
+    "simple",
+    "ssa",
+    "ssa/ssautil",
+    "staticcheck",
+    "staticcheck/vrp",
+    "unused",
+    "version"
+  ]
+  revision = "d73ab98e7c39fdcf9ba65062e43d34310f198353"
+  version = "2017.2.2"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bc88b18a26bdcbfb3778570bf06f7d44787a463c6a64c5cded849c5ed941fb52"
+  inputs-digest = "65c9e40abcc4d3679513c43ba962f87115e94ced6497ac13e9ef5685815c7da8"
   solver-name = "gps-cdcl"
   solver-version = 1
