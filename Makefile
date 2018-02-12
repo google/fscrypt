@@ -16,175 +16,190 @@
 # the License.
 
 # Update on each new release!!
-RELEASE_VERSION = 0.2.0
+VERSION := 0.2.2
+NAME := fscrypt
+PAM_NAME := pam_$(NAME)
 
-NAME = fscrypt
-PAM_NAME = pam_$(NAME)
-PAM_MODULE = $(PAM_NAME).so
-
-INSTALL ?= install
-DESTDIR ?= /usr/local/bin
-PAM_MODULE_DIR ?= /lib/security
-PAM_CONFIG_DIR ?= /usr/share/pam-configs
-
-CMD_PKG = github.com/google/$(NAME)/cmd/$(NAME)
-PAM_PKG = github.com/google/$(NAME)/$(PAM_NAME)
-
-SRC_FILES = $(shell find . -type f -name '*.go' -o -name "*.h" -o -name "*.c")
-GO_FILES = $(shell find . -type f -name '*.go' -not -path "./vendor/*")
-PROTO_FILES = $(shell find . -type f -name '*.proto' -not -path "./vendor/*")
-C_FILES = $(shell find . -type f -name "*.h" -o -name "*.c" -not -path "./vendor/*")
-GO_PKGS = $(shell go list ./... | grep -v /vendor/)
-
-# IMAGE will be the path to our test ext4 image file.
-IMAGE ?= $(NAME)_image
-
-# MOUNT will be the path to the filesystem where our tests are run.
+###### Makefile Command Line Flags ######
 #
-# Running "make test-setup MOUNT=/foo/bar" creates a test filesystem at that
-#	location. Be sure to also run "make test-teardown MOUNT=/foo/bar".
-# Running "make all MOUNT=/foo/bar" (or "make go") will run all tests on that
-# 	filesystem. By default, it is the one created with "make test-setup".
-MOUNT ?= /mnt/$(NAME)_mount
-# Only run the integration tests if our root exists.
+# BIN: The locaton where binaries will be built.    Default: ./bin
+# INSTALL: The tool used to install binaries.       Default: sudo install
+# DESTDIR: The location for the fscrypt binary.     Default: /usr/local/bin
+# PAM_MODULE_DIR: The location for pam_fscrypt.so.  Default: /lib/security
+#
+# MOUNT: The filesystem where our tests are run.    Default: /mnt/fscrypt_mount
+#   Ex: make test-setup MOUNT=/foo/bar
+#     Creates a test filesystem at that location.
+#   Ex: make test-teardown MOUNT=/foo/bar
+#     Cleans up a test filesystem created with "make test-setup".
+#   Ex: make test MOUNT=/foo/bar
+#     Run all integration tests on that filesystem. This can be an existing
+#     filesystem, or one created with "make test-setup" (this is the default).
+#
+# CFLAGS: The flags passed to the C compiler.       Default: -O2 -Wall
+#   Ex: make fscrypt "CFLAGS = -O3 -Werror"
+#     Builds fscrypt with the C code failing on warnings and highly optimized.
+#
+# LDFLAGS: The flags passed to the C linker.        Default empty
+#   Ex: make fscrypt "LDFLAGS = -static -ldl -laudit -lcap-ng"
+#     Builds fscrypt as a static binary.
+#
+# GO_FLAGS: The flags passed to "go build".         Default empty
+#   Ex: make fscrypt "GO_FLAGS = -race"
+#     Builds fscrypt with race detection for the go code.
+#
+# GO_LINK_FLAGS: The flags passed to the go linker. Default: -s -w
+#   Ex: make fscrypt GO_LINK_FLAGS=""
+#     Builds fscrypt without stripping the binary.
+
+BIN := bin
+export PATH := $(BIN):$(PATH)
+PAM_MODULE := $(BIN)/$(PAM_NAME).so
+
+###### Setup Build Flags #####
+CFLAGS := -O2 -Wall
+# Pass CFLAGS to each cgo invocation.
+export CGO_CFLAGS = $(CFLAGS)
+# By default, we strip the binary to reduce size.
+GO_LINK_FLAGS := -s -w
+
+# Flag to embed the version (pulled from tags) into the binary.
+# TAG_VERSION := $(shell git describe --tags)
+VERSION_FLAG := -X "main.version=$(if $(TAG_VERSION),$(TAG_VERSION),$(VERSION))"
+# Flag to embed the date and time of the build into the binary.
+DATE_FLAG := -X "main.buildTime=$(shell date)"
+
+override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
+override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
+
+###### Find All Files and Directories ######
+FILES := $(shell find . \( -path ./vendor -o -path "./.*" \) -prune -o -type f -printf "%P\n")
+GO_FILES := $(filter %.go,$(FILES))
+GO_DIRS := $(sort $(dir $(GO_FILES)))
+C_FILES := $(filter %.c %.h,$(FILES))
+PROTO_FILES := $(filter %.proto,$(FILES))
+
+###### Build, Formatting, and Linting Commands ######
+.PHONY: default all gen format lint clean
+default: $(BIN)/$(NAME) $(PAM_MODULE)
+all: tools gen default format lint test
+
+$(BIN)/$(NAME): $(GO_FILES) $(C_FILES)
+	go build $(GO_FLAGS) -o $@ ./cmd/$(NAME)
+
+$(PAM_MODULE): $(GO_FILES) $(C_FILES)
+	go build -buildmode=c-shared $(GO_FLAGS) -o $@ ./$(PAM_NAME)
+	rm -f $(BIN)/$(PAM_NAME).h
+
+gen: $(BIN)/protoc $(BIN)/protoc-gen-go $(PROTO_FILES)
+	protoc --go_out=. $(PROTO_FILES)
+
+format: $(BIN)/goimports
+	goimports -w $(GO_DIRS)
+	clang-format -i -style=Google $(C_FILES)
+
+lint: $(BIN)/golint $(BIN)/megacheck
+	go vet ./...
+	golint -set_exit_status ./...
+	megacheck -unused.exported -simple.exit-non-zero ./...
+
+clean:
+	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES)
+
+###### Testing Commands (setup/teardown require sudo) ######
+.PHONY: test test-setup test-teardown
+
+# If MOUNT exists signal that we should run integration tests.
+MOUNT := /tmp/$(NAME)-mount
+IMAGE := /tmp/$(NAME)-image
 ifneq ("$(wildcard $(MOUNT))","")
 export TEST_FILESYSTEM_ROOT = $(MOUNT)
 endif
 
-# The flags code below lets the caller of the makefile change the build flags
-# for fscrypt in a familiar manner.
-#	CFLAGS
-#		Change the flags passed to the C compiler. Default = "-O2 -Wall"
-#		For example:
-#			make fscrypt "CFLAGS = -O3 -Werror"
-#		builds the C code with high optimizations, and C warnings fail.
-#	LDFLAGS
-#		Change the flags passed to the C linker. Empty by default.
-#		For example (on my system with additional dev packages):
-#			make fscrypt "LDFLAGS = -static -ldl -laudit -lcap-ng"
-#		will build a static fscrypt binary.
-#	GO_FLAGS
-#		Change the flags passed to "go build". Empty by default.
-#		For example:
-#			make fscrypt "GO_FLAGS = -race"
-#		will build the Go code with race detection.
-#	GO_LINK_FLAGS
-#		Change the flags passed to the Go linker. Default = "-s -w"
-#		For example:
-#			make fscrypt GO_LINK_FLAGS=""
-#		will not strip the binary.
-
-# Set the C flags so we don't need to set C flags in each CGO file.
-CFLAGS ?= -O2 -Wall
-export CGO_CFLAGS = $(CFLAGS)
-
-# By default, we strip the binary to reduce size.
-GO_LINK_FLAGS ?= -s -w
-
-# Pass the version to the command line program (pulled from tags).
-TAG_VERSION = $(shell git describe --tags)
-VERSION = $(if $(TAG_VERSION),$(TAG_VERSION),$(RELEASE_VERSION))
-VERSION_FLAG = -X "main.version=$(VERSION)"
-
-# Pass the current date and time to the command line program.
-DATE_FLAG = -X "main.buildTime=$(shell date)"
-# Add the version, date, and any specified LDFLAGS to any user-specified flags.
-override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
-# Add the link flags to any user-specified flags.
-override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
-
-.PHONY: default all
-
-default: $(NAME) $(PAM_MODULE)
-all: format lint default test
-
-$(NAME): $(SRC_FILES)
-	go build $(GO_FLAGS) -o $(NAME) $(CMD_PKG)
-
-$(PAM_MODULE): $(SRC_FILES)
-	go build -buildmode=c-shared $(GO_FLAGS) -o $(PAM_MODULE) $(PAM_PKG)
-	rm -f $(PAM_NAME).h
-
-.PHONY: clean
-clean:
-	rm -f $(NAME) $(PAM_MODULE) $(IMAGE)
-
-# Make sure go files build and tests pass.
-.PHONY: test
 test:
-	@go test -p 1 $(GO_FLAGS) $(GO_PKGS)
+	go test -p 1 ./...
 
-# Make sure the protocol buffers are generated
-.PHONY: gen
-gen:
-	protoc --go_out=. $(PROTO_FILES)
-
-# Format all the Go and C code
-.PHONY: format format-check
-format:
-	@goreturns -l -w $(GO_FILES)
-	@clang-format -i -style=Google $(C_FILES)
-
-format-check:
-	@goreturns -d $(GO_FILES) \
-	| ./input_fail.py "Incorrectly formatted Go files. Run \"make format\"."
-	@clang-format -i -style=Google -output-replacements-xml $(C_FILES) \
-	| grep "<replacement " \
-	| ./input_fail.py "Incorrectly formatted C files. Run \"make format\"."
-
-# Run lint rules (skipping generated files)
-.PHONY: lint
-lint:
-	@go tool vet -buildtags=false $(SRC_FILES)
-	@golint $(GO_PKGS) | grep -v "pb.go" | ./input_fail.py
-	@megacheck -unused.exported $(GO_PKGS)
-
-###### Installation commands #####
-.PHONY: install_bin install_pam install uninstall
-install_bin: $(NAME)
-	$(INSTALL) -d $(DESTDIR)
-	$(INSTALL) $(NAME) $(DESTDIR)
-
-install_pam: $(PAM_MODULE)
-	$(INSTALL) -d $(PAM_MODULE_DIR)
-	$(INSTALL) $(PAM_MODULE) $(PAM_MODULE_DIR)
-	$(INSTALL) -d $(PAM_CONFIG_DIR)
-	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
-
-install: install_bin install_pam 
-
-uninstall:
-	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
-
-# Install the go tools used for checking/generating the code
-.PHONY: go-tools
-go-tools:
-	go get -u github.com/golang/protobuf/protoc-gen-go
-	go get -u github.com/golang/lint/golint
-	go get -u sourcegraph.com/sqs/goreturns
-	go get -u honnef.co/go/tools/cmd/megacheck
-
-##### Setup/Teardown for integration tests (need root permissions) #####
-.PHONY: test-setup test-teardown
 test-setup:
 	dd if=/dev/zero of=$(IMAGE) bs=1M count=20
 	mkfs.ext4 -b 4096 -O encrypt $(IMAGE) -F
-	sudo mkdir -p $(MOUNT)
-	sudo mount -o rw,loop $(IMAGE) $(MOUNT)
+	mkdir -p $(MOUNT)
+	sudo mount -o rw,loop,user $(IMAGE) $(MOUNT)
 	sudo chmod +777 $(MOUNT)
 
 test-teardown:
 	sudo umount $(MOUNT)
-	sudo rmdir $(MOUNT)
+	rmdir $(MOUNT)
 	rm -f $(IMAGE)
 
-##### Travis CI Commands
-.PHONY: travis-setup travis-script
-travis-install: go-tools test-setup
-	curl -L -s https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 -o $(GOPATH)/bin/dep
-	chmod +x $(GOPATH)/bin/dep
-	go get -u github.com/mattn/goveralls
+# Runs tests and generates coverage
+COVERAGE_FILES := $(addsuffix coverage.out,$(GO_DIRS))
+coverage.out: $(BIN)/gocovmerge $(COVERAGE_FILES)
+	@gocovmerge $(COVERAGE_FILES) > $@
 
-travis-script: lint format-check default
-	goveralls -service=travis-ci
-	dep status
+%/coverage.out: $(GO_FILES) $(C_FILES)
+	@go test -coverpkg=./... -covermode=count -coverprofile=$@ -p 1 ./$* 2> /dev/null
+
+###### Installation Commands (require sudo) #####
+.PHONY: install install-bin install-pam uninstall
+install: install-bin install-pam
+
+INSTALL := sudo install
+DESTDIR := /usr/local/bin
+PAM_MODULE_DIR := /lib/security
+PAM_CONFIG_DIR := /usr/share/pam-configs
+
+install-bin: $(BIN)/$(NAME)
+	$(INSTALL) -d $(DESTDIR)
+	$(INSTALL) $< $(DESTDIR)
+
+install-pam: $(PAM_MODULE)
+	$(INSTALL) -d $(PAM_MODULE_DIR)
+	$(INSTALL) $< $(PAM_MODULE_DIR)
+	$(INSTALL) -d $(PAM_CONFIG_DIR)
+	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
+
+uninstall:
+	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
+
+#### Tool Building Commands ####
+TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports megacheck gocovmerge)
+.PHONY: tools
+tools: $(TOOLS)
+
+# Go tools build from vendored sources
+VENDOR := $(shell find vendor -type f)
+$(BIN)/golint: $(VENDOR)
+	go build -o $@ ./vendor/github.com/golang/lint/golint
+$(BIN)/protoc-gen-go: $(VENDOR)
+	go build -o $@ ./vendor/github.com/golang/protobuf/protoc-gen-go
+$(BIN)/goimports: $(VENDOR)
+	go build -o $@ ./vendor/golang.org/x/tools/cmd/goimports
+$(BIN)/megacheck: $(VENDOR)
+	go build -o $@ ./vendor/honnef.co/go/tools/cmd/megacheck
+$(BIN)/gocovmerge: $(VENDOR)
+	go build -o $@ ./vendor/github.com/wadey/gocovmerge
+
+# Non-go tools downloaded from appropriate repository
+PROTOC_VERSION := 3.0.0
+GOARCH := $(shell go env GOARCH)
+ifneq ($(findstring amd64,$(GOARCH)),)
+ARCH := x86_64
+else ifneq ($(findstring 386,$(GOARCH)),)
+ARCH := x86_32
+else ifneq ($(findstring arm64,$(GOARCH)),)
+ARCH := aarch_64
+endif
+ifdef ARCH
+PROTOC_URL := https://github.com/google/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-linux-$(ARCH).zip
+$(BIN)/protoc:
+	wget -q $(PROTOC_URL) -O /tmp/protoc.zip
+	unzip -q -j /tmp/protoc.zip bin/protoc -d $(BIN)
+else
+PROTOC_PATH := $(shell which protoc)
+$(BIN)/protoc: $(PROTOC_PATH)
+ifneq ($(wildcard $(PROTOC_PATH)),)
+	cp $< $@
+else
+	$(error Could not download protoc binary or locate it on the system. Please install it)
+endif
+endif

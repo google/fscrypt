@@ -1,4 +1,10 @@
-fscrypt
-fscrypt_image
-pam_fscrypt.so
+bin/fscrypt
+bin/pam_fscrypt.so
+bin/protoc
+bin/golint
+bin/protoc-gen-go
+bin/goimports
+bin/megacheck
+bin/gocovmerge
+*coverage.out
 .vscode
