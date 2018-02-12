@@ -180,7 +180,7 @@ $(BIN)/gocovmerge: $(VENDOR)
 	go build -o $@ ./vendor/github.com/wadey/gocovmerge
 
 # Non-go tools downloaded from appropriate repository
-PROTOC_VERSION := 3.0.0
+PROTOC_VERSION := 3.5.1
 GOARCH := $(shell go env GOARCH)
 ifneq ($(findstring amd64,$(GOARCH)),)
 ARCH := x86_64
