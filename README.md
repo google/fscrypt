@@ -105,29 +105,36 @@ information about each of the commands.
 
 ## Building and Installing
 
-fscrypt has the following build dependencies:
+fscrypt has a minimal set of build dependencies:
 *   [Go](https://golang.org/doc/install)
 *   A C compiler (`gcc` or `clang`)
 *   `make`
-*   Headers for `libpam`. Install them with the appropriate package manager.
-    - `sudo apt-get install libpam0g-dev`
-    - `sudo yum install pam-devel`
-    - `pam` package for Arch (part of the `base` group)
+*   Headers for [`libpam`](http://www.linux-pam.org/).
+    Install them with the appropriate package manager:
+    - Debain/Ubuntu: `sudo apt install libpam0g-dev`
+    - Red Hat: `sudo yum install pam-devel`
+    - Arch: [`pam`](https://www.archlinux.org/packages/core/x86_64/pam/)
+      package (usually installed by default)
 
 Once all the dependencies are installed, you can get the repository by running:
 ```shell
 go get -d github.com/google/fscrypt/...
 ```
-and then you can run `make` in `$GOPATH/src/github.com/google/fscrypt` to build the
-executable and PAM module in that directory. Running `sudo make install` installs the binary to
-`/usr/local/bin`.
+Running `make` in `$GOPATH/src/github.com/google/fscrypt` builds the
+executable (`fscrypt`) and PAM module (`pam-fscrypt.so`) in the `bin/`
+directory. Use `make bin/fscrypt` or `make bin/pam_fscrypt.so`
+to build only one.
 
-See the `Makefile` for instructions on how to customize the build. This includes
-building a static binary (C libraries used by fscrypt will be dynamically linked
-by default).
+Running `sudo make install` installs `fscrypt` to `/usr/local/bin` and
+`pam-fscrypt` to `/lib/security`. Use `make install-bin` or `make install-pam`
+to install only one.
+
+See the `Makefile` for instructions on how to customize the build (e.g. installing
+to a custom location, using different build flags, building a static binary,
+etc ...)
 
 Alternatively, if you only want to install the fscrypt binary to `$GOPATH/bin`,
-it is enough to just run:
+simply run:
 ```shell
 go get github.com/google/fscrypt/cmd/fscrypt
 ```
@@ -567,15 +574,15 @@ encryption has been explictly disabled in the kernel config.
 
 __IMPORTANT:__ Before enabling encryption on an ext4 filesystem __ALL__ of the
 following should be true:
-	* Your filesystem is formatted as ext4. Other filesystems will have
-	  different ways of enabling encryption.
-	* Your kernel page size (run `getconf PAGE_SIZE`) and your filesystem
-          block size (run `tune2fs -l /dev/device | grep 'Block size'`) are the
-	  same.
-	* You are ok with not being able to mount this filesystem with a v4.0
-	  kernel or older.
-	* You are __NOT__ using GRUB to boot directly off this filesystem. If
-	  you have a sperate `/boot` partition, you are fine.
+  - Your filesystem is formatted as ext4. Other filesystems will have
+    different ways of enabling encryption.
+  - Your kernel page size (run `getconf PAGE_SIZE`) and your filesystem
+    block size (run `tune2fs -l /dev/device | grep 'Block size'`) are the same.
+  - You are ok with not being able to mount this filesystem with a v4.0
+    kernel or older.
+  - You are __NOT__ using GRUB to boot directly off this filesystem. If
+    you have a sperate `/boot` partition, you are fine.
+    
 If any of the above is not true, __DO NOT ENABLE FILESYSTEM ENCRYPTION__.
 
 To turn on encryption for your filesystem, run

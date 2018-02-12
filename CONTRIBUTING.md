@@ -15,7 +15,7 @@ You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it
 again.
 
-## Reporting an Issue or Discussing Design
+## Reporting an Issue, Discussing Design, or Asking a Question
 
 __IMPORTANT__: Any significant security issues should __NOT__ be reported in
 the public issue tracker. Practice responsible disclosure by emailing
@@ -25,7 +25,7 @@ Any bugs, problems, or design discussion relating to fscrypt should be raised
 in the [Github Issue Tracker](https://github.com/google/fscrypt/issues/new).
 
 When reporting an issue or problem, be sure to give as much information as
-possible. Also, make sure you are running the `fscrypt` and `pam_fscrypt`
+possible. Also, make sure you are running the `fscrypt` and `pam_fscrypt.so`
 built from the current `master` branch.
 
 If reporting an issue around the fscrypt command-line tool, post the
@@ -48,92 +48,97 @@ Be sure to correctly tag your issue. The usage for the tags is as follows:
 	* This usally turns into a `documentation` issue.
 * `testing` - Strange test failures or missing tests
 
-## Code reviews
+## Submitting a Change to fscrypt
 
 All submissions, including submissions by project members, require review. We
 use GitHub pull requests for this purpose. Consult
 [GitHub Help](https://help.github.com/articles/about-pull-requests/) for more
 information on using pull requests.
 
-## Working on fscrypt
-
 On every pull request, [Travis CI](https://travis-ci.org/google/fscrypt) runs
-unit tests, integration tests, code formatters, and linters. You can also run
-these commands when writing your code.
+unit tests, integration tests, code formatters, and linters. To pass these
+checks you should make sure that in your submission:
+- `make` properly builds `fscrypt` and `pam_fscrypt.so`.
+- All tests, including integration tests (see below), should pass.
+- `make format` has been run.
+- If you made any changes to files ending in `.proto`, the corresponding
+  `.pb.go` files should be regenerated with `make gen`.
+- Any issues found by `make lint` have been addressed.
+- If any dependancies have changed, `Gopkg.toml` should be updated and
+  [`dep ensure`](https://github.com/golang/dep) should be run.
+- `make coverage.out` can be used to generate a coverage report for all of the
+  tests, but isn't required for submission
+  (ideally most code would be tested, we are far from that ideal).
 
-### Building and Testing
-
-As mentioned in `README.md`, running `make` will build the fscrypt executable
-and the PAM module `pam_fscrypt.so`. Running `make go` will build each package
-and run the tests, but just running `make go` with nothing else will skip the
-integration tests.
-
-To run the integration tests, you will need a filesystem that supports
-encryption. If you already have some empty filesystem at `/foo/bar`, just run:
-```bash
-make go MOUNT=/foo/bar
+Essentially, if you run:
 ```
-
-Otherwise, you can use the `make test-setup` and `make test-teardown` commands
-to create a fake filesystem for testing. Note that the commands require `sudo`,
-and the `make test-setup` command requires `e2fsprogs` version 1.43 or later.
-For example:
-```bash
 make test-setup
-make go
+make all
 make test-teardown
+dep ensure
+```
+and everything succeeds, and no files are changed, you're good to submit.
+
+The `Makefile` should automatically download and build whatever it needs.
+The only exceptions to this rule are:
+  - `make format` requires
+    [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html).
+  - `make test-setup` requires
+    [`e2fsprogs`](https://en.wikipedia.org/wiki/E2fsprogs) version 1.43
+    or later (or any patched version that supports `-O encrypt`).
+
+### Running Integration Tests
+
+Running `make test` will build each package and run the unit tests, but will
+skip the integration tests. To run the integration tests, you will need a
+filesystem that supports encryption. If you already have some empty filesystem
+at `/foo/bar`, just run:
+```bash
+make test MOUNT=/foo/bar
 ```
 
-### Formatting and Linting
-
-The `make format` command formats all the code in fscrypt with either 
-[`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports) (for Go code)
-or [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html) (for C code).
-`goimports` can be installed with `go get`; `clang-format` can be installed
-with your package manager.
-
-The `make lint` command runs a series of static analysis checks on your code.
-This requires the
-[megacheck](https://github.com/dominikh/go-tools/tree/master/cmd/megacheck) and
-[golint](https://github.com/golang/lint) tools.
-
-### Changing proto files
-
-If you make any changes to files ending in `.proto`, the corresponding `.pb.go`
-files have to be regenerated with `make gen`. This requires version 3.0.0 or
-later of `protoc` the
-[protobuf compiler](https://github.com/google/protobuf) and
-[protoc-gen-go](https://github.com/golang/protobuf).
+Otherwise, you can use the `make test-setup`/`make test-teardown` commands to
+create/destory a test filesystem for running integration tests. Note that these
+commands require `sudo` to mount/unmount the test filesystem. The fake
+filesystem generated by these commands will automatically be detected by
+`make test`, so running `make test-setup` then `make test` will run all the
+integration tests.
 
 ### Changing dependencies
 
-fscrypt vendors all of it's Go dependencies. If you add or remove a dependency
-on an external Go package, be sure to run `make update` to resync the `vendor/`
-directory. This requires [govendor](https://github.com/kardianos/govendor).
+fscrypt vendors all of it's dependancies using `dep`. If you add or remove a
+dependency, be sure to update `Gopkg.toml` and run `dep ensure`.
 
-Also, if adding in an external Go package, be sure that he license of the
-package is compatible with the
-[Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). See the
+Also, when adding a dependancy, the license of the package must be compatible
+with [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). See the
 [FSF's article](https://www.gnu.org/licenses/license-list.html) for more
 information. This (unfortunately) means we cannot use external packages under
 the [GPL](https://choosealicense.com/licenses/gpl-3.0) or
 [LGPL](https://choosealicense.com/licenses/lgpl-3.0/). We also cannot use
-packages with missing or joke licenses (see [Unlicense](http://unlicense.org/), 
-[WTFPL](http://www.wtfpl.net/), or
+packages with missing, misleading, or joke licenses (e.g.
+[Unlicense](http://unlicense.org/), [WTFPL](http://www.wtfpl.net/),
 [CC0](https://creativecommons.org/publicdomain/zero/1.0/)).
 
-### Putting it all together
+### Build System Details ###
 
-Run `make go-tools` to install all the Go tools mentioned above (make sure that
-`$GOPATH/bin` is in you `$PATH`). Install `protoc` and `clang-format` with your
-system's package manager. In the case of `protoc`, your system's version might
-be older than v3.0.0. In that case, just get the build
-[directly from GitHub](https://github.com/google/protobuf/releases/latest).
+Under the hood, the Makefile uses many go tools to generate, format, and lint
+your code.
 
-After installing everything, running `make all` will run all the commands
-mentioned above (except for `make gen` as different versions of protoc can
-rearrange things differently). As with `make test`, you can run the integration
-tests by either using `make all MOUNT=/path/to/my/filesystem` or using the
-`make test-setup` and `make test-teardown` commands.
+`make gen`:
+  - Downloads [`protoc`](https://github.com/google/protobuf) to compile the
+  `.proto` files.
+  - Turns each `.proto` file into a matching `.pb.go` file using
+    [`protoc-gen-go`](https://github.com/golang/protobuf/tree/master/protoc-gen-go)
+    (built from source in `vendor/`).
 
-`make all` should always be run before submitting a pull request.
+`make format` runs:
+  - [`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports)
+    (built from source in `vendor/`) on the `.go` files.
+  - [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
+    on the `.c` an `.h` files.
+
+`make lint` runs:
+  - [`go vet`](https://golang.org/cmd/vet/) 
+  - [`golint`](https://github.com/golang/lint) (built from source in `vendor/`)
+  - [`megacheck`](https://github.com/dominikh/go-tools/tree/master/cmd/megacheck)
+    (built from source in `vendor/`)
