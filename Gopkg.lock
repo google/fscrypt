@@ -2,13 +2,14 @@
 
 
 [[projects]]
-  branch = "master"
+  branch = "lukyth/feature/ignore-vendor"
   name = "github.com/golang/lint"
   packages = [
     ".",
     "golint"
   ]
-  revision = "e14d9b0f1d332b1420c1ffa32562ad2dc84d645d"
+  revision = "0dcd199f6e2c9e5fb738b78bfa2170de4c78a25f"
+  source = "github.com/lukyth/lint"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -113,6 +114,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "65c9e40abcc4d3679513c43ba962f87115e94ced6497ac13e9ef5685815c7da8"
+  inputs-digest = "13bc740ba83539fecd6dd4b7d026fd221077369cb6b170e83d288383d0fde474"
   solver-name = "gps-cdcl"
   solver-version = 1

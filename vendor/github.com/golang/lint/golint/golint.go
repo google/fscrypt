@@ -48,9 +48,12 @@ func main() {
 		var dirsRun, filesRun, pkgsRun int
 		var args []string
 		for _, arg := range flag.Args() {
-			if strings.HasSuffix(arg, "/...") && isDir(arg[:len(arg)-len("/...")]) {
+			if trimmedArg := strings.TrimSuffix(arg, "/..."); trimmedArg != arg && isDir(trimmedArg) {
 				dirsRun = 1
 				for _, dirname := range allPackagesInFS(arg) {
+					if strings.Contains(dirname[len(trimmedArg):], "/vendor/") {
+						continue
+					}
 					args = append(args, dirname)
 				}
 			} else if isDir(arg) {
