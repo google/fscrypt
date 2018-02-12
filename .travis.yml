@@ -1,21 +1,77 @@
 language: go
-sudo: required
-go:
-  - 1.9.x
+sudo: false
 dist: trusty
+go: 1.9.x
 
-addons:
-  apt:
-    sources:
-      - sourceline: 'deb http://en.archive.ubuntu.com/ubuntu/ artful main universe'
-    packages:
-      - libpam0g-dev
-      - e2fsprogs
-      - protobuf-compiler
-      - git # Needed to stop git from getting deleted
+notifications:
+  email: false
 
-install:
-  - make travis-install
+stages:
+  - name: build
+    if: type = push
+  - name: presubmits
+    if: type = pr OR branch = master OR tag IS present
+  - name: deploy
+    if: type = push AND tag IS present
 
-script:
-  - make travis-script
+jobs:
+  include:
+    - stage: build
+      install: skip
+      script: make
+
+    - stage: presubmits
+      env: Generate, Format, and Lint
+      install:
+        - wget -q https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 -O /tmp/dep
+        - chmod a+x /tmp/dep
+        - make tools
+      script:
+        - /tmp/dep status
+        - make gen
+        - bin/files-changed proto
+        - make format
+        - bin/files-changed format
+        - make lint
+
+    - &build
+      env: Build and Unit Tests
+      install: skip
+      script:
+        - go build github.com/google/fscrypt/cmd/fscrypt
+        - make
+    - <<: *build
+      go: 1.8.x
+
+    - env: Integration Tests
+      sudo: required
+      addons:
+        apt:
+          sources:
+            - sourceline: 'deb http://en.archive.ubuntu.com/ubuntu/ artful main universe'
+          packages:
+            - e2fsprogs
+      install:
+        - go get -u github.com/mattn/goveralls
+        - make test-setup
+      script:
+        - make coverage.out
+        - goveralls -coverprofile=coverage.out -service=travis-ci
+
+    - stage: deploy
+      env: Release Binaries
+      install: skip
+      script: skip
+      before_deploy: make
+      deploy:
+        - provider: releases
+          api_key:
+            secure: TODO
+          file:
+            - bin/fscrypt
+            - bin/pam_fscrypt.so
+          skip_cleanup: true
+          on:
+            repo: google/master
+            branch: master
+            tags: true

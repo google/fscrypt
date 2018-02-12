@@ -17,8 +17,6 @@
  * the License.
  */
 
-// +build linux,cgo
-
 package main
 
 /*
