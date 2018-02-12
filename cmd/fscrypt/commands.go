@@ -519,7 +519,7 @@ func createProtectorAction(c *cli.Context) error {
 	}
 
 	prompt := fmt.Sprintf("Create new protector on %q", ctx.Mount.Path)
-	if err := askConfirmation(prompt, true, ""); err != nil {
+	if err = askConfirmation(prompt, true, ""); err != nil {
 		return newExitError(c, err)
 	}
 
@@ -561,20 +561,20 @@ func createPolicyAction(c *cli.Context) error {
 		return newExitError(c, err)
 	}
 
-	if err := checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
+	if err = checkRequiredFlags(c, []*stringFlag{protectorFlag}); err != nil {
 		return err
 	}
 	protector, err := getProtectorFromFlag(protectorFlag.Value, ctx.TargetUser)
 	if err != nil {
 		return newExitError(c, err)
 	}
-	if err := protector.Unlock(existingKeyFn); err != nil {
+	if err = protector.Unlock(existingKeyFn); err != nil {
 		return newExitError(c, err)
 	}
 	defer protector.Lock()
 
 	prompt := fmt.Sprintf("Create new policy on %q", ctx.Mount.Path)
-	if err := askConfirmation(prompt, true, ""); err != nil {
+	if err = askConfirmation(prompt, true, ""); err != nil {
 		return newExitError(c, err)
 	}
 

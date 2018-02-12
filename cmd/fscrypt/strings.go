@@ -110,7 +110,7 @@ Options:
 {{if .Version}}Version:
 ` + indent + `{{.Version}}
 
-{{end}}{{if .Compiled}}Compiled:
+{{end}}{{if not .Compiled.IsZero}}Compiled:
 ` + indent + `{{.Compiled}}
 
 {{end}}{{if len .Authors}}Author{{with $length := len .Authors}}{{if ne 1 $length}}s{{end}}{{end}}:{{range .Authors}}
