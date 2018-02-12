@@ -66,7 +66,7 @@ jobs:
       deploy:
         - provider: releases
           api_key:
-            secure: TODO
+            secure: aq1sQacqogyjSaf8WJxorVEnXXe1TRz2gl6eoTDuMZVD7fyBV2cgyKgSX3kVt4DZlBTQWlagQQqEluOp6brSQVt2AzLLGPVtUN286M6dN8tSSenn3qDRS5UYyUIhg8KvtqOD6ItFlibCA+7t5B+j4KCCgAKBkDSORJoS180hUbsC6lOx/F/yhjMUTBq96NloIrk7N33JdOjQfeRKiEXZcbRsntzwJlmUjdGLxjIDI409Dx/oDh2rqXz/sJ98ljXebKa28ObyQW9f2UsIBGyFBOnUMK47neJqve/pjGWp1p8pyIGM9rsy+kAQ9htRARcYbBTwTavOCXRehMS+muqttI66G69teHkNfo/dSp52esmNi0p7SQJOydHFJ3gy9alYH4MHGCHnrRdcKnGPyAk3KcsCMxFehPx3pHMShrxh+x9tQz87G1FZlNpyiZiq5fHtb7IDV8l+0XaJKrNhCDvrBwNh8w7iQsAXapmk2Hn8UGTAWbKxCL1l4afB5LA6IGNISmEMuylhnaFZU2WvFzdO7iKY43TePaZJbmMtvovkOVuOWEqxgrkLMXsYrgx0bSV2UCVXJG3XEeJtQluwQgeEYeH6d9VR/chcQ4Qii99IzwbFk2iAk3RN3N94JWT+ubRhJUISOvZ8Z9OMSUBi517mxNgE1HxYa5AadiMQlKVUbDE=
           file:
             - bin/fscrypt
             - bin/pam_fscrypt.so
