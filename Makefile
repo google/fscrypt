@@ -16,7 +16,7 @@
 # the License.
 
 # Update on each new release!!
-VERSION := 0.2.2
+VERSION := v0.2.3
 NAME := fscrypt
 PAM_NAME := pam_$(NAME)
 
@@ -64,7 +64,7 @@ export CGO_CFLAGS = $(CFLAGS)
 GO_LINK_FLAGS := -s -w
 
 # Flag to embed the version (pulled from tags) into the binary.
-# TAG_VERSION := $(shell git describe --tags)
+TAG_VERSION := $(shell git describe --tags)
 VERSION_FLAG := -X "main.version=$(if $(TAG_VERSION),$(TAG_VERSION),$(VERSION))"
 # Flag to embed the date and time of the build into the binary.
 DATE_FLAG := -X "main.buildTime=$(shell date)"
