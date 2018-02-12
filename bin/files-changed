@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Detect if any files have changed in the git repository. Output an appropriate
+# error message if they have changed.
+
+if [[ -n $(git status -s) ]]; then
+  git diff --minimal HEAD
+  echo
+  echo "**************************************************"
+  case "$1" in
+  "proto")
+    echo "* .pb.go files and .proto files are out of sync. *"
+    echo "*        Run \"make gen\" to generate them.        *"
+    ;;
+  "format")
+    echo "*    C or Go files have incorrect formatting.    *"
+    echo "*         Run \"make format\" to fix them.         *"
+    ;;
+  *)
+    echo "*     Files have changed in this repository.     *"
+    ;;
+  esac
+  echo "**************************************************"
+  git reset HEAD --hard
+  exit 1
+fi
