@@ -8,17 +8,20 @@
     "proto",
     "ptypes/struct"
   ]
-  revision = "130e6b02ab059e7b717a096f397c5b60111cae74"
+  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
-  revision = "2b3a18b5f0fb6b4f9190549597d3f962c02bc5eb"
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/urfave/cli"
   packages = ["."]
-  revision = "ac249472b7de27a9e8990819566d9be95ab5b816"
+  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
+  version = "v1.20.0"
 
 [[projects]]
   branch = "master"
@@ -32,16 +35,17 @@
   revision = "5119cf507ed5294cc409c092980c7497ee5d6fd2"
 
 [[projects]]
+  branch = "master"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows"
   ]
-  revision = "314a259e304ff91bd6985da2a7149bbf91237993"
+  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "92e1ef38016af4664e4e89ff488f29b03c1d323569312f1dcccfa481d74dbec1"
+  inputs-digest = "bc88b18a26bdcbfb3778570bf06f7d44787a463c6a64c5cded849c5ed941fb52"
   solver-name = "gps-cdcl"
   solver-version = 1
