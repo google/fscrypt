@@ -181,16 +181,16 @@ $(BIN)/gocovmerge: $(VENDOR)
 
 # Non-go tools downloaded from appropriate repository
 PROTOC_VERSION := 3.5.1
-GOARCH := $(shell go env GOARCH)
-ifneq ($(findstring amd64,$(GOARCH)),)
-ARCH := x86_64
-else ifneq ($(findstring 386,$(GOARCH)),)
-ARCH := x86_32
-else ifneq ($(findstring arm64,$(GOARCH)),)
-ARCH := aarch_64
+ARCH := $(shell arch)
+ifeq (x86_64,$(ARCH))
+PROTOC_ARCH := x86_64
+else ifneq ($(filter i386 i686,$(ARCH)),)
+PROTOC_ARCH := x86_32
+else ifneq ($(filter aarch64 aarch64_be armv8b armv8l,$(ARCH)),)
+PROTOC_ARCH := aarch_64
 endif
-ifdef ARCH
-PROTOC_URL := https://github.com/google/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-linux-$(ARCH).zip
+ifdef PROTOC_ARCH
+PROTOC_URL := https://github.com/google/protobuf/releases/download/v$(PROTOC_VERSION)/protoc-$(PROTOC_VERSION)-linux-$(PROTOC_ARCH).zip
 $(BIN)/protoc:
 	wget -q $(PROTOC_URL) -O /tmp/protoc.zip
 	unzip -q -j /tmp/protoc.zip bin/protoc -d $(BIN)
