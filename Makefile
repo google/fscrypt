@@ -181,7 +181,7 @@ $(BIN)/gocovmerge: $(VENDOR)
 
 # Non-go tools downloaded from appropriate repository
 PROTOC_VERSION := 3.5.1
-ARCH := $(shell arch)
+ARCH := $(shell uname -m)
 ifeq (x86_64,$(ARCH))
 PROTOC_ARCH := x86_64
 else ifneq ($(filter i386 i686,$(ARCH)),)
