@@ -186,7 +186,7 @@ ifeq (x86_64,$(ARCH))
 PROTOC_ARCH := x86_64
 else ifneq ($(filter i386 i686,$(ARCH)),)
 PROTOC_ARCH := x86_32
-else ifneq ($(filter aarch64 aarch64_be armv8b armv8l,$(ARCH)),)
+else ifneq ($(filter aarch64 armv8l,$(ARCH)),)
 PROTOC_ARCH := aarch_64
 endif
 ifdef PROTOC_ARCH
