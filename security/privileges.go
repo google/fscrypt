@@ -24,21 +24,61 @@
 //  - Maintaining the link between the root and user keyrings.
 package security
 
+// Use the libc versions of setreuid, setregid, and setgroups instead of the
+// "sys/unix" versions.  The "sys/unix" versions use the raw syscalls which
+// operate on the calling thread only, whereas the libc versions operate on the
+// whole process.  And we need to operate on the whole process, firstly for
+// pam_fscrypt to prevent the privileges of Go worker threads from diverging
+// from the PAM stack's "main" thread, violating libc's assumption and causing
+// an abort() later in the PAM stack; and secondly because Go code may migrate
+// between OS-level threads while it's running.
+//
+// See also: https://github.com/golang/go/issues/1435
+//
+// Also we need to wrap the libc functions in our own C functions rather than
+// calling them directly because in the glibc headers (but not necessarily in
+// the headers for other C libraries that may be used on Linux) they are
+// declared to take __uid_t and __gid_t arguments rather than uid_t and gid_t.
+// And while these are typedef'ed to the same underlying type, before Go 1.10,
+// cgo maps them to different Go types.
+
+/*
+#include <sys/types.h>
+#include <unistd.h>	// setreuid, setregid
+#include <grp.h>	// setgroups
+
+static int my_setreuid(uid_t ruid, uid_t euid)
+{
+	return setreuid(ruid, euid);
+}
+
+static int my_setregid(gid_t rgid, gid_t egid)
+{
+	return setregid(rgid, egid);
+}
+
+static int my_setgroups(size_t size, const gid_t *list)
+{
+	return setgroups(size, list);
+}
+*/
+import "C"
+
 import (
 	"log"
 	"os"
 	"os/user"
+	"syscall"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/util"
 )
 
-// SetThreadPrivileges temporarily drops the privileges of the current thread to
-// have the effective uid/gid of the target user. The privileges can be changed
-// again with another call to SetThreadPrivileges.
-func SetThreadPrivileges(target *user.User) error {
+// SetProcessPrivileges temporarily drops the privileges of the current process
+// to have the effective uid/gid of the target user. The privileges can be
+// changed again with another call to SetProcessPrivileges.
+func SetProcessPrivileges(target *user.User) error {
 	euid := util.AtoiOrPanic(target.Uid)
 	egid := util.AtoiOrPanic(target.Gid)
 	if os.Geteuid() == euid {
@@ -71,15 +111,21 @@ func SetThreadPrivileges(target *user.User) error {
 }
 
 func setUids(ruid, euid int) error {
-	err := unix.Setreuid(ruid, euid)
-	log.Printf("Setreuid(%d, %d) = %v", ruid, euid, err)
-	return errors.Wrapf(err, "setting uids")
+	res, err := C.my_setreuid(C.uid_t(ruid), C.uid_t(euid))
+	log.Printf("setreuid(%d, %d) = %d (errno %v)", ruid, euid, res, err)
+	if res == 0 {
+		return nil
+	}
+	return errors.Wrapf(err.(syscall.Errno), "setting uids")
 }
 
 func setGids(rgid, egid int) error {
-	err := unix.Setregid(rgid, egid)
-	log.Printf("Setregid(%d, %d) = %v", rgid, egid, err)
-	return errors.Wrapf(err, "setting gids")
+	res, err := C.my_setregid(C.gid_t(rgid), C.gid_t(egid))
+	log.Printf("setregid(%d, %d) = %d (errno %v)", rgid, egid, res, err)
+	if res == 0 {
+		return nil
+	}
+	return errors.Wrapf(err.(syscall.Errno), "setting gids")
 }
 
 func setGroups(target *user.User) error {
@@ -87,13 +133,14 @@ func setGroups(target *user.User) error {
 	if err != nil {
 		return util.SystemError(err.Error())
 	}
-
-	gids := make([]int, len(groupStrings))
+	gids := make([]C.gid_t, len(groupStrings))
 	for i, groupString := range groupStrings {
-		gids[i] = util.AtoiOrPanic(groupString)
+		gids[i] = C.gid_t(util.AtoiOrPanic(groupString))
 	}
-
-	err = unix.Setgroups(gids)
-	log.Printf("Setgroups(%v) = %v", gids, err)
-	return errors.Wrapf(err, "setting groups")
+	res, err := C.my_setgroups(C.size_t(len(groupStrings)), &gids[0])
+	log.Printf("setgroups(%v) = %d (errno %v)", gids, res, err)
+	if res == 0 {
+		return nil
+	}
+	return errors.Wrapf(err.(syscall.Errno), "setting groups")
 }
