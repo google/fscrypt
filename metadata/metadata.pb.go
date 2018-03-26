@@ -100,9 +100,9 @@ func (EncryptionOptions_Mode) EnumDescriptor() ([]byte, []int) { return fileDesc
 
 // Cost parameters to be used in our hashing functions.
 type HashingCosts struct {
-	Time        int64 `protobuf:"varint,2,opt,name=time" json:"time,omitempty"`
-	Memory      int64 `protobuf:"varint,3,opt,name=memory" json:"memory,omitempty"`
-	Parallelism int64 `protobuf:"varint,4,opt,name=parallelism" json:"parallelism,omitempty"`
+	Time        int64 `protobuf:"varint,2,opt,name=time" toml:"time,omitempty"`
+	Memory      int64 `protobuf:"varint,3,opt,name=memory" toml:"memory,omitempty"`
+	Parallelism int64 `protobuf:"varint,4,opt,name=parallelism" toml:"parallelism,omitempty"`
 }
 
 func (m *HashingCosts) Reset()                    { *m = HashingCosts{} }
@@ -133,9 +133,9 @@ func (m *HashingCosts) GetParallelism() int64 {
 
 // This structure is used for our authenticated wrapping/unwrapping of keys.
 type WrappedKeyData struct {
-	IV           []byte `protobuf:"bytes,1,opt,name=IV,proto3" json:"IV,omitempty"`
-	EncryptedKey []byte `protobuf:"bytes,2,opt,name=encrypted_key,json=encryptedKey,proto3" json:"encrypted_key,omitempty"`
-	Hmac         []byte `protobuf:"bytes,3,opt,name=hmac,proto3" json:"hmac,omitempty"`
+	IV           []byte `protobuf:"bytes,1,opt,name=IV,proto3" toml:"IV,omitempty"`
+	EncryptedKey []byte `protobuf:"bytes,2,opt,name=encrypted_key,json=encryptedKey,proto3" toml:"encrypted_key,omitempty"`
+	Hmac         []byte `protobuf:"bytes,3,opt,name=hmac,proto3" toml:"hmac,omitempty"`
 }
 
 func (m *WrappedKeyData) Reset()                    { *m = WrappedKeyData{} }
@@ -166,14 +166,14 @@ func (m *WrappedKeyData) GetHmac() []byte {
 
 // The associated data for each protector
 type ProtectorData struct {
-	ProtectorDescriptor string     `protobuf:"bytes,1,opt,name=protector_descriptor,json=protectorDescriptor" json:"protector_descriptor,omitempty"`
-	Source              SourceType `protobuf:"varint,2,opt,name=source,enum=metadata.SourceType" json:"source,omitempty"`
+	ProtectorDescriptor string     `protobuf:"bytes,1,opt,name=protector_descriptor,json=protectorDescriptor" toml:"protector_descriptor,omitempty"`
+	Source              SourceType `protobuf:"varint,2,opt,name=source,enum=metadata.SourceType" toml:"source,omitempty"`
 	// These are only used by some of the protector types
-	Name       string          `protobuf:"bytes,3,opt,name=name" json:"name,omitempty"`
-	Costs      *HashingCosts   `protobuf:"bytes,4,opt,name=costs" json:"costs,omitempty"`
-	Salt       []byte          `protobuf:"bytes,5,opt,name=salt,proto3" json:"salt,omitempty"`
-	Uid        int64           `protobuf:"varint,6,opt,name=uid" json:"uid,omitempty"`
-	WrappedKey *WrappedKeyData `protobuf:"bytes,7,opt,name=wrapped_key,json=wrappedKey" json:"wrapped_key,omitempty"`
+	Name       string          `protobuf:"bytes,3,opt,name=name" toml:"name,omitempty"`
+	Costs      *HashingCosts   `protobuf:"bytes,4,opt,name=costs" toml:"costs,omitempty"`
+	Salt       []byte          `protobuf:"bytes,5,opt,name=salt,proto3" toml:"salt,omitempty"`
+	Uid        int64           `protobuf:"varint,6,opt,name=uid" toml:"uid,omitempty"`
+	WrappedKey *WrappedKeyData `protobuf:"bytes,7,opt,name=wrapped_key,json=wrappedKey" toml:"wrapped_key,omitempty"`
 }
 
 func (m *ProtectorData) Reset()                    { *m = ProtectorData{} }
@@ -232,9 +232,9 @@ func (m *ProtectorData) GetWrappedKey() *WrappedKeyData {
 
 // Encryption policy specifics, corresponds to the fscrypt_policy struct
 type EncryptionOptions struct {
-	Padding   int64                  `protobuf:"varint,1,opt,name=padding" json:"padding,omitempty"`
-	Contents  EncryptionOptions_Mode `protobuf:"varint,2,opt,name=contents,enum=metadata.EncryptionOptions_Mode" json:"contents,omitempty"`
-	Filenames EncryptionOptions_Mode `protobuf:"varint,3,opt,name=filenames,enum=metadata.EncryptionOptions_Mode" json:"filenames,omitempty"`
+	Padding   int64                  `protobuf:"varint,1,opt,name=padding" toml:"padding,omitempty"`
+	Contents  EncryptionOptions_Mode `protobuf:"varint,2,opt,name=contents,enum=metadata.EncryptionOptions_Mode" toml:"contents,omitempty"`
+	Filenames EncryptionOptions_Mode `protobuf:"varint,3,opt,name=filenames,enum=metadata.EncryptionOptions_Mode" toml:"filenames,omitempty"`
 }
 
 func (m *EncryptionOptions) Reset()                    { *m = EncryptionOptions{} }
@@ -264,8 +264,8 @@ func (m *EncryptionOptions) GetFilenames() EncryptionOptions_Mode {
 }
 
 type WrappedPolicyKey struct {
-	ProtectorDescriptor string          `protobuf:"bytes,1,opt,name=protector_descriptor,json=protectorDescriptor" json:"protector_descriptor,omitempty"`
-	WrappedKey          *WrappedKeyData `protobuf:"bytes,2,opt,name=wrapped_key,json=wrappedKey" json:"wrapped_key,omitempty"`
+	ProtectorDescriptor string          `protobuf:"bytes,1,opt,name=protector_descriptor,json=protectorDescriptor" toml:"protector_descriptor,omitempty"`
+	WrappedKey          *WrappedKeyData `protobuf:"bytes,2,opt,name=wrapped_key,json=wrappedKey" toml:"wrapped_key,omitempty"`
 }
 
 func (m *WrappedPolicyKey) Reset()                    { *m = WrappedPolicyKey{} }
@@ -289,9 +289,9 @@ func (m *WrappedPolicyKey) GetWrappedKey() *WrappedKeyData {
 
 // The associated data for each policy
 type PolicyData struct {
-	KeyDescriptor     string              `protobuf:"bytes,1,opt,name=key_descriptor,json=keyDescriptor" json:"key_descriptor,omitempty"`
-	Options           *EncryptionOptions  `protobuf:"bytes,2,opt,name=options" json:"options,omitempty"`
-	WrappedPolicyKeys []*WrappedPolicyKey `protobuf:"bytes,3,rep,name=wrapped_policy_keys,json=wrappedPolicyKeys" json:"wrapped_policy_keys,omitempty"`
+	KeyDescriptor     string              `protobuf:"bytes,1,opt,name=key_descriptor,json=keyDescriptor" toml:"key_descriptor,omitempty"`
+	Options           *EncryptionOptions  `protobuf:"bytes,2,opt,name=options" toml:"options,omitempty"`
+	WrappedPolicyKeys []*WrappedPolicyKey `protobuf:"bytes,3,rep,name=wrapped_policy_keys,json=wrappedPolicyKeys" toml:"wrapped_policy_keys,omitempty"`
 }
 
 func (m *PolicyData) Reset()                    { *m = PolicyData{} }
@@ -322,10 +322,10 @@ func (m *PolicyData) GetWrappedPolicyKeys() []*WrappedPolicyKey {
 
 // Data stored in the config file
 type Config struct {
-	Source        SourceType         `protobuf:"varint,1,opt,name=source,enum=metadata.SourceType" json:"source,omitempty"`
-	HashCosts     *HashingCosts      `protobuf:"bytes,2,opt,name=hash_costs,json=hashCosts" json:"hash_costs,omitempty"`
-	Compatibility string             `protobuf:"bytes,3,opt,name=compatibility" json:"compatibility,omitempty"`
-	Options       *EncryptionOptions `protobuf:"bytes,4,opt,name=options" json:"options,omitempty"`
+	Source        SourceType         `protobuf:"varint,1,opt,name=source,enum=metadata.SourceType" toml:"source,omitempty"`
+	HashCosts     *HashingCosts      `protobuf:"bytes,2,opt,name=hash_costs,json=hashCosts" toml:"hash_costs,omitempty"`
+	Compatibility string             `protobuf:"bytes,3,opt,name=compatibility" toml:"compatibility,omitempty"`
+	Options       *EncryptionOptions `protobuf:"bytes,4,opt,name=options" toml:"options,omitempty"`
 }
 
 func (m *Config) Reset()                    { *m = Config{} }

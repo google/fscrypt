@@ -28,35 +28,31 @@ package metadata
 
 import (
 	"io"
+	"io/ioutil"
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/pelletier/go-toml"
 )
 
-// WriteConfig outputs the Config data as nicely formatted JSON
-func WriteConfig(config *Config, out io.Writer) error {
-	m := jsonpb.Marshaler{
-		EmitDefaults: true,
-		EnumsAsInts:  false,
-		Indent:       "\t",
-		OrigName:     true,
-	}
-	if err := m.Marshal(out, config); err != nil {
+// WriteConfig outputs the Config data as nicely formatted TOML
+func WriteConfig(config Config, out io.Writer) error {
+	enc := toml.NewEncoder(out)
+
+	if err := enc.Encode(config); err != nil {
 		return err
 	}
-
 	_, err := out.Write([]byte{'\n'})
 	return err
 }
 
-// ReadConfig writes the JSON data into the config structure
+// ReadConfig writes the TOML data into the config structure
 func ReadConfig(in io.Reader) (*Config, error) {
 	config := new(Config)
-	// Allow (and ignore) unknown fields for forwards compatibility.
-	u := jsonpb.Unmarshaler{
-		AllowUnknownFields: true,
+	data, err := ioutil.ReadAll(in)
+	if err != nil {
+		return nil, err
 	}
-	return config, u.Unmarshal(in, config)
+	return config, toml.Unmarshal(data, config)
 }
 
 // HasCompatibilityOption returns true if the specified string is in the list of

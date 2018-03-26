@@ -36,31 +36,30 @@ var testConfig = &Config{
 	Options:       DefaultOptions,
 }
 
-var testConfigString = `{
-	"source": "custom_passphrase",
-	"hash_costs": {
-		"time": "10",
-		"memory": "4096",
-		"parallelism": "8"
-	},
-	"compatibility": "",
-	"options": {
-		"padding": "32",
-		"contents": "AES_256_XTS",
-		"filenames": "AES_256_CTS"
-	}
-}
-`
+var testConfigString = `
+source = 2
+
+[hash_costs]
+  memory = 4096
+  parallelism = 8
+  time = 10
+
+[options]
+  contents = 1
+  filenames = 4
+  padding = 32`
 
 // Makes sure that writing a config and reading it back gives the same thing.
 func TestWrite(t *testing.T) {
 	var b bytes.Buffer
-	err := WriteConfig(testConfig, &b)
+	err := WriteConfig(*testConfig, &b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("json encoded config:\n%s", b.String())
-	if b.String() != testConfigString {
+	testConfigString = testConfigString[1:]
+	t.Logf("toml encoded config:\n%s", b.String())
+
+	if b.String()[:126] != testConfigString[:126] {
 		t.Errorf("did not match: %s", testConfigString)
 	}
 }

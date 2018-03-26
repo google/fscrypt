@@ -91,7 +91,7 @@ func CreateConfigFile(target time.Duration, useLegacy bool) error {
 	}
 
 	log.Printf("Creating config at %q with %v\n", ConfigFileLocation, config)
-	return metadata.WriteConfig(config, configFile)
+	return metadata.WriteConfig(*config, configFile)
 }
 
 // getConfig returns the current configuration struct. Any fields not specified
