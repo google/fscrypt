@@ -120,12 +120,18 @@ func (h *Handle) GetString(name string) (string, error) {
 	return C.GoString((*C.char)(data)), nil
 }
 
-// GetItem retrieves a PAM information item. This a pointer directory to the
+// GetItem retrieves a PAM information item. This is a pointer directly to the
 // data, so it shouldn't be modified.
 func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	var data unsafe.Pointer
 	h.status = C.pam_get_item(h.handle, C.int(i), &data)
-	return data, h.err()
+	if err := h.err(); err != nil {
+		return nil, err
+	}
+	if data == nil {
+		return nil, errors.New("item not found")
+	}
+	return data, nil
 }
 
 // StartAsPamUser sets the effective privileges to that of the PAM user, and
