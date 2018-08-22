@@ -142,11 +142,22 @@ func SetProcessPrivileges(privs *Privileges) error {
 	return nil
 }
 
-func setUids(ruid, euid int) error {
-	res, err := C.setreuid(C.uid_t(ruid), C.uid_t(euid))
-	log.Printf("setreuid(%d, %d) = %d (errno %v)", ruid, euid, res, err)
-	if res == 0 {
-		return nil
+func setUids(ruid, euid, suid int) error {
+	log.Printf("Setting ruid=%d euid=%d suid=%d", ruid, euid, suid)
+	// We elevate the all the privs before setting them. This prevents
+	// issues with (ruid=1000,euid=1000,suid=0), where just a single call
+	// to setresuid might fail with permission denied.
+	if res, err := C.setresuid(0, 0, 0); res < 0 {
+		return errors.Wrapf(err.(syscall.Errno), "setting uids")
 	}
-	return errors.Wrapf(err.(syscall.Errno), "setting uids")
+	if res, err := C.setresuid(C.uid_t(ruid), C.uid_t(euid), C.uid_t(suid)); res < 0 {
+		return errors.Wrapf(err.(syscall.Errno), "setting uids")
+	}
+	return nil
+}
+
+func getUids() (int, int, int) {
+	var ruid, euid, suid C.uid_t
+	C.getresuid(&ruid, &euid, &suid)
+	return int(ruid), int(euid), int(suid)
 }
