@@ -43,30 +43,15 @@ package security
 // cgo maps them to different Go types.
 
 /*
+#define _GNU_SOURCE    // for getresuid and setresuid
 #include <sys/types.h>
-#include <unistd.h>	// setreuid, setregid
-#include <grp.h>	// setgroups
-
-static int my_setreuid(uid_t ruid, uid_t euid)
-{
-	return setreuid(ruid, euid);
-}
-
-static int my_setregid(gid_t rgid, gid_t egid)
-{
-	return setregid(rgid, egid);
-}
-
-static int my_setgroups(size_t size, const gid_t *list)
-{
-	return setgroups(size, list);
-}
+#include <unistd.h>    // getting and setting uids and gids
+#include <grp.h>       // setgroups
 */
 import "C"
 
 import (
 	"log"
-	"os"
 	"os/user"
 	"syscall"
 
@@ -75,72 +60,93 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// SetProcessPrivileges temporarily drops the privileges of the current process
-// to have the effective uid/gid of the target user. The privileges can be
-// changed again with another call to SetProcessPrivileges.
-func SetProcessPrivileges(target *user.User) error {
-	euid := util.AtoiOrPanic(target.Uid)
-	egid := util.AtoiOrPanic(target.Gid)
-	if os.Geteuid() == euid {
-		log.Printf("Privileges already set to %q", target.Username)
-		return nil
-	}
-	log.Printf("Setting privileges to %q", target.Username)
+// Privileges encapulate the effective uid/gid and groups of a process.
+type Privileges struct {
+	euid   C.uid_t
+	egid   C.gid_t
+	groups []C.gid_t
+}
 
-	// If setting privs to root, we want to set the uid first, so we will
-	// then have the necessary permissions to perform the other actions.
-	if euid == 0 {
-		if err := setUids(-1, euid); err != nil {
-			return err
+// ProcessPrivileges returns the process's current effective privileges.
+func ProcessPrivileges() (*Privileges, error) {
+	ruid := C.getuid()
+	euid := C.geteuid()
+	rgid := C.getgid()
+	egid := C.getegid()
+
+	var groups []C.gid_t
+	n, err := C.getgroups(0, nil)
+	if n < 0 {
+		return nil, err
+	}
+	// If n == 0, the user isn't in any groups, so groups == nil is fine.
+	if n > 0 {
+		groups = make([]C.gid_t, n)
+		n, err = C.getgroups(n, &groups[0])
+		if n < 0 {
+			return nil, err
 		}
+		groups = groups[:n]
 	}
-	if err := setGids(-1, egid); err != nil {
-		return err
+	log.Printf("Current privs (real, effective): uid=(%d,%d) gid=(%d,%d) groups=%v",
+		ruid, euid, rgid, egid, groups)
+	return &Privileges{euid, egid, groups}, nil
+}
+
+// UserPrivileges returns the defualt privileges for the specified user.
+func UserPrivileges(user *user.User) (*Privileges, error) {
+	privs := &Privileges{
+		euid: C.uid_t(util.AtoiOrPanic(user.Uid)),
+		egid: C.gid_t(util.AtoiOrPanic(user.Gid)),
 	}
-	if err := setGroups(target); err != nil {
-		return err
+	userGroups, err := user.GroupIds()
+	if err != nil {
+		return nil, util.SystemError(err.Error())
 	}
-	// If not setting privs to root, we want to avoid dropping the uid
-	// util the very end.
-	if euid != 0 {
-		if err := setUids(-1, euid); err != nil {
-			return err
-		}
+	privs.groups = make([]C.gid_t, len(userGroups))
+	for i, group := range userGroups {
+		privs.groups[i] = C.gid_t(util.AtoiOrPanic(group))
 	}
+	return privs, nil
+}
+
+// SetProcessPrivileges sets the privileges of the current process to have those
+// specified by privs. The original privileges can be obtained by first saving
+// the output of ProcessPrivileges, calling SetProcessPrivileges with the
+// desired privs, then calling SetProcessPrivileges with the saved privs.
+func SetProcessPrivileges(privs *Privileges) error {
+	log.Printf("Setting euid=%d egid=%d groups=%v", privs.euid, privs.egid, privs.groups)
+
+	// If setting privs as root, we need to set the euid to 0 first, so that
+	// we will have the necessary permissions to make the other changes to
+	// the groups/egid/euid, regardless of our original euid.
+	C.seteuid(0)
+
+	// Seperately handle the case where the user is in no groups.
+	numGroups := C.size_t(len(privs.groups))
+	groupsPtr := (*C.gid_t)(nil)
+	if numGroups > 0 {
+		groupsPtr = &privs.groups[0]
+	}
+
+	if res, err := C.setgroups(numGroups, groupsPtr); res < 0 {
+		return errors.Wrapf(err.(syscall.Errno), "setting groups")
+	}
+	if res, err := C.setegid(privs.egid); res < 0 {
+		return errors.Wrapf(err.(syscall.Errno), "setting egid")
+	}
+	if res, err := C.seteuid(privs.euid); res < 0 {
+		return errors.Wrapf(err.(syscall.Errno), "setting euid")
+	}
+	ProcessPrivileges()
 	return nil
 }
 
 func setUids(ruid, euid int) error {
-	res, err := C.my_setreuid(C.uid_t(ruid), C.uid_t(euid))
+	res, err := C.setreuid(C.uid_t(ruid), C.uid_t(euid))
 	log.Printf("setreuid(%d, %d) = %d (errno %v)", ruid, euid, res, err)
 	if res == 0 {
 		return nil
 	}
 	return errors.Wrapf(err.(syscall.Errno), "setting uids")
-}
-
-func setGids(rgid, egid int) error {
-	res, err := C.my_setregid(C.gid_t(rgid), C.gid_t(egid))
-	log.Printf("setregid(%d, %d) = %d (errno %v)", rgid, egid, res, err)
-	if res == 0 {
-		return nil
-	}
-	return errors.Wrapf(err.(syscall.Errno), "setting gids")
-}
-
-func setGroups(target *user.User) error {
-	groupStrings, err := target.GroupIds()
-	if err != nil {
-		return util.SystemError(err.Error())
-	}
-	gids := make([]C.gid_t, len(groupStrings))
-	for i, groupString := range groupStrings {
-		gids[i] = C.gid_t(util.AtoiOrPanic(groupString))
-	}
-	res, err := C.my_setgroups(C.size_t(len(groupStrings)), &gids[0])
-	log.Printf("setgroups(%v) = %d (errno %v)", gids, res, err)
-	if res == 0 {
-		return nil
-	}
-	return errors.Wrapf(err.(syscall.Errno), "setting groups")
 }
