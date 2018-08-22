@@ -50,10 +50,17 @@ const (
 	cacheFlag = "drop_caches"
 )
 
+var (
+	// PamFuncs for our 4 provided methods
+	authenticateFunc = PamFunc{"Authenticate", Authenticate}
+	openSessionFunc  = PamFunc{"OpenSession", OpenSession}
+	closeSessionFunc = PamFunc{"CloseSession", CloseSession}
+	chauthtokFunc    = PamFunc{"Chauthtok", Chauthtok}
+)
+
 // Authenticate copies the AUTHTOK (if necessary) into the PAM data so it can be
 // used in pam_sm_open_session.
 func Authenticate(handle *pam.Handle, _ map[string]bool) error {
-	log.Print("Authenticate()")
 	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
@@ -76,7 +83,6 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
-	log.Print("OpenSession()")
 	// We will always clear the the AUTHTOK data
 	defer handle.ClearData(authtokLabel)
 	// Increment the count as we add a session
@@ -150,7 +156,6 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 // CloseSession can deprovision all keys provisioned at the start of the
 // session. It can also clear the cache so these changes take effect.
 func CloseSession(handle *pam.Handle, args map[string]bool) error {
-	log.Printf("CloseSession(%v)", args)
 	// Only do stuff on session close when we are the last session
 	if count, err := AdjustCount(handle, -1); err != nil || count != 0 {
 		log.Printf("count is %d and we are not locking", count)
@@ -212,7 +217,6 @@ func lockLoginPolicies(handle *pam.Handle) error {
 
 // Chauthtok rewraps the login protector when the passphrase changes.
 func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
-	log.Print("Chauthtok()")
 	if err := handle.StartAsPamUser(); err != nil {
 		return err
 	}
@@ -257,7 +261,7 @@ func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
 
 //export pam_sm_authenticate
 func pam_sm_authenticate(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	return RunPamFunc(Authenticate, pamh, argc, argv)
+	return authenticateFunc.Run(pamh, argc, argv)
 }
 
 // pam_sm_stecred needed because we use pam_sm_authenticate.
@@ -268,12 +272,12 @@ func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int
 
 //export pam_sm_open_session
 func pam_sm_open_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	return RunPamFunc(OpenSession, pamh, argc, argv)
+	return openSessionFunc.Run(pamh, argc, argv)
 }
 
 //export pam_sm_close_session
 func pam_sm_close_session(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
-	return RunPamFunc(CloseSession, pamh, argc, argv)
+	return closeSessionFunc.Run(pamh, argc, argv)
 }
 
 //export pam_sm_chauthtok
@@ -282,8 +286,7 @@ func pam_sm_chauthtok(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.i
 	if pam.Flag(flags)&pam.PrelimCheck != 0 {
 		return C.PAM_SUCCESS
 	}
-
-	return RunPamFunc(Chauthtok, pamh, argc, argv)
+	return chauthtokFunc.Run(pamh, argc, argv)
 }
 
 // main() is needed to make a shared library compile
