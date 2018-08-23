@@ -1,7 +1,7 @@
 language: go
 sudo: false
 dist: trusty
-go: 1.9.x
+go: 1.10.x
 
 notifications:
   email: false
@@ -40,8 +40,6 @@ jobs:
       script:
         - go build github.com/google/fscrypt/cmd/fscrypt
         - make
-    - <<: *build
-      go: 1.8.x
 
     - env: Integration Tests
       sudo: required
