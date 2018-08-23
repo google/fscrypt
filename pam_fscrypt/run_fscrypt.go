@@ -59,11 +59,16 @@ const (
 	countFileFormat           = "%d\n"
 )
 
-// PamFunc is used to define the various actions in the PAM module
-type PamFunc func(handle *pam.Handle, args map[string]bool) error
+// PamFunc is used to define the various actions in the PAM module.
+type PamFunc struct {
+	// Name of the function being executed
+	name string
+	// Go implementation of this function
+	impl func(handle *pam.Handle, args map[string]bool) error
+}
 
-// RunPamFunc is used to convert between the Go functions and exported C funcs.
-func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) (ret C.int) {
+// Run is used to convert between the Go functions and exported C funcs.
+func (f *PamFunc) Run(pamh unsafe.Pointer, argc C.int, argv **C.char) (ret C.int) {
 	args := parseArgs(argc, argv)
 	errorWriter := setupLogging(args)
 
@@ -72,20 +77,21 @@ func RunPamFunc(f PamFunc, pamh unsafe.Pointer, argc C.int, argv **C.char) (ret 
 		if r := recover(); r != nil {
 			ret = C.PAM_SERVICE_ERR
 			fmt.Fprintf(errorWriter,
-				"pam func panicked: %s\nPlease open an issue.\n%s",
-				r, debug.Stack())
+				"%s(%v) panicked: %s\nPlease open a bug.\n%s",
+				f.name, args, r, debug.Stack())
 		}
 	}()
 
+	log.Printf("%s(%v) starting", f.name, args)
 	handle, err := pam.NewHandle(pamh)
 	if err == nil {
-		err = f(handle, args)
+		err = f.impl(handle, args)
 	}
 	if err != nil {
-		fmt.Fprintf(errorWriter, "pam func failed: %s", err)
+		fmt.Fprintf(errorWriter, "%s(%v) failed: %s", f.name, args, err)
 		return C.PAM_SERVICE_ERR
 	}
-	log.Print("pam func succeeded")
+	log.Printf("%s(%v) succeeded", f.name, args)
 	return C.PAM_SUCCESS
 }
 

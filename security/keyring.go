@@ -22,7 +22,6 @@ package security
 import (
 	"fmt"
 	"log"
-	"os"
 	"os/user"
 	"sync"
 
@@ -138,42 +137,47 @@ func UserKeyringID(target *user.User, checkSession bool) (int, error) {
 	return targetKeyring, nil
 }
 
-func userKeyringIDLookup(uid int) (int, error) {
+func userKeyringIDLookup(uid int) (keyringID int, err error) {
 	cacheLock.Lock()
 	defer cacheLock.Unlock()
-	if keyringID, ok := keyringIDCache[uid]; ok {
-		return keyringID, nil
+	var ok bool
+	if keyringID, ok = keyringIDCache[uid]; ok {
+		return
 	}
 
-	ruid, euid := os.Getuid(), os.Geteuid()
-	// If all the ids do not agree, we will have to change them
-	needSetUids := uid != ruid || uid != euid
-
-	// The value of KEY_SPEC_USER_KEYRING is determined by the real uid, so
-	// we must set the ruid appropriately. Note that this will also trigger
-	// the creation of the uid keyring if it does not yet exist.
-	if needSetUids {
-		defer setUids(ruid, euid) // Always reset privileges
-		if err := setUids(uid, 0); err != nil {
-			return 0, err
+	// Our goals here are to:
+	//    - Find the user keyring (for the provided uid)
+	//    - Link it into the current process keyring (so we can use it)
+	//    - Make no permenant changes to the process privileges
+	// Complicating this are the facts that:
+	//    - The value of KEY_SPEC_USER_KEYRING is determined by the ruid
+	//    - Keyring linking permissions use the euid
+	// So we have to change both the ruid and euid to make this work,
+	// setting the suid to 0 so that we can later switch back.
+	ruid, euid, suid := getUids()
+	if ruid != uid || euid != uid {
+		if err = setUids(uid, uid, 0); err != nil {
+			return
 		}
+		defer func() {
+			resetErr := setUids(ruid, euid, suid)
+			if resetErr != nil {
+				err = resetErr
+			}
+		}()
 	}
-	keyringID, err := unix.KeyctlGetKeyringID(unix.KEY_SPEC_USER_KEYRING, true)
+
+	// We get the value of KEY_SPEC_USER_KEYRING. Note that this will also
+	// trigger the creation of the uid keyring if it does not yet exist.
+	keyringID, err = unix.KeyctlGetKeyringID(unix.KEY_SPEC_USER_KEYRING, true)
 	log.Printf("keyringID(_uid.%d) = %d, %v", uid, keyringID, err)
 	if err != nil {
 		return 0, err
 	}
 
-	// We still want to use this key after our privileges are reset. If we
-	// link the key into the process keyring, we will possess it and still
-	// be able to use it. However, the permissions to link are based on the
-	// effective uid, so we must set the euid appropriately.
-	if needSetUids {
-		if err := setUids(0, uid); err != nil {
-			return 0, err
-		}
-	}
-	if err := keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
+	// We still want to use this keyring after our privileges are reset. So
+	// we link it into the process keyring, preventing a loss of access.
+	if err = keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
 		return 0, err
 	}
 
