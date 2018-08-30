@@ -23,8 +23,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
+
+	"github.com/golang/protobuf/proto"
 
 	"github.com/google/fscrypt/util"
 )
@@ -147,7 +148,7 @@ func TestGetPolicyEmptyDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(actualPolicy, goodPolicy) {
+	if !proto.Equal(actualPolicy, goodPolicy) {
 		t.Errorf("policy %+v does not equal expected policy %+v", actualPolicy, goodPolicy)
 	}
 }

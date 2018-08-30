@@ -22,9 +22,9 @@ package filesystem
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
@@ -205,7 +205,7 @@ func TestSetPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(realPolicy, policy) {
+	if !proto.Equal(realPolicy, policy) {
 		t.Errorf("policy %+v does not equal expected policy %+v", realPolicy, policy)
 	}
 
@@ -229,7 +229,7 @@ func TestSetProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(realProtector, protector) {
+	if !proto.Equal(realProtector, protector) {
 		t.Errorf("protector %+v does not equal expected protector %+v", realProtector, protector)
 	}
 }
@@ -289,7 +289,7 @@ func TestLinkedProtector(t *testing.T) {
 		t.Error("mount returned was incorrect")
 	}
 
-	if !reflect.DeepEqual(retProtector, protector) {
+	if !proto.Equal(retProtector, protector) {
 		t.Errorf("protector %+v does not equal expected protector %+v", retProtector, protector)
 	}
 }
