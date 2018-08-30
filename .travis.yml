@@ -38,6 +38,9 @@ jobs:
         - go build github.com/google/fscrypt/cmd/fscrypt
         - make
 
+    - <<: *build
+      go: 1.10.x
+
     - env: Integration Tests
       sudo: required
       addons:
