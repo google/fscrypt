@@ -64,8 +64,7 @@ checks you should make sure that in your submission:
 - If you made any changes to files ending in `.proto`, the corresponding
   `.pb.go` files should be regenerated with `make gen`.
 - Any issues found by `make lint` have been addressed.
-- If any dependancies have changed, `Gopkg.toml` should be updated and
-  [`dep ensure`](https://github.com/golang/dep) should be run.
+- If any dependancies have changed, run `go mod tidy` and `go mod vendor`.
 - `make coverage.out` can be used to generate a coverage report for all of the
   tests, but isn't required for submission
   (ideally most code would be tested, we are far from that ideal).
@@ -75,7 +74,8 @@ Essentially, if you run:
 make test-setup
 make all
 make test-teardown
-dep ensure
+go mod tidy
+go mod vendor
 ```
 and everything succeeds, and no files are changed, you're good to submit.
 
@@ -114,8 +114,11 @@ test filesystem.
 
 ### Changing dependencies
 
-fscrypt vendors all of it's dependancies using `dep`. If you add or remove a
-dependency, be sure to update `Gopkg.toml` and run `dep ensure`.
+fscrypt's dependancies are managed using the [Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
+If you add or remove a dependency, be sure to update `go.mod`, `go.sum`, and the
+`vendor/` directory by running `go mod tidy` and `go mod vendor`. fscrypt still
+vendor's it's dependancies for compatiblity with older users, but this will
+probobly be removed once the module system becomes widespread.
 
 Also, when adding a dependancy, the license of the package must be compatible
 with [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). See the

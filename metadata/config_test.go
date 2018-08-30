@@ -21,8 +21,9 @@ package metadata
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
+
+	"github.com/golang/protobuf/proto"
 )
 
 var testConfig = &Config{
@@ -72,7 +73,7 @@ func TestRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("decoded config:\n%s", cfg)
-	if !reflect.DeepEqual(cfg, testConfig) {
+	if !proto.Equal(cfg, testConfig) {
 		t.Errorf("did not match: %s", testConfig)
 	}
 }

@@ -100,7 +100,7 @@ format: $(BIN)/goimports
 
 lint: $(BIN)/golint $(BIN)/megacheck
 	go vet ./...
-	golint -set_exit_status ./...
+	go list ./... | xargs -L1 golint -set_exit_status
 	megacheck -unused.exported -simple.exit-non-zero ./...
 
 clean:
@@ -166,21 +166,24 @@ TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports megacheck goc
 .PHONY: tools
 tools: $(TOOLS)
 
-# Go tools build from vendored sources
-VENDOR := $(shell find vendor -type f)
-$(BIN)/golint: $(VENDOR)
-	go build -o $@ ./vendor/github.com/golang/lint/golint
-$(BIN)/protoc-gen-go: $(VENDOR)
-	go build -o $@ ./vendor/github.com/golang/protobuf/protoc-gen-go
-$(BIN)/goimports: $(VENDOR)
-	go build -o $@ ./vendor/golang.org/x/tools/cmd/goimports
-$(BIN)/megacheck: $(VENDOR)
-	go build -o $@ ./vendor/honnef.co/go/tools/cmd/megacheck
-$(BIN)/gocovmerge: $(VENDOR)
-	go build -o $@ ./vendor/github.com/wadey/gocovmerge
+$(BIN)/golint:
+	GO111MODULE=off go get github.com/golang/lint/golint
+	GO111MODULE=off go build -o $@ github.com/golang/lint/golint
+$(BIN)/protoc-gen-go:
+	GO111MODULE=off go get github.com/golang/protobuf/protoc-gen-go
+	GO111MODULE=off go build -o $@ github.com/golang/protobuf/protoc-gen-go
+$(BIN)/goimports:
+	GO111MODULE=off go get golang.org/x/tools/cmd/goimports
+	GO111MODULE=off go build -o $@ golang.org/x/tools/cmd/goimports
+$(BIN)/megacheck:
+	GO111MODULE=off go get honnef.co/go/tools/cmd/megacheck
+	GO111MODULE=off go build -o $@ honnef.co/go/tools/cmd/megacheck
+$(BIN)/gocovmerge:
+	GO111MODULE=off go get github.com/wadey/gocovmerge
+	GO111MODULE=off go build -o $@ github.com/wadey/gocovmerge
 
 # Non-go tools downloaded from appropriate repository
-PROTOC_VERSION := 3.5.1
+PROTOC_VERSION := 3.6.1
 ARCH := $(shell uname -m)
 ifeq (x86_64,$(ARCH))
 PROTOC_ARCH := x86_64

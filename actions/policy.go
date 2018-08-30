@@ -22,8 +22,8 @@ package actions
 import (
 	"fmt"
 	"log"
-	"reflect"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
@@ -153,7 +153,7 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	}
 	log.Printf("found data for policy %s on %q", descriptor, ctx.Mount.Path)
 
-	if !reflect.DeepEqual(pathData.Options, mountData.Options) {
+	if !proto.Equal(pathData.Options, mountData.Options) {
 		log.Printf("options from path: %+v", pathData.Options)
 		log.Printf("options from mount: %+v", mountData.Options)
 		return nil, errors.Wrapf(ErrPolicyMetadataMismatch, "policy %s", descriptor)

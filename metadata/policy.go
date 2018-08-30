@@ -138,7 +138,7 @@ func SetPolicy(path string, data *PolicyData) error {
 		Version:                   0, // Version must always be zero
 		Contents_encryption_mode:  uint8(data.Options.Contents),
 		Filenames_encryption_mode: uint8(data.Options.Filenames),
-		Flags: uint8(paddingFlag),
+		Flags:                     uint8(paddingFlag),
 	}
 	copy(policy.Master_key_descriptor[:], descriptorBytes)
 
@@ -176,7 +176,7 @@ func CheckSupport(path string) error {
 		Version:                   math.MaxUint8,
 		Contents_encryption_mode:  math.MaxUint8,
 		Filenames_encryption_mode: math.MaxUint8,
-		Flags: math.MaxUint8,
+		Flags:                     math.MaxUint8,
 	}
 
 	err = policyIoctl(file, unix.FS_IOC_SET_ENCRYPTION_POLICY, &badPolicy)

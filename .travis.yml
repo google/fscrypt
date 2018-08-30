@@ -1,7 +1,7 @@
 language: go
 sudo: false
 dist: trusty
-go: 1.10.x
+go: 1.11.x
 
 notifications:
   email: false
@@ -23,11 +23,8 @@ jobs:
     - stage: presubmits
       env: Generate, Format, and Lint
       install:
-        - wget -q https://github.com/golang/dep/releases/download/v0.4.1/dep-linux-amd64 -O /tmp/dep
-        - chmod a+x /tmp/dep
         - make tools
       script:
-        - /tmp/dep status
         - make gen
         - bin/files-changed proto
         - make format
@@ -40,6 +37,9 @@ jobs:
       script:
         - go build github.com/google/fscrypt/cmd/fscrypt
         - make
+
+    - <<: *build
+      go: 1.10.x
 
     - env: Integration Tests
       sudo: required
