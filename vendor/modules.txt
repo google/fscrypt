@@ -1,0 +1,17 @@
+# github.com/golang/protobuf v1.2.0
+github.com/golang/protobuf/proto
+github.com/golang/protobuf/jsonpb
+github.com/golang/protobuf/ptypes/struct
+# github.com/pkg/errors v0.8.0
+github.com/pkg/errors
+# github.com/urfave/cli v1.20.0
+github.com/urfave/cli
+# golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac
+golang.org/x/crypto/ssh/terminal
+golang.org/x/crypto/argon2
+golang.org/x/crypto/hkdf
+golang.org/x/crypto/blake2b
+# golang.org/x/sys v0.0.0-20180828065106-d99a578cf41b
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+golang.org/x/sys/cpu
