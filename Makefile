@@ -183,7 +183,7 @@ $(BIN)/gocovmerge:
 	GO111MODULE=off go build -o $@ github.com/wadey/gocovmerge
 
 # Non-go tools downloaded from appropriate repository
-PROTOC_VERSION := 3.5.1
+PROTOC_VERSION := 3.6.1
 ARCH := $(shell uname -m)
 ifeq (x86_64,$(ARCH))
 PROTOC_ARCH := x86_64
