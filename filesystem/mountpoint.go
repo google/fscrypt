@@ -207,7 +207,7 @@ func GetMount(mountpoint string) (*Mount, error) {
 // getMountsFromLink returns the Mount objects which match the provided link.
 // This link if formatted as a tag (e.g. <token>=<value>) similar to how they
 // apprear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
-// that this can match multiple Mounts (due to the existance of bind mounts). An
+// that this can match multiple Mounts (due to the existence of bind mounts). An
 // error is returned if the link is invalid or we cannot load the required mount
 // data. If a filesystem has been updated since the last call to one of the
 // mount functions, run UpdateMountInfo to see the change.

@@ -45,7 +45,7 @@ Be sure to correctly tag your issue. The usage for the tags is as follows:
 	* Unclear or ambiguous error messages
 * `enhancement` - Things you want in fscrypt
 * `question` - You don't know how something works with fscrypt
-	* This usally turns into a `documentation` issue.
+	* This usually turns into a `documentation` issue.
 * `testing` - Strange test failures or missing tests
 
 ## Submitting a Change to fscrypt
@@ -64,7 +64,7 @@ checks you should make sure that in your submission:
 - If you made any changes to files ending in `.proto`, the corresponding
   `.pb.go` files should be regenerated with `make gen`.
 - Any issues found by `make lint` have been addressed.
-- If any dependancies have changed, run `go mod tidy` and `go mod vendor`.
+- If any dependencies have changed, run `go mod tidy` and `go mod vendor`.
 - `make coverage.out` can be used to generate a coverage report for all of the
   tests, but isn't required for submission
   (ideally most code would be tested, we are far from that ideal).
@@ -98,8 +98,8 @@ make test MOUNT=/foo/bar
 ```
 
 Otherwise, you can use the `make test-setup`/`make test-teardown` commands to
-create/destory a test filesystem for running integration tests. By default, a
-filesystem will be created (then destoryed) at `/tmp/fscrypt-mount` (using an
+create/destroy a test filesystem for running integration tests. By default, a
+filesystem will be created (then destroyed) at `/tmp/fscrypt-mount` (using an
 image file at `/tmp/fscrypt-image`). To create/test/destroy a filesystem at a
 custom mountpoint `/foo/bar`, run:
 ```bash
@@ -114,13 +114,13 @@ test filesystem.
 
 ### Changing dependencies
 
-fscrypt's dependancies are managed using the [Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
+fscrypt's dependencies are managed using the [Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
 If you add or remove a dependency, be sure to update `go.mod`, `go.sum`, and the
 `vendor/` directory by running `go mod tidy` and `go mod vendor`. fscrypt still
-vendor's it's dependancies for compatiblity with older users, but this will
+vendor's it's dependencies for compatibility with older users, but this will
 probobly be removed once the module system becomes widespread.
 
-Also, when adding a dependancy, the license of the package must be compatible
+Also, when adding a dependency, the license of the package must be compatible
 with [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). See the
 [FSF's article](https://www.gnu.org/licenses/license-list.html) for more
 information. This (unfortunately) means we cannot use external packages under

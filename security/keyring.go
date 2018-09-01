@@ -148,7 +148,7 @@ func userKeyringIDLookup(uid int) (keyringID int, err error) {
 	// Our goals here are to:
 	//    - Find the user keyring (for the provided uid)
 	//    - Link it into the current process keyring (so we can use it)
-	//    - Make no permenant changes to the process privileges
+	//    - Make no permanent changes to the process privileges
 	// Complicating this are the facts that:
 	//    - The value of KEY_SPEC_USER_KEYRING is determined by the ruid
 	//    - Keyring linking permissions use the euid

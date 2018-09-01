@@ -93,7 +93,7 @@ func ProcessPrivileges() (*Privileges, error) {
 	return &Privileges{euid, egid, groups}, nil
 }
 
-// UserPrivileges returns the defualt privileges for the specified user.
+// UserPrivileges returns the default privileges for the specified user.
 func UserPrivileges(user *user.User) (*Privileges, error) {
 	privs := &Privileges{
 		euid: C.uid_t(util.AtoiOrPanic(user.Uid)),
@@ -122,7 +122,7 @@ func SetProcessPrivileges(privs *Privileges) error {
 	// the groups/egid/euid, regardless of our original euid.
 	C.seteuid(0)
 
-	// Seperately handle the case where the user is in no groups.
+	// Separately handle the case where the user is in no groups.
 	numGroups := C.size_t(len(privs.groups))
 	groupsPtr := (*C.gid_t)(nil)
 	if numGroups > 0 {
