@@ -102,6 +102,7 @@ lint: $(BIN)/golint $(BIN)/megacheck
 	go vet ./...
 	go list ./... | xargs -L1 golint -set_exit_status
 	megacheck -unused.exported -simple.exit-non-zero ./...
+	misspell -source=text $(FILES)
 
 clean:
 	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES)
@@ -162,7 +163,7 @@ uninstall:
 	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
 
 #### Tool Building Commands ####
-TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports megacheck gocovmerge)
+TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports megacheck gocovmerge misspell)
 .PHONY: tools
 tools: $(TOOLS)
 
@@ -181,6 +182,9 @@ $(BIN)/megacheck:
 $(BIN)/gocovmerge:
 	GO111MODULE=off go get github.com/wadey/gocovmerge
 	GO111MODULE=off go build -o $@ github.com/wadey/gocovmerge
+$(BIN)/misspell:
+	GO111MODULE=off go get github.com/client9/misspell
+	GO111MODULE=off go build -o $@ github.com/client9/misspell/cmd/misspell
 
 # Non-go tools downloaded from appropriate repository
 PROTOC_VERSION := 3.6.1

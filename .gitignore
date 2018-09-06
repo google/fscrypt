@@ -6,5 +6,6 @@ bin/protoc-gen-go
 bin/goimports
 bin/megacheck
 bin/gocovmerge
+bin/misspell
 *coverage.out
 .vscode

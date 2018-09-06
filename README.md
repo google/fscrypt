@@ -570,7 +570,7 @@ To trigger a password authentication event, run `su $(whoami) -c exit`.
 
 Getting this error on an ext4 system usually means the filesystem has not been
 setup for encryption. The only other way to get this error is if filesystem
-encryption has been explictly disabled in the kernel config.
+encryption has been explicitly disabled in the kernel config.
 
 __IMPORTANT:__ Before enabling encryption on an ext4 filesystem __ALL__ of the
 following should be true:
@@ -600,7 +600,7 @@ Note: It is actually possible to get GRUB to boot an encrypted ext4 filesystem.
 However, it requires GRUB 2.02 (__NOT__ the 2.02 beta) to be installed as the
 bootloader. As this version was released in April 2017, most systems __WILL
 FAIL TO BOOT__ with an ext4 encrypted boot directory. Note that this is only
-relevant to systems without a seperate boot partition. Sytems with `/boot` on
+relevant to systems without a separate boot partition. Sytems with `/boot` on
 a different partition than the one being encrypted (including all UEFI systems)
 are not effected by this.
 

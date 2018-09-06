@@ -43,7 +43,7 @@ func DropFilesystemCache() error {
 	defer file.Close()
 	// "2" just frees the reclaimable inodes and dentries, the associated
 	// pages to these inodes will be freed. We do not need to free the
-	// entire pagecache (as this will severly impact performance).
+	// entire pagecache (as this will severely impact performance).
 	_, err = file.WriteString("2")
 	return err
 }

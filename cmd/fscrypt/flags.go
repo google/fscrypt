@@ -210,7 +210,7 @@ var (
 	userFlag = &stringFlag{
 		Name:    "user",
 		ArgName: "USERNAME",
-		Usage: `Specifiy which user should be used for login passphrases
+		Usage: `Specify which user should be used for login passphrases
 			or to which user's keyring keys should be provisioned.`,
 	}
 	protectorFlag = &stringFlag{
