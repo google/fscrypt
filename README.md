@@ -111,7 +111,7 @@ fscrypt has a minimal set of build dependencies:
 *   `make`
 *   Headers for [`libpam`](http://www.linux-pam.org/).
     Install them with the appropriate package manager:
-    - Debain/Ubuntu: `sudo apt install libpam0g-dev`
+    - Debian/Ubuntu: `sudo apt install libpam0g-dev`
     - Red Hat: `sudo yum install pam-devel`
     - Arch: [`pam`](https://www.archlinux.org/packages/core/x86_64/pam/)
       package (usually installed by default)
