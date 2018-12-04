@@ -171,7 +171,9 @@ $(BIN)/golint:
 	GO111MODULE=off go get github.com/golang/lint/golint
 	GO111MODULE=off go build -o $@ github.com/golang/lint/golint
 $(BIN)/protoc-gen-go:
-	GO111MODULE=off go get github.com/golang/protobuf/protoc-gen-go
+	GO111MODULE=off go get -d github.com/golang/protobuf/protoc-gen-go
+	git -C "$(shell go env GOPATH)/src/github.com/golang/protobuf" checkout v1.2.0
+	go install github.com/golang/protobuf/protoc-gen-go
 	GO111MODULE=off go build -o $@ github.com/golang/protobuf/protoc-gen-go
 $(BIN)/goimports:
 	GO111MODULE=off go get golang.org/x/tools/cmd/goimports
