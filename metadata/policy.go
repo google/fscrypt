@@ -109,6 +109,18 @@ func GetPolicy(path string) (*PolicyData, error) {
 	}, nil
 }
 
+// For improved performance, use the DIRECT_KEY flag when using ciphers that
+// support it, e.g. Adiantum.  It is safe because fscrypt won't reuse the key
+// for any other policy.  (Multiple directories with same policy are okay.)
+func shouldUseDirectKeyFlag(options *EncryptionOptions) bool {
+	// Contents and filenames encryption modes must be the same
+	if options.Contents != options.Filenames {
+		return false
+	}
+	// Whitelist the modes that take a 24+ byte IV (enough room for the per-file nonce)
+	return options.Contents == EncryptionOptions_Adiantum
+}
+
 // SetPolicy sets up the specified directory to be encrypted with the specified
 // policy. Returns an error if we cannot set the policy for any reason (not a
 // directory, invalid options or KeyDescriptor, etc).
@@ -124,7 +136,7 @@ func SetPolicy(path string, data *PolicyData) error {
 	}
 
 	// This lookup should always succeed (as policy is valid)
-	paddingFlag, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
+	flags, ok := util.Lookup(data.Options.Padding, paddingArray, flagsArray)
 	if !ok {
 		log.Panicf("padding of %d was not found", data.Options.Padding)
 	}
@@ -134,11 +146,16 @@ func SetPolicy(path string, data *PolicyData) error {
 		return errors.New("invalid descriptor: " + data.KeyDescriptor)
 	}
 
+	if shouldUseDirectKeyFlag(data.Options) {
+		// TODO: use unix.FS_POLICY_FLAG_DIRECT_KEY here once available
+		flags |= 0x4
+	}
+
 	policy := unix.FscryptPolicy{
 		Version:                   0, // Version must always be zero
 		Contents_encryption_mode:  uint8(data.Options.Contents),
 		Filenames_encryption_mode: uint8(data.Options.Filenames),
-		Flags:                     uint8(paddingFlag),
+		Flags:                     uint8(flags),
 	}
 	copy(policy.Master_key_descriptor[:], descriptorBytes)
 
