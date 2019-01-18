@@ -151,5 +151,5 @@ your code.
 `make lint` runs:
   - [`go vet`](https://golang.org/cmd/vet/) 
   - [`golint`](https://github.com/golang/lint) (built from source in `vendor/`)
-  - [`megacheck`](https://github.com/dominikh/go-tools/tree/master/cmd/megacheck)
+  - [`staticcheck`](https://github.com/dominikh/go-tools/tree/master/cmd/staticcheck)
     (built from source in `vendor/`)
