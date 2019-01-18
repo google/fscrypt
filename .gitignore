@@ -4,7 +4,7 @@ bin/protoc
 bin/golint
 bin/protoc-gen-go
 bin/goimports
-bin/megacheck
+bin/staticcheck
 bin/gocovmerge
 bin/misspell
 *coverage.out

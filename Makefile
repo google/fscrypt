@@ -98,10 +98,10 @@ format: $(BIN)/goimports
 	goimports -w $(GO_DIRS)
 	clang-format -i -style=Google $(C_FILES)
 
-lint: $(BIN)/golint $(BIN)/megacheck
+lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
 	go vet ./...
 	go list ./... | xargs -L1 golint -set_exit_status
-	megacheck -unused.exported -simple.exit-non-zero ./...
+	staticcheck ./...
 	misspell -source=text $(FILES)
 
 clean:
@@ -163,7 +163,7 @@ uninstall:
 	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
 
 #### Tool Building Commands ####
-TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports megacheck gocovmerge misspell)
+TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
 .PHONY: tools
 tools: $(TOOLS)
 
@@ -178,9 +178,9 @@ $(BIN)/protoc-gen-go:
 $(BIN)/goimports:
 	GO111MODULE=off go get golang.org/x/tools/cmd/goimports
 	GO111MODULE=off go build -o $@ golang.org/x/tools/cmd/goimports
-$(BIN)/megacheck:
-	GO111MODULE=off go get honnef.co/go/tools/cmd/megacheck
-	GO111MODULE=off go build -o $@ honnef.co/go/tools/cmd/megacheck
+$(BIN)/staticcheck:
+	GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck
+	GO111MODULE=off go build -o $@ honnef.co/go/tools/cmd/staticcheck
 $(BIN)/gocovmerge:
 	GO111MODULE=off go get github.com/wadey/gocovmerge
 	GO111MODULE=off go build -o $@ github.com/wadey/gocovmerge
