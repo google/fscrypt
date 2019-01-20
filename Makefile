@@ -105,7 +105,7 @@ lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
 	misspell -source=text $(FILES)
 
 clean:
-	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES)
+	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES) $(PAM_CONFIG)
 
 ###### Testing Commands (setup/teardown require sudo) ######
 .PHONY: test test-setup test-teardown
@@ -144,23 +144,28 @@ coverage.out: $(BIN)/gocovmerge $(COVERAGE_FILES)
 .PHONY: install install-bin install-pam uninstall
 install: install-bin install-pam
 
-INSTALL := sudo install
-DESTDIR := /usr/local/bin
-PAM_MODULE_DIR := /lib/security
-PAM_CONFIG_DIR := /usr/share/pam-configs
+PREFIX := /usr/local
+DESTDIR := $(PREFIX)/bin
 
 install-bin: $(BIN)/$(NAME)
-	$(INSTALL) -d $(DESTDIR)
-	$(INSTALL) $< $(DESTDIR)
+	install -d $(DESTDIR)
+	install $< $(DESTDIR)
+
+PAM_MODULE_DIR := $(PREFIX)/lib/security
+PAM_INSTALL_PATH := $(PAM_MODULE_DIR)/$(PAM_NAME).so
+PAM_CONFIG := $(BIN)/config
+PAM_CONFIG_DIR := $(PREFIX)/share/pam-configs
 
 install-pam: $(PAM_MODULE)
-	$(INSTALL) -d $(PAM_MODULE_DIR)
-	$(INSTALL) $< $(PAM_MODULE_DIR)
-	$(INSTALL) -d $(PAM_CONFIG_DIR)
-	$(INSTALL) $(PAM_NAME)/config $(PAM_CONFIG_DIR)/$(NAME)
+	install -d $(PAM_MODULE_DIR)
+	install $(PAM_MODULE) $(PAM_MODULE_DIR)
+
+	m4 --define=PAM_INSTALL_PATH=$(PAM_INSTALL_PATH) < $(PAM_NAME)/config > $(PAM_CONFIG)
+	install -d $(PAM_CONFIG_DIR)
+	install $(PAM_CONFIG) $(PAM_CONFIG_DIR)/$(NAME)
 
 uninstall:
-	rm -f $(DESTDIR)/$(NAME) $(PAM_MODULE_DIR)/$(PAM_MODULE) $(PAM_CONFIG_DIR)/$(NAME)
+	rm -f $(DESTDIR)/$(NAME) $(PAM_INSTALL_PATH) $(PAM_CONFIG_DIR)/$(NAME)
 
 #### Tool Building Commands ####
 TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
