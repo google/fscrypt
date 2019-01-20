@@ -121,13 +121,14 @@ Once all the dependencies are installed, you can get the repository by running:
 go get -d github.com/google/fscrypt/...
 ```
 Running `make` in `$GOPATH/src/github.com/google/fscrypt` builds the
-executable (`fscrypt`) and PAM module (`pam-fscrypt.so`) in the `bin/`
+executable (`fscrypt`) and PAM module (`pam_fscrypt.so`) in the `bin/`
 directory. Use `make bin/fscrypt` or `make bin/pam_fscrypt.so`
 to build only one.
 
-Running `sudo make install` installs `fscrypt` to `/usr/local/bin` and
-`pam-fscrypt` to `/lib/security`. Use `make install-bin` or `make install-pam`
-to install only one.
+Running `sudo make install` installs `fscrypt` to `/usr/local/bin`,
+`pam_fscrypt.so` to `/usr/local/lib/security`, and `pam_fscrypt/config` to
+`/usr/local/share/pam-configs`. Use `make install-bin` to only install
+`fscrypt`. Use `make install-pam` to only install the pam files.
 
 See the `Makefile` for instructions on how to customize the build (e.g. installing
 to a custom location, using different build flags, building a static binary,
