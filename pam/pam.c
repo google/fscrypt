@@ -19,11 +19,10 @@
 
 #include "pam.h"
 
+#include <security/pam_appl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <security/pam_appl.h>
 #include <sys/mman.h>  // mlock/munlock
 
 #include "_cgo_export.h"  // for input callbacks

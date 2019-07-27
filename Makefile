@@ -173,8 +173,8 @@ TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck g
 tools: $(TOOLS)
 
 $(BIN)/golint:
-	GO111MODULE=off go get github.com/golang/lint/golint
-	GO111MODULE=off go build -o $@ github.com/golang/lint/golint
+	GO111MODULE=off go get golang.org/x/lint/golint
+	GO111MODULE=off go build -o $@ golang.org/x/lint/golint
 $(BIN)/protoc-gen-go:
 	GO111MODULE=off go get -d github.com/golang/protobuf/protoc-gen-go
 	git -C "$(shell go env GOPATH)/src/github.com/golang/protobuf" checkout v1.2.0
