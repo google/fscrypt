@@ -104,6 +104,13 @@ func encryptAction(c *cli.Context) error {
 		return newExitError(c, err)
 	}
 
+	// Most people expect that other users can't see their encrypted files
+	// while they're unlocked, so change the directory's mode to 0700.
+	if err := os.Chmod(path, 0700); err != nil {
+		fmt.Fprintf(c.App.Writer, "Warning: unable to chmod %q to 0700 [%v]\n", path, err)
+		// Continue on; don't consider this a fatal error.
+	}
+
 	if !skipUnlockFlag.Value {
 		fmt.Fprintf(c.App.Writer,
 			"%q is now encrypted, unlocked, and ready for use.\n", path)
