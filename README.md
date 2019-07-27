@@ -581,8 +581,14 @@ following should be true:
     block size (run `tune2fs -l /dev/device | grep 'Block size'`) are the same.
   - You are ok with not being able to mount this filesystem with a v4.0
     kernel or older.
-  - You are __NOT__ using GRUB to boot directly off this filesystem. If
-    you have a sperate `/boot` partition, you are fine.
+  - Either you are __NOT__ using GRUB to boot directly off this filesystem, or
+    you are using GRUB 2.04 or later.  This is necessary because old versions of
+    GRUB can't boot from ext4 filesystems that have the encryption feature
+    enabled, even if none of the boot files are encrypted themselves.  If, like
+    most people, you have a separate `/boot` partition, you are fine.  You are
+    also fine if you are using the GRUB Debian package `2.02-2` or later (*not*
+    a `2.02_beta*` version), including the version in Ubuntu 18.04 and later,
+    since the patch to support encryption was backported.
     
 If any of the above is not true, __DO NOT ENABLE FILESYSTEM ENCRYPTION__.
 
@@ -596,14 +602,6 @@ fsck -fn /dev/device
 debugfs -w -R "feature -encrypt" /dev/device
 fsck -fn /dev/device
 ``` 
-
-Note: It is actually possible to get GRUB to boot an encrypted ext4 filesystem.
-However, it requires GRUB 2.02 (__NOT__ the 2.02 beta) to be installed as the
-bootloader. As this version was released in April 2017, most systems __WILL
-FAIL TO BOOT__ with an ext4 encrypted boot directory. Note that this is only
-relevant to systems without a separate boot partition. Sytems with `/boot` on
-a different partition than the one being encrypted (including all UEFI systems)
-are not effected by this.
 
 ## Legal
 
