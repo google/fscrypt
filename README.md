@@ -631,6 +631,32 @@ debugfs -w -R "feature -encrypt" /dev/device
 fsck -fn /dev/device
 ``` 
 
+#### Getting "Operation not permitted" when moving files into an encrypted directory.
+
+This occurs when the kernel version is older than v5.1 and the source files are
+on the same filesystem and are either unencrypted or are in a different
+encrypted directory hierarchy.
+
+Solution: copy the files instead, e.g. with `cp`.
+
+`mv` works on kernels v5.1 and later, since those kernels return the correct
+error code to make `mv` fall back to a copy itself.
+
+__HOWEVER:__ in either case, it is important to realize that the original files
+may remain recoverable from free space on the disk after they are deleted.  It's
+much better to keep all files encrypted from the very beginning.
+
+As a last resort, the `shred` program may be used to try to overwrite the
+original files, e.g.:
+
+```shell
+cp file encrypted_dir/
+shred -u file
+```
+
+However, `shred` isn't guaranteed to be effective on all filesystems and storage
+devices.
+
 ## Legal
 
 Copyright 2017 Google Inc. under the
