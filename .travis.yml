@@ -1,7 +1,7 @@
 language: go
 sudo: false
-dist: trusty
-go: 1.11.x
+dist: bionic
+go: 1.12.x
 
 notifications:
   email: false
@@ -39,7 +39,7 @@ jobs:
         - make
 
     - <<: *build
-      go: 1.10.x
+      go: 1.11.x
 
     - env: Integration Tests
       sudo: required
