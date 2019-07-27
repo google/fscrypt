@@ -24,7 +24,7 @@ encryption. Ext4 has supported Linux filesystem encryption
 [added support in v4.10](https://lwn.net/Articles/707900). Other filesystems
 may add support for native encryption in the future. Filesystems may
 additionally require certain kernel configuration options to be set to use
-native encryption.
+native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 
 Most of the testing for fscrypt has been done with ext4 filesystems. However,
 the kernel uses a common userspace interface, so this tool should work with all
@@ -142,10 +142,33 @@ go get github.com/google/fscrypt/cmd/fscrypt
 
 ### Runtime Dependencies
 
-fscrypt has very few runtime dependencies:
-*   Kernel support for filesystem encryption (this will depend on your kernel
-    configuration and specific filesystem)
+To run, fscrypt needs the following libraries:
 *   `libpam.so` (almost certainly already on your system)
+
+In addition, fscrypt requires kernel support for encryption for your
+filesystem, and for some filesystems that a feature flag has been
+enabled in the on-disk filesystem superblock:
+
+* For ext4, the kernel must be v4.1 or later, and the kernel configuration must
+  have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+  `CONFIG_EXT4_ENCRYPTION=y` or `=m` (for older kernels).  Also, the filesystem
+  must have the `encrypt` feature flag enabled; see
+  [here](#getting-encryption-not-enabled-on-an-ext4-filesystem) for how to
+  enable it.
+
+* For f2fs, the kernel must be v4.2 or later, and the kernel configuration must
+  have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+  `CONFIG_F2FS_FS_ENCRYPTION=y` (for older kernels).  Also, the filesystem must
+  have the `encrypt` feature flag enabled.  It can be enabled at format time by
+  `mkfs.f2fs -O encrypt`, or later by `fsck.f2fs -O encrypt`.
+
+* For UBIFS, the kernel must be v4.10 or later, and the kernel configuration
+  must have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+  `CONFIG_UBIFS_FS_ENCRYPTION=y` (for older kernels).
+
+Be careful when using encryption on removable media, since filesystems with the
+`encrypt` feature cannot be mounted on systems with kernel versions older than
+the minimums listed above -- even to access unencrypted files!
 
 ### Setting up the PAM module
 
@@ -569,8 +592,8 @@ To trigger a password authentication event, run `su $(whoami) -c exit`.
 
 #### Getting "encryption not enabled" on an ext4 filesystem.
 
-Getting this error on an ext4 system usually means the filesystem has not been
-setup for encryption. The only other way to get this error is if filesystem
+Getting this error on an ext4 filesystem usually means the filesystem has not
+been setup for encryption. The only other way to get this error is if filesystem
 encryption has been explicitly disabled in the kernel config.
 
 __IMPORTANT:__ Before enabling encryption on an ext4 filesystem __ALL__ of the
@@ -590,7 +613,12 @@ To turn on encryption for your filesystem, run
 ```
 tune2fs -O encrypt /dev/device
 ```
-To turn off encryption for your filesystem, run
+
+Note that this does not actually encrypt any files.  It just marks the
+filesystem as being allowed to contain encrypted files.
+
+To turn off encryption for your filesystem, first delete all encrypted files and
+directories, then run
 ```
 fsck -fn /dev/device
 debugfs -w -R "feature -encrypt" /dev/device
