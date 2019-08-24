@@ -268,13 +268,17 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 	// Write the data to a temporary file, sync it, then rename into place
 	// so that the operation will be atomic.
 	dirPath := filepath.Dir(path)
-	tempPath := filepath.Join(dirPath, tempPrefix+filepath.Base(path))
-	tempFile, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE, filePermissions)
+	tempFile, err := ioutil.TempFile(dirPath, tempPrefix)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tempPath)
+	defer os.Remove(tempFile.Name())
 
+	// TempFile() creates the file with mode 0600.  Change it to 0644.
+	if err = tempFile.Chmod(filePermissions); err != nil {
+		tempFile.Close()
+		return err
+	}
 	if _, err = tempFile.Write(data); err != nil {
 		tempFile.Close()
 		return err
@@ -287,7 +291,7 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 		return err
 	}
 
-	if err = os.Rename(tempPath, path); err != nil {
+	if err = os.Rename(tempFile.Name(), path); err != nil {
 		return err
 	}
 	// Ensure the rename has been persisted before returning success.
