@@ -48,9 +48,9 @@ var (
 	tokenToCheck *crypto.Key
 )
 
-// userInput is run when the the  callback needs some input from the user. We
-// prompt the user for information and return their answer. A return value of
-// nil indicates an error occurred.
+// userInput is run when the callback needs some input from the user. We prompt
+// the user for information and return their answer. A return value of nil
+// indicates an error occurred.
 //export userInput
 func userInput(prompt *C.char) *C.char {
 	fmt.Print(C.GoString(prompt))

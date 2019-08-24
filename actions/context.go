@@ -56,7 +56,7 @@ type Context struct {
 	// Config is the struct loaded from the global config file. It can be
 	// modified after being loaded to customise parameters.
 	Config *metadata.Config
-	// Mount is the filesystem relitive to which all Protectors and Policies
+	// Mount is the filesystem relative to which all Protectors and Policies
 	// are added, edited, removed, and applied.
 	Mount *filesystem.Mount
 	// TargetUser is the user for which protectors are created and to whose
@@ -67,7 +67,7 @@ type Context struct {
 // NewContextFromPath makes a context for the filesystem containing the
 // specified path and whose Config is loaded from the global config file. On
 // success, the Context contains a valid Config and Mount. The target defaults
-// the the current effective user if none is specified.
+// to the current effective user if none is specified.
 func NewContextFromPath(path string, target *user.User) (*Context, error) {
 	ctx, err := newContextFromUser(target)
 	if err != nil {
@@ -85,7 +85,7 @@ func NewContextFromPath(path string, target *user.User) (*Context, error) {
 // NewContextFromMountpoint makes a context for the filesystem at the specified
 // mountpoint and whose Config is loaded from the global config file. On
 // success, the Context contains a valid Config and Mount. The target defaults
-// the the current effective user if none is specified.
+// to the current effective user if none is specified.
 func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, error) {
 	ctx, err := newContextFromUser(target)
 	if err != nil {
@@ -102,7 +102,7 @@ func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, e
 
 // newContextFromUser makes a context with the corresponding target user, and
 // whose Config is loaded from the global config file. If the target is nil, the
-// effecitive user is used.
+// effective user is used.
 func newContextFromUser(target *user.User) (*Context, error) {
 	var err error
 	if target == nil {
@@ -120,7 +120,7 @@ func newContextFromUser(target *user.User) (*Context, error) {
 	return ctx, nil
 }
 
-// checkContext verifies that the context contains an valid config and a mount
+// checkContext verifies that the context contains a valid config and a mount
 // which is being used with fscrypt.
 func (ctx *Context) checkContext() error {
 	if err := ctx.Config.CheckValidity(); err != nil {

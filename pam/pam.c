@@ -101,7 +101,7 @@ void* copyIntoSecret(void* data) {
 
 void freeSecret(pam_handle_t* pamh, char* data, int error_status) {
   size_t size = strlen(data) + 1;  // Include null terminator
-  // Use volitile function pointer to actually clear the memory.
+  // Use volatile function pointer to actually clear the memory.
   static void* (*const volatile memset_sec)(void*, int, size_t) = &memset;
   memset_sec(data, 0, size);
   munlock(data, size);

@@ -1,5 +1,5 @@
 /*
- * protector.go - functions for dealing with policies
+ * policy.go - functions for dealing with policies
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
@@ -413,7 +413,7 @@ func (policy *Policy) addKey(toAdd *metadata.WrappedPolicyKey) {
 	policy.data.WrappedPolicyKeys = append(policy.data.WrappedPolicyKeys, toAdd)
 }
 
-// remove removes the wrapped policy key at the specified index. This
+// removeKey removes the wrapped policy key at the specified index. This
 // does not preserve the order of the wrapped policy key array. If no index is
 // specified the last key is removed.
 func (policy *Policy) removeKey(index int) *metadata.WrappedPolicyKey {

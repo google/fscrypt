@@ -72,7 +72,7 @@ type ErrWriter struct {
 	err error
 }
 
-// NewErrWriter creates an ErrWriter which wraps the provided reader.
+// NewErrWriter creates an ErrWriter which wraps the provided writer.
 func NewErrWriter(writer io.Writer) *ErrWriter {
 	return &ErrWriter{w: writer, err: nil}
 }
@@ -116,7 +116,7 @@ func NeverError(err error) {
 }
 
 var (
-	// testEnvVarName is the name on an environment variable that should be
+	// testEnvVarName is the name of an environment variable that should be
 	// set to an empty mountpoint. This is only used for integration tests.
 	// If not set, integration tests are skipped.
 	testEnvVarName = "TEST_FILESYSTEM_ROOT"

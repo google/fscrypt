@@ -30,7 +30,7 @@ import (
 // dentries. This has the effect of making encrypted directories whose keys are
 // not present no longer accessible. Requires root privileges.
 func DropFilesystemCache() error {
-	// Dirty reclaimible inodes must be synced so that they will be freed.
+	// Dirty reclaimable inodes must be synced so that they will be freed.
 	log.Print("syncing changes to filesystem")
 	unix.Sync()
 
@@ -41,7 +41,7 @@ func DropFilesystemCache() error {
 		return err
 	}
 	defer file.Close()
-	// "2" just frees the reclaimable inodes and dentries, the associated
+	// "2" just frees the reclaimable inodes and dentries. The associated
 	// pages to these inodes will be freed. We do not need to free the
 	// entire pagecache (as this will severely impact performance).
 	_, err = file.WriteString("2")

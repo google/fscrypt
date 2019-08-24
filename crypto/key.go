@@ -100,7 +100,7 @@ func newBlankKey(length int) (*Key, error) {
 	if length == 0 {
 		return &Key{data: nil}, nil
 	} else if length < 0 {
-		return nil, errors.Wrapf(ErrNegitiveLength, "length of %d requested", length)
+		return nil, errors.Wrapf(ErrNegativeLength, "length of %d requested", length)
 	}
 
 	flags := keyMmapFlags
@@ -198,7 +198,7 @@ func NewKeyFromCString(str unsafe.Pointer) (*Key, error) {
 	return key, nil
 }
 
-// NewKeyFromReader constructs a key of abritary length by reading from reader
+// NewKeyFromReader constructs a key of arbitrary length by reading from reader
 // until hitting EOF.
 func NewKeyFromReader(reader io.Reader) (*Key, error) {
 	// Use an initial key size of a page. As Mmap allocates a page anyway,
@@ -312,7 +312,7 @@ func WriteRecoveryCode(key *Key, writer io.Writer) error {
 	return w.Err()
 }
 
-// ReadRecoveryCode gets the recovery code from the provided writer and returns
+// ReadRecoveryCode gets the recovery code from the provided reader and returns
 // the corresponding cryptographic key.
 // WARNING: This recovery key is enough to derive the original key, so it must
 // be given the same level of protection as a raw cryptographic key.

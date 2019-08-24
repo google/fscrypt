@@ -50,7 +50,7 @@ import (
 // Crypto error values
 var (
 	ErrBadAuth        = errors.New("key authentication check failed")
-	ErrNegitiveLength = errors.New("keys cannot have negative lengths")
+	ErrNegativeLength = errors.New("keys cannot have negative lengths")
 	ErrRecoveryCode   = errors.New("invalid recovery code")
 	ErrGetrandomFail  = util.SystemError("getrandom() failed")
 	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
@@ -71,8 +71,8 @@ func checkWrappingKey(wrappingKey *Key) error {
 	return errors.Wrap(err, "wrapping key")
 }
 
-// stretchKey stretches a key of length KeyLen using unsalted HKDF to make two
-// keys of length KeyLen.
+// stretchKey stretches a key of length InternalKeyLen using unsalted HKDF to
+// make two keys of length InternalKeyLen.
 func stretchKey(key *Key) (encKey, authKey *Key) {
 	panicInputLength("hkdf key", metadata.InternalKeyLen, key.Len())
 
@@ -148,9 +148,10 @@ func Wrap(wrappingKey, secretKey *Key) (*metadata.WrappedKeyData, error) {
 	return data, nil
 }
 
-// Unwrap takes a wrapping Key of length KeyLen, and uses it to unwrap the
-// WrappedKeyData to get the unwrapped secret Key. The Wrapped Key data includes
-// an authentication check, so an error will be returned if that check fails.
+// Unwrap takes a wrapping Key of length InternalKeyLen, and uses it to unwrap
+// the WrappedKeyData to get the unwrapped secret Key. The Wrapped Key data
+// includes an authentication check, so an error will be returned if that check
+// fails.
 func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 	if err := checkWrappingKey(wrappingKey); err != nil {
 		return nil, err

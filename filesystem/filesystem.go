@@ -1,5 +1,5 @@
 /*
- * filesystem.go - Contains the a functionality for a specific filesystem. This
+ * filesystem.go - Contains the functionality for a specific filesystem. This
  * includes the commands to setup the filesystem, apply policies, and locate
  * metadata.
  *
@@ -207,9 +207,9 @@ func (m *Mount) makeDirectories() error {
 	return os.Mkdir(m.ProtectorDir(), dirPermissions)
 }
 
-// Setup sets up the filesystem for use with fscrypt, note that this merely
+// Setup sets up the filesystem for use with fscrypt. Note that this merely
 // creates the appropriate files on the filesystem. It does not actually modify
-// the filesystem's feature flags. This operation is atomic, it either succeeds
+// the filesystem's feature flags. This operation is atomic; it either succeeds
 // or no files in the baseDir are created.
 func (m *Mount) Setup() error {
 	if m.CheckSetup() == nil {
@@ -231,7 +231,7 @@ func (m *Mount) Setup() error {
 }
 
 // RemoveAllMetadata removes all the policy and protector metadata from the
-// filesystem. This operation is atomic, it either succeeds or no files in the
+// filesystem. This operation is atomic; it either succeeds or no files in the
 // baseDir are removed.
 // WARNING: Will cause data loss if the metadata is used to encrypt
 // directories (this could include directories on other filesystems).
@@ -274,7 +274,7 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 }
 
 // addMetadata writes the metadata structure to the file with the specified
-// path this will overwrite any existing data. The operation is atomic.
+// path. This will overwrite any existing data. The operation is atomic.
 func (m *Mount) addMetadata(path string, md metadata.Metadata) error {
 	if err := md.CheckValidity(); err != nil {
 		return errors.Wrap(ErrInvalidMetadata, err.Error())
@@ -411,7 +411,7 @@ func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData
 	return nil, nil, m.err(errors.Wrapf(ErrLinkExpired, "protector %s", descriptor))
 }
 
-// RemoveProtector deletes the protector metadata (or an link to another
+// RemoveProtector deletes the protector metadata (or a link to another
 // filesystem's metadata) from the filesystem storage.
 func (m *Mount) RemoveProtector(descriptor string) error {
 	if err := m.CheckSetup(); err != nil {

@@ -85,7 +85,7 @@ func main() {
 }
 
 // setupCommand performs some common setup for each command. This includes
-// hiding the help, formating the description, adding in the necessary
+// hiding the help, formatting the description, adding in the necessary
 // flags, setting up error handlers, etc... Note that the command is modified
 // in place and its subcommands are also setup.
 func setupCommand(command *cli.Command) {
@@ -102,7 +102,7 @@ func setupCommand(command *cli.Command) {
 	if len(command.Subcommands) == 0 {
 		command.Before = setupBefore
 	} else {
-		// Cleanup subcommands (if applicable)
+		// Setup subcommands (if applicable)
 		for i := range command.Subcommands {
 			setupCommand(&command.Subcommands[i])
 		}
@@ -112,8 +112,6 @@ func setupCommand(command *cli.Command) {
 // setupBefore makes sure our logs, errors, and output are going to the correct
 // io.Writers and that we haven't over-specified our flags. We only print the
 // logs when using verbose, and only print normal stuff when not using quiet.
-// When running with sudo, this function also verifies that we have the proper
-// keyring linkage enabled.
 func setupBefore(c *cli.Context) error {
 	log.SetOutput(ioutil.Discard)
 	c.App.Writer = ioutil.Discard

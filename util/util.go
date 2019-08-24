@@ -31,7 +31,7 @@ import (
 	"unsafe"
 )
 
-// Ptr converts an Go byte array to a pointer to the start of the array.
+// Ptr converts a Go byte array to a pointer to the start of the array.
 func Ptr(slice []byte) unsafe.Pointer {
 	if len(slice) == 0 {
 		return nil
@@ -42,14 +42,14 @@ func Ptr(slice []byte) unsafe.Pointer {
 // ByteSlice takes a pointer to some data and views it as a slice of bytes.
 // Note, indexing into this slice is unsafe.
 func ByteSlice(ptr unsafe.Pointer) []byte {
-	// Silce must fit in the smallest address space go suppports.
+	// Slice must fit in the smallest address space go supports.
 	return (*[1 << 30]byte)(ptr)[:]
 }
 
 // PointerSlice takes a pointer to an array of pointers and views it as a slice
 // of pointers. Note, indexing into this slice is unsafe.
 func PointerSlice(ptr unsafe.Pointer) []unsafe.Pointer {
-	// Silce must fit in the smallest address space go suppports.
+	// Slice must fit in the smallest address space go supports.
 	return (*[1 << 28]unsafe.Pointer)(ptr)[:]
 }
 

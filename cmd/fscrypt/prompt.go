@@ -90,7 +90,7 @@ func askConfirmation(question string, defaultChoice bool, warning string) error 
 	// Defaults of "no" require forcing.
 	if !defaultChoice {
 		if quietFlag.Value {
-			return ErrNoDesctructiveOps
+			return ErrNoDestructiveOps
 		}
 	}
 

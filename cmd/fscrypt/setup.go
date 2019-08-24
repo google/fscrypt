@@ -1,5 +1,5 @@
 /*
- * strings.go - File containing the functionality initializing directories and
+ * setup.go - File containing the functionality for initializing directories and
  * the global config file.
  *
  * Copyright 2017 Google Inc.

@@ -83,7 +83,7 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
-	// We will always clear the the AUTHTOK data
+	// We will always clear the AUTHTOK data
 	defer handle.ClearData(authtokLabel)
 	// Increment the count as we add a session
 	if _, err := AdjustCount(handle, +1); err != nil {
@@ -264,7 +264,7 @@ func pam_sm_authenticate(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 	return authenticateFunc.Run(pamh, argc, argv)
 }
 
-// pam_sm_stecred needed because we use pam_sm_authenticate.
+// pam_sm_setcred needed because we use pam_sm_authenticate.
 //export pam_sm_setcred
 func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
 	return C.PAM_SUCCESS

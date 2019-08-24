@@ -60,7 +60,7 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Privileges encapulate the effective uid/gid and groups of a process.
+// Privileges encapsulate the effective uid/gid and groups of a process.
 type Privileges struct {
 	euid   C.uid_t
 	egid   C.gid_t
@@ -144,9 +144,9 @@ func SetProcessPrivileges(privs *Privileges) error {
 
 func setUids(ruid, euid, suid int) error {
 	log.Printf("Setting ruid=%d euid=%d suid=%d", ruid, euid, suid)
-	// We elevate the all the privs before setting them. This prevents
-	// issues with (ruid=1000,euid=1000,suid=0), where just a single call
-	// to setresuid might fail with permission denied.
+	// We elevate all the privs before setting them. This prevents issues
+	// with (ruid=1000,euid=1000,suid=0), where just a single call to
+	// setresuid might fail with permission denied.
 	if res, err := C.setresuid(0, 0, 0); res < 0 {
 		return errors.Wrapf(err.(syscall.Errno), "setting uids")
 	}

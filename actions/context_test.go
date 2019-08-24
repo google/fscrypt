@@ -1,5 +1,5 @@
 /*
- * config_test.go - tests for creating new contexts
+ * context_test.go - tests for creating new contexts
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)

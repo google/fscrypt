@@ -52,7 +52,7 @@ package pam
 */
 import "C"
 
-// Item is a an PAM information type.
+// Item is a PAM information type.
 type Item int
 
 // PAM Item types.
