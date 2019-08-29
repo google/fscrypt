@@ -22,8 +22,16 @@
 package filesystem
 
 import (
+	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+
+	"github.com/pkg/errors"
 )
 
 /*
@@ -34,17 +42,6 @@ const char* mountpoints_filename = "/proc/mounts";
 const char* read_mode = "r";
 */
 import "C"
-
-import (
-	"fmt"
-	"log"
-	"path/filepath"
-	"sort"
-	"strings"
-	"sync"
-
-	"github.com/pkg/errors"
-)
 
 var (
 	// These maps hold data about the state of the system's mountpoints.

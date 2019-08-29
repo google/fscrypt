@@ -75,6 +75,7 @@ override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 ###### Find All Files and Directories ######
 FILES := $(shell find . \( -path ./vendor -o -path "./.*" \) -prune -o -type f -printf "%P\n")
 GO_FILES := $(filter %.go,$(FILES))
+GO_NONGEN_FILES := $(filter-out %.pb.go,$(GO_FILES))
 GO_DIRS := $(sort $(dir $(GO_FILES)))
 C_FILES := $(filter %.c %.h,$(FILES))
 PROTO_FILES := $(filter %.proto,$(FILES))
@@ -95,7 +96,7 @@ gen: $(BIN)/protoc $(BIN)/protoc-gen-go $(PROTO_FILES)
 	protoc --go_out=. $(PROTO_FILES)
 
 format: $(BIN)/goimports
-	goimports -w $(GO_DIRS)
+	goimports -w $(GO_NONGEN_FILES)
 	clang-format -i -style=Google $(C_FILES)
 
 lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
