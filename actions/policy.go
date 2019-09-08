@@ -194,6 +194,11 @@ func (policy *Policy) Description() string {
 	return policy.Context.getService() + policy.Descriptor()
 }
 
+// Options returns the encryption options of this policy.
+func (policy *Policy) Options() *metadata.EncryptionOptions {
+	return policy.data.Options
+}
+
 // Destroy removes a policy from the filesystem. The internal key should still
 // be wiped with Lock().
 func (policy *Policy) Destroy() error {
