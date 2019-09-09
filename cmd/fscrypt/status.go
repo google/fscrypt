@@ -178,6 +178,7 @@ func writePathStatus(w io.Writer, path string) error {
 	fmt.Fprintf(w, "%q is encrypted with fscrypt.\n", path)
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Policy:   %s\n", policy.Descriptor())
+	fmt.Fprintf(w, "Options:  %s\n", policy.Options())
 	fmt.Fprintf(w, "Unlocked: %s\n", yesNoString(policy.IsProvisioned()))
 	fmt.Fprintln(w)
 
