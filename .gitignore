@@ -10,3 +10,4 @@ bin/misspell
 bin/config
 *coverage.out
 .vscode
+tags
