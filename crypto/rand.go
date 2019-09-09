@@ -44,7 +44,7 @@ func NewRandomBuffer(length int) ([]byte, error) {
 }
 
 // NewRandomKey creates a random key of the specified length. This function uses
-// the same random number generation process a NewRandomBuffer.
+// the same random number generation process as NewRandomBuffer.
 func NewRandomKey(length int) (*Key, error) {
 	return NewFixedLengthKeyFromReader(randReader{}, length)
 }

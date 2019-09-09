@@ -65,7 +65,7 @@ func yesNoString(b bool) string {
 	return "No"
 }
 
-// writeGlobalStatus prints all the filesystem that use (or could use) fscrypt.
+// writeGlobalStatus prints all the filesystems that use (or could use) fscrypt.
 func writeGlobalStatus(w io.Writer) error {
 	mounts, err := filesystem.AllFilesystems()
 	if err != nil {

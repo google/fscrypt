@@ -173,7 +173,7 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 		costsPrev := *costs
 		tPrev := t
 
-		// Double the memory up to the max, then the double the time.
+		// Double the memory up to the max, then double the time.
 		if costs.Memory < memoryKiBLimit {
 			costs.Memory = util.MinInt64(2*costs.Memory, memoryKiBLimit)
 		} else {

@@ -1,5 +1,5 @@
 /*
- * run_test.go - tests that the PAM helper functionsd work properly
+ * run_test.go - tests that the PAM helper functions work properly
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)

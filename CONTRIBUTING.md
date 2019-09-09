@@ -146,7 +146,7 @@ your code.
   - [`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports)
     (built from source in `vendor/`) on the `.go` files.
   - [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
-    on the `.c` an `.h` files.
+    on the `.c` and `.h` files.
 
 `make lint` runs:
   - [`go vet`](https://golang.org/cmd/vet/) 

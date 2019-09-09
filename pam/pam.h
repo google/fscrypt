@@ -35,7 +35,7 @@ void freeData(pam_handle_t *pamh, void *data, int error_status);
 // then frees the array itself.
 void freeArray(pam_handle_t *pamh, void **array, int error_status);
 
-// Creates a copy of a C string, which resides in an locked buffer.
+// Creates a copy of a C string, which resides in a locked buffer.
 void *copyIntoSecret(void *data);
 
 // CleaupFunc that Zeros wipes a C string and unlocks and frees its memory.

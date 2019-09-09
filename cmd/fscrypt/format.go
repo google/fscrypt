@@ -74,7 +74,7 @@ func init() {
 
 }
 
-// Flags that conform to this interface can be used with an urfave/cli
+// Flags that conform to this interface can be used with a urfave/cli
 // application and can be printed in the correct format.
 type prettyFlag interface {
 	cli.Flag
@@ -111,8 +111,8 @@ func longDisplay(f prettyFlag, defaultString ...string) string {
 		usage += fmt.Sprintf(" (default: %v)", defaultString[0])
 	}
 
-	// We pad the the shortDisplay on the right with enough spaces to equal
-	// the longest flag's display
+	// We pad the shortDisplay on the right with enough spaces to equal the
+	// longest flag's display
 	shortDisp := shortDisplay(f)
 	length := utf8.RuneCountInString(shortDisp)
 	shortDisp += strings.Repeat(" ", maxShortDisplay-length)

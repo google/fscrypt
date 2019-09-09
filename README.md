@@ -487,7 +487,7 @@ Enter key file for protector "Skeleton": secret.key
 
 ### Using multiple protectors for a policy
 
-fscrypt supports the idea of of protecting a single directory with multiple
+fscrypt supports the idea of protecting a single directory with multiple
 protectors. This means having access to any of the protectors is sufficient to
 decrypt the directory. This is useful for sharing data or setting up access
 control systems.

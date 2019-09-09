@@ -35,7 +35,7 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Setup is a command which can to global or per-filesystem initialization.
+// Setup is a command which can do global or per-filesystem initialization.
 var Setup = cli.Command{
 	Name:      "setup",
 	ArgsUsage: fmt.Sprintf("[%s]", mountpointArg),
@@ -225,7 +225,7 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 }
 
 // selectOrCreateProtector uses user input (or flags) to either create a new
-// protector or select and existing one. The boolean return value is true if we
+// protector or select an existing one. The boolean return value is true if we
 // created a new protector.
 func selectOrCreateProtector(ctx *actions.Context) (*actions.Protector, bool, error) {
 	if protectorFlag.Value != "" {
@@ -393,7 +393,7 @@ func purgeAction(c *cli.Context) error {
 		if err = security.DropFilesystemCache(); err != nil {
 			return newExitError(c, err)
 		}
-		fmt.Fprintf(c.App.Writer, "Encrypted data removed filesystem cache.\n")
+		fmt.Fprintf(c.App.Writer, "Encrypted data removed from filesystem cache.\n")
 	} else {
 		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
 	}
@@ -481,7 +481,7 @@ var Metadata = cli.Command{
 		(4) Changing the protector protecting a policy using the
 		"add-protector-to-policy" and "remove-protector-from-policy"
 		subcommands.`,
-	Subcommands: []cli.Command{createMetadata, destoryMetadata, changePassphrase,
+	Subcommands: []cli.Command{createMetadata, destroyMetadata, changePassphrase,
 		addProtectorToPolicy, removeProtectorFromPolicy, dumpMetadata},
 }
 
@@ -596,7 +596,7 @@ func createPolicyAction(c *cli.Context) error {
 	return nil
 }
 
-var destoryMetadata = cli.Command{
+var destroyMetadata = cli.Command{
 	Name: "destroy",
 	ArgsUsage: fmt.Sprintf("[%s | %s | %s]", shortDisplay(protectorFlag),
 		shortDisplay(policyFlag), mountpointArg),
@@ -623,10 +623,10 @@ var destoryMetadata = cli.Command{
 		shortDisplay(protectorFlag), shortDisplay(policyFlag),
 		mountpointArg),
 	Flags:  []cli.Flag{protectorFlag, policyFlag, forceFlag},
-	Action: destoryMetadataAction,
+	Action: destroyMetadataAction,
 }
 
-func destoryMetadataAction(c *cli.Context) error {
+func destroyMetadataAction(c *cli.Context) error {
 	switch c.NArg() {
 	case 0:
 		switch {

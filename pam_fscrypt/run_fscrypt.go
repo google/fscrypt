@@ -192,7 +192,7 @@ func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
 
 // AdjustCount changes the session count for the pam user by the specified
 // amount. If the count file does not exist, create it as if it had a count of
-// zero. If the adjustment would be the count below zero, the count is set to
+// zero. If the adjustment would bring the count below zero, the count is set to
 // zero. The value of the new count is returned. Requires root privileges.
 func AdjustCount(handle *pam.Handle, delta int) (int, error) {
 	// Make sure the directory exists

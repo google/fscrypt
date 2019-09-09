@@ -130,7 +130,7 @@ var plurals = map[string]string{
 	"policy":     "policies",
 }
 
-// pluralize prints our the correct pluralization of a work along with the
+// pluralize prints out the correct pluralization of a word along with the
 // specified count. This means pluralize(1, "policy") = "1 policy" but
 // pluralize(2, "policy") = "2 policies"
 func pluralize(count int, word string) string {

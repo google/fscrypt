@@ -56,7 +56,7 @@ func createProtectorFromContext(ctx *actions.Context) (*actions.Protector, error
 }
 
 // selectExistingProtector returns a locked Protector which corresponds to an
-// options in the non-empty slice of options. Prompts for user input are used to
+// option in the non-empty slice of options. Prompts for user input are used to
 // get the keys and select the option.
 func selectExistingProtector(ctx *actions.Context, options []*actions.ProtectorOption) (*actions.Protector, error) {
 	idx, err := promptForProtector(options)

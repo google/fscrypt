@@ -30,8 +30,8 @@ import (
 // We only check the unix permissions and the sticky bit
 const permMask = os.ModeSticky | os.ModePerm
 
-// cannonicalizePath turns path into an absolute path without symlinks.
-func cannonicalizePath(path string) (string, error) {
+// canonicalizePath turns path into an absolute path without symlinks.
+func canonicalizePath(path string) (string, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
@@ -62,14 +62,14 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// isDevice returns true if the path exists and is that of a directory.
+// isDevice returns true if the path exists and is that of a device.
 func isDevice(path string) bool {
 	info, err := loggedStat(path)
 	return err == nil && info.Mode()&os.ModeDevice != 0
 }
 
 // isDirCheckPerm returns true if the path exists and is a directory. If the
-// specified permissions and sticky bit of mode do not match the path, and error
+// specified permissions and sticky bit of mode do not match the path, an error
 // is logged.
 func isDirCheckPerm(path string, mode os.FileMode) bool {
 	info, err := loggedStat(path)

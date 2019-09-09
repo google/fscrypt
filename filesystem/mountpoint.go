@@ -94,7 +94,7 @@ func getMountInfo() error {
 
 		// Skip invalid mountpoints
 		var err error
-		if mnt.Path, err = cannonicalizePath(mnt.Path); err != nil {
+		if mnt.Path, err = canonicalizePath(mnt.Path); err != nil {
 			log.Printf("getting mnt_dir: %v", err)
 			continue
 		}
@@ -109,7 +109,7 @@ func getMountInfo() error {
 		// filesystems are listed in mount order.
 		mountsByPath[mnt.Path] = &mnt
 
-		deviceName, err := cannonicalizePath(C.GoString(entry.mnt_fsname))
+		deviceName, err := canonicalizePath(C.GoString(entry.mnt_fsname))
 		// Only use real valid devices (unlike cgroups, tmpfs, ...)
 		if err == nil && isDevice(deviceName) {
 			mnt.Device = deviceName
@@ -152,7 +152,7 @@ func UpdateMountInfo() error {
 // been updated since the last call to one of the mount functions, run
 // UpdateMountInfo to see changes.
 func FindMount(path string) (*Mount, error) {
-	path, err := cannonicalizePath(path)
+	path, err := canonicalizePath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func FindMount(path string) (*Mount, error) {
 // a filesystem has been updated since the last call to one of the mount
 // functions, run UpdateMountInfo to see changes.
 func GetMount(mountpoint string) (*Mount, error) {
-	mountpoint, err := cannonicalizePath(mountpoint)
+	mountpoint, err := canonicalizePath(mountpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +202,8 @@ func GetMount(mountpoint string) (*Mount, error) {
 }
 
 // getMountsFromLink returns the Mount objects which match the provided link.
-// This link if formatted as a tag (e.g. <token>=<value>) similar to how they
-// apprear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
+// This link is formatted as a tag (e.g. <token>=<value>) similar to how they
+// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
 // that this can match multiple Mounts (due to the existence of bind mounts). An
 // error is returned if the link is invalid or we cannot load the required mount
 // data. If a filesystem has been updated since the last call to one of the
@@ -212,7 +212,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	// Parse the link
 	linkComponents := strings.Split(link, "=")
 	if len(linkComponents) != 2 {
-		return nil, errors.Wrapf(ErrFollowLink, "link %q format in invalid", link)
+		return nil, errors.Wrapf(ErrFollowLink, "link %q format is invalid", link)
 	}
 	token := linkComponents[0]
 	value := linkComponents[1]
@@ -225,7 +225,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	if filepath.Base(searchPath) != value {
 		return nil, errors.Wrapf(ErrFollowLink, "value %q is not a UUID", value)
 	}
-	devicePath, err := cannonicalizePath(searchPath)
+	devicePath, err := canonicalizePath(searchPath)
 	if err != nil {
 		return nil, errors.Wrapf(ErrFollowLink, "no device with UUID %q", value)
 	}
@@ -263,7 +263,7 @@ func makeLink(mnt *Mount, token string) (string, error) {
 			continue // Only interested in UUID symlinks
 		}
 		uuid := fileInfo.Name()
-		devicePath, err := cannonicalizePath(filepath.Join(uuidDirectory, uuid))
+		devicePath, err := canonicalizePath(filepath.Join(uuidDirectory, uuid))
 		if err != nil {
 			log.Print(err)
 			continue

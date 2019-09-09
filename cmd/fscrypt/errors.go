@@ -45,7 +45,7 @@ const failureExitCode = 1
 // Various errors used for the top level user interface
 var (
 	ErrCanceled           = errors.New("operation canceled")
-	ErrNoDesctructiveOps  = errors.New("operation would be destructive")
+	ErrNoDestructiveOps   = errors.New("operation would be destructive")
 	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
 	ErrInvalidSource      = errors.New("invalid source type")
 	ErrPassphraseMismatch = errors.New("entered passphrases do not match")
@@ -116,7 +116,7 @@ func getErrorSuggestions(err error) string {
 			metadata is corrupted.`
 	case actions.ErrMissingProtectorName:
 		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
-	case ErrNoDesctructiveOps:
+	case ErrNoDestructiveOps:
 		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
 	case ErrSpecifyProtector:
 		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
@@ -165,8 +165,8 @@ func newExitError(c *cli.Context, err error) error {
 	return cli.NewExitError(message, failureExitCode)
 }
 
-// usageError implements cli.ExitCoder to will print the usage and the return a
-// non-zero value. This error should be used when a command is used incorrectly.
+// usageError implements cli.ExitCoder to print the usage and return a non-zero
+// value. This error should be used when a command is used incorrectly.
 type usageError struct {
 	c       *cli.Context
 	message string

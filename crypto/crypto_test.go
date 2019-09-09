@@ -65,7 +65,7 @@ var (
 	testUser, _ = util.EffectiveUser()
 )
 
-// As the passpharase hashing function clears the passphrase, we need to make
+// As the passphrase hashing function clears the passphrase, we need to make
 // a new passphrase key for each test
 func fakePassphraseKey() (*Key, error) {
 	return NewFixedLengthKeyFromReader(bytes.NewReader(fakePassword), len(fakePassword))
@@ -158,7 +158,7 @@ func TestZeroLength(t *testing.T) {
 	}
 	defer key1.Wipe()
 	if key1.data != nil {
-		t.Error("FIxed length key from reader contained data")
+		t.Error("Fixed length key from reader contained data")
 	}
 
 	key2, err := NewKeyFromReader(bytes.NewReader(nil))
@@ -171,7 +171,7 @@ func TestZeroLength(t *testing.T) {
 	}
 }
 
-// Test that enabling the disabling memory locking succeeds even if a key is
+// Test that enabling then disabling memory locking succeeds even if a key is
 // active when the variable changes.
 func TestEnableDisableMemoryLocking(t *testing.T) {
 	// Mlock on for creation, off for wiping
@@ -282,7 +282,7 @@ func TestBadAddKeys(t *testing.T) {
 // Check that we can create random keys. All this test does to test the
 // "randomness" is generate a page of random bytes and attempts compression.
 // If the data can be compressed it is probably not very random. This isn't
-// indented to be a sufficient test for randomness (which is impossible), but a
+// intended to be a sufficient test for randomness (which is impossible), but a
 // way to catch simple regressions (key is all zeros or contains a repeating
 // pattern).
 func TestRandomKeyGen(t *testing.T) {
@@ -456,7 +456,7 @@ func TestWrongUnwrappingKeyLength(t *testing.T) {
 	}
 }
 
-// Wraping twice with the same keys should give different components
+// Wrapping twice with the same keys should give different components
 func TestWrapTwiceDistinct(t *testing.T) {
 	data1, err := Wrap(fakeWrappingKey, fakeValidPolicyKey)
 	if err != nil {
@@ -472,14 +472,14 @@ func TestWrapTwiceDistinct(t *testing.T) {
 	}
 }
 
-// Attempts to Unwrap data with key after altering tweek, should fail
-func testFailWithTweek(key *Key, data *metadata.WrappedKeyData, tweek []byte) error {
-	tweek[0]++
+// Attempts to Unwrap data with key after altering tweak, should fail
+func testFailWithTweak(key *Key, data *metadata.WrappedKeyData, tweak []byte) error {
+	tweak[0]++
 	key, err := Unwrap(key, data)
 	if err == nil {
 		key.Wipe()
 	}
-	tweek[0]--
+	tweak[0]--
 	return err
 }
 
@@ -489,7 +489,7 @@ func TestUnwrapWrongKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if testFailWithTweek(fakeWrappingKey, data, fakeWrappingKey.data) == nil {
+	if testFailWithTweak(fakeWrappingKey, data, fakeWrappingKey.data) == nil {
 		t.Error("using a different wrapping key should make unwrap fail")
 	}
 }
@@ -499,13 +499,13 @@ func TestUnwrapWrongData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if testFailWithTweek(fakeWrappingKey, data, data.EncryptedKey) == nil {
+	if testFailWithTweak(fakeWrappingKey, data, data.EncryptedKey) == nil {
 		t.Error("changing encryption key should make unwrap fail")
 	}
-	if testFailWithTweek(fakeWrappingKey, data, data.IV) == nil {
+	if testFailWithTweak(fakeWrappingKey, data, data.IV) == nil {
 		t.Error("changing IV should make unwrap fail")
 	}
-	if testFailWithTweek(fakeWrappingKey, data, data.Hmac) == nil {
+	if testFailWithTweak(fakeWrappingKey, data, data.Hmac) == nil {
 		t.Error("changing HMAC should make unwrap fail")
 	}
 }

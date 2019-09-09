@@ -1,5 +1,5 @@
 /*
- * privileges.go - Handles inserting/removing into user keyrings.
+ * keyring.go - Handles inserting/removing into user keyrings.
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
