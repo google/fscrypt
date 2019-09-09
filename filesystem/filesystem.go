@@ -250,19 +250,40 @@ func (m *Mount) RemoveAllMetadata() error {
 	return m.err(os.Rename(m.BaseDir(), temp.BaseDir()))
 }
 
-// writeDataAtomic writes the data to the path such that the data is either
-// written to stable storage or an error is returned.
-func (m *Mount) writeDataAtomic(path string, data []byte) error {
-	// Write the file to a temporary file then move into place so that the
-	// operation will be atomic.
-	tempPath := filepath.Join(filepath.Dir(path), tempPrefix+filepath.Base(path))
-	tempFile, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE, filePermissions)
+func syncDirectory(dirPath string) error {
+	dirFile, err := os.Open(dirPath)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tempPath)
+	if err = dirFile.Sync(); err != nil {
+		dirFile.Close()
+		return err
+	}
+	return dirFile.Close()
+}
 
+// writeDataAtomic writes the data to the path such that the data is either
+// written to stable storage or an error is returned.
+func (m *Mount) writeDataAtomic(path string, data []byte) error {
+	// Write the data to a temporary file, sync it, then rename into place
+	// so that the operation will be atomic.
+	dirPath := filepath.Dir(path)
+	tempFile, err := ioutil.TempFile(dirPath, tempPrefix)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tempFile.Name())
+
+	// TempFile() creates the file with mode 0600.  Change it to 0644.
+	if err = tempFile.Chmod(filePermissions); err != nil {
+		tempFile.Close()
+		return err
+	}
 	if _, err = tempFile.Write(data); err != nil {
+		tempFile.Close()
+		return err
+	}
+	if err = tempFile.Sync(); err != nil {
 		tempFile.Close()
 		return err
 	}
@@ -270,7 +291,11 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 		return err
 	}
 
-	return os.Rename(tempPath, path)
+	if err = os.Rename(tempFile.Name(), path); err != nil {
+		return err
+	}
+	// Ensure the rename has been persisted before returning success.
+	return syncDirectory(dirPath)
 }
 
 // addMetadata writes the metadata structure to the file with the specified
