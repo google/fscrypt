@@ -16,7 +16,7 @@
 # the License.
 
 # Update on each new release!!
-VERSION := v0.2.4
+VERSION := v0.2.5
 NAME := fscrypt
 PAM_NAME := pam_$(NAME)
 
