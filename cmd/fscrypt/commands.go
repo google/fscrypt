@@ -41,37 +41,49 @@ var Setup = cli.Command{
 	ArgsUsage: fmt.Sprintf("[%s]", mountpointArg),
 	Usage:     "perform global setup or filesystem setup",
 	Description: fmt.Sprintf(`This command creates fscrypt's global config
-		file or enables fscrypt on a filesystem.
+		file and/or prepares a filesystem for use with fscrypt.
 
-		(1) When used without %[1]s, create the parameters in %[2]s.
-		This is primarily used to configure the passphrase hashing
-		parameters to the appropriate hardness (as determined by %[3]s).
-		Being root is required to write the config file.
+		(1) When used without %[1]s, this command creates the global
+		config file %[2]s and the fscrypt metadata directory for the
+		root filesystem (i.e. /.fscrypt). This requires root privileges.
+		The passphrase hashing parameters in %[2]s are automatically set
+		to an appropriate hardness, as determined by %[3]s. The root
+		filesystem's metadata directory is created even if the root
+		filesystem doesn't support encryption itself, since it's where
+		login passphrase protectors are stored.
 
-		(2) When used with %[1]s, enable fscrypt on %[1]s. This involves
-		creating the necessary folders on the filesystem which will hold
-		the metadata structures. Begin root may be required to create
-		these folders.`, mountpointArg, actions.ConfigFileLocation,
+		(2) When used with %[1]s, this command creates the fscrypt
+		metadata directory for the filesystem mounted at %[1]s. This
+		allows fscrypt to be used on that filesystem, provided that any
+		kernel and filesystem-specific prerequisites are also met (see
+		the README). This may require root privileges.`,
+		mountpointArg, actions.ConfigFileLocation,
 		shortDisplay(timeTargetFlag)),
 	Flags:  []cli.Flag{timeTargetFlag, legacyFlag, forceFlag},
 	Action: setupAction,
 }
 
 func setupAction(c *cli.Context) error {
-	var err error
 	switch c.NArg() {
 	case 0:
 		// Case (1) - global setup
-		err = createGlobalConfig(c.App.Writer, actions.ConfigFileLocation)
+		if err := createGlobalConfig(c.App.Writer, actions.ConfigFileLocation); err != nil {
+			return newExitError(c, err)
+		}
+		if err := setupFilesystem(c.App.Writer, "/"); err != nil {
+			if errors.Cause(err) != filesystem.ErrAlreadySetup {
+				return newExitError(c, err)
+			}
+			fmt.Fprintf(c.App.Writer,
+				"Skipping creating /.fscrypt because it already exists.\n")
+		}
 	case 1:
 		// Case (2) - filesystem setup
-		err = setupFilesystem(c.App.Writer, c.Args().Get(0))
+		if err := setupFilesystem(c.App.Writer, c.Args().Get(0)); err != nil {
+			return newExitError(c, err)
+		}
 	default:
 		return expectedArgsErr(c, 1, true)
-	}
-
-	if err != nil {
-		return newExitError(c, err)
 	}
 	return nil
 }
