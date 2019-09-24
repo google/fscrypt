@@ -86,8 +86,8 @@ policy can also be changed. This allows a user to change how a directory is
 protected without needing to reencrypt the directory's contents.
 
 Concretely, fscrypt contains the following functionality:
-*   `fscrypt setup` - Initializes the `fscrypt.conf` file
-    * This is the only functionality which requires root privileges
+*   `fscrypt setup` - Creates `/etc/fscrypt.conf` and the `/.fscrypt` directory
+    * This is the only functionality which always requires root privileges
 *   `fscrypt setup MOUNTPOINT` - Gets a filesystem ready for use with fscrypt
 *   `fscrypt encrypt DIRECTORY` - Encrypts an empty directory
 *   `fscrypt unlock DIRECTORY` - Unlocks an encrypted directory
@@ -241,16 +241,16 @@ MOUNTPOINT            DEVICE     FILESYSTEM  STATUS
 /                     /dev/sda1  ext4        encryption not enabled
 /mnt/disk             /dev/sdb   ext4        not setup with fscrypt
 
-# Create the global configuration file. Nothing else needs root.
+# Create the global configuration file. Nothing else necessarily needs root.
 >>>>> sudo fscrypt setup
 Create "/etc/fscrypt.conf"? [Y/n] y
 Customizing passphrase hashing difficulty for this system...
 Created global config file at "/etc/fscrypt.conf".
+Metadata directories created at "/.fscrypt".
 
 # Start using fscrypt with our filesystem
 >>>>> fscrypt setup /mnt/disk
 Metadata directories created at "/mnt/disk/.fscrypt".
-Filesystem "/mnt/disk" (/dev/sdb) ready for use with ext4 encryption.
 
 # Initialize encryption on a new empty directory
 >>>>> mkdir /mnt/disk/dir1
@@ -359,10 +359,6 @@ login passphrase, you may have to do additional work when you change your system
 passphrase.
 
 ```bash
-# Login passphrases also require that fscrypt is setup on the root directory
->>>>> sudo fscrypt setup /
-Filesystem "/" (/dev/dm-1) ready for use with ext4 encryption.
-
 # Select your login passphrase as the desired source.
 >>>>> mkdir /mnt/disk/dir2
 >>>>> fscrypt encrypt /mnt/disk/dir2

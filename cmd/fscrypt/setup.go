@@ -72,7 +72,5 @@ func setupFilesystem(w io.Writer, path string) error {
 	}
 
 	fmt.Fprintf(w, "Metadata directories created at %q.\n", ctx.Mount.BaseDir())
-	fmt.Fprintf(w, "Filesystem %q (%s) ready for use with %s encryption.\n",
-		ctx.Mount.Path, ctx.Mount.Device, ctx.Mount.Filesystem)
 	return nil
 }
