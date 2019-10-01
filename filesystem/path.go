@@ -24,8 +24,18 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/pkg/errors"
 )
+
+// OpenFileOverridingUmask calls os.OpenFile but with the umask overridden so
+// that no permission bits are masked out if the file is created.
+func OpenFileOverridingUmask(name string, flag int, perm os.FileMode) (*os.File, error) {
+	oldMask := unix.Umask(0)
+	defer unix.Umask(oldMask)
+	return os.OpenFile(name, flag, perm)
+}
 
 // We only check the unix permissions and the sticky bit
 const permMask = os.ModeSticky | os.ModePerm
