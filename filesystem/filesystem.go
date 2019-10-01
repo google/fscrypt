@@ -85,6 +85,10 @@ var (
 // used when a Policy on filesystem A is protected with Protector on filesystem
 // B. In this scenario, we store a "link file" in the protectors directory whose
 // contents look like "UUID=3a6d9a76-47f0-4f13-81bf-3332fbe984fb".
+//
+// We also allow ".fscrypt" to be a symlink which was previously created. This
+// allows login protectors to be created when the root filesystem is read-only,
+// provided that "/.fscrypt" is a symlink pointing to a writable location.
 type Mount struct {
 	Path       string
 	Filesystem string
@@ -124,9 +128,21 @@ func (m *Mount) String() string {
 	Device:    %s`, m.Path, m.Filesystem, m.Options, m.Device)
 }
 
-// BaseDir returns the path of the base fscrypt directory on this filesystem.
+// BaseDir returns the path to the base fscrypt directory for this filesystem.
 func (m *Mount) BaseDir() string {
-	return filepath.Join(m.Path, baseDirName)
+	rawBaseDir := filepath.Join(m.Path, baseDirName)
+	// We allow the base directory to be a symlink, but some callers need
+	// the real path, so dereference the symlink here if needed. Since the
+	// directory the symlink points to may not exist yet, we have to read
+	// the symlink manually rather than use filepath.EvalSymlinks.
+	target, err := os.Readlink(rawBaseDir)
+	if err != nil {
+		return rawBaseDir // not a symlink
+	}
+	if filepath.IsAbs(target) {
+		return target
+	}
+	return filepath.Join(m.Path, target)
 }
 
 // ProtectorDir returns the directory containing the protector metadata.
@@ -157,11 +173,12 @@ func (m *Mount) policyPath(descriptor string) string {
 	return filepath.Join(m.PolicyDir(), descriptor)
 }
 
-// tempMount creates a temporary Mount under the main directory. The path for
-// the returned tempMount should be removed by the caller.
+// tempMount creates a temporary directory alongside this Mount's base fscrypt
+// directory and returns a temporary Mount which represents this temporary
+// directory. The caller is responsible for removing this temporary directory.
 func (m *Mount) tempMount() (*Mount, error) {
-	trashDir, err := ioutil.TempDir(m.Path, tempPrefix)
-	return &Mount{Path: trashDir}, err
+	tempDir, err := ioutil.TempDir(filepath.Dir(m.BaseDir()), tempPrefix)
+	return &Mount{Path: tempDir}, err
 }
 
 // err modifies an error to contain the path of this filesystem.

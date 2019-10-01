@@ -20,6 +20,7 @@
 package filesystem
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -107,6 +108,68 @@ func TestRemoveAllMetadata(t *testing.T) {
 	if isDir(mnt.BaseDir()) {
 		t.Error("metadata was not removed")
 	}
+}
+
+// Test that when MOUNTPOINT/.fscrypt is a pre-created symlink, fscrypt will
+// create/delete the metadata at the location pointed to by the symlink.
+//
+// This is a helper function that is called twice: once to test an absolute
+// symlink and once to test a relative symlink.
+func testSetupWithSymlink(t *testing.T, mnt *Mount, symlinkTarget string, realDir string) {
+	rawBaseDir := filepath.Join(mnt.Path, baseDirName)
+	if err := os.Symlink(symlinkTarget, rawBaseDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(rawBaseDir)
+
+	if err := mnt.Setup(); err != nil {
+		t.Fatal(err)
+	}
+	defer mnt.RemoveAllMetadata()
+	if err := mnt.CheckSetup(); err != nil {
+		t.Fatal(err)
+	}
+	if !isSymlink(rawBaseDir) {
+		t.Fatal("base dir should still be a symlink")
+	}
+	if !isDir(realDir) {
+		t.Fatal("real base dir should exist")
+	}
+	if err := mnt.RemoveAllMetadata(); err != nil {
+		t.Fatal(err)
+	}
+	if !isSymlink(rawBaseDir) {
+		t.Fatal("base dir should still be a symlink")
+	}
+	if isDir(realDir) {
+		t.Fatal("real base dir should no longer exist")
+	}
+}
+
+func TestSetupWithAbsoluteSymlink(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	realDir := filepath.Join(tempDir, "realDir")
+	if realDir, err = filepath.Abs(realDir); err != nil {
+		t.Fatal(err)
+	}
+	testSetupWithSymlink(t, mnt, realDir, realDir)
+}
+
+func TestSetupWithRelativeSymlink(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	realDir := filepath.Join(mnt.Path, ".fscrypt-real")
+	testSetupWithSymlink(t, mnt, ".fscrypt-real", realDir)
 }
 
 // Adding a good Protector should succeed, adding a bad one should fail

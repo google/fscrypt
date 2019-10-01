@@ -56,6 +56,16 @@ func loggedStat(name string) (os.FileInfo, error) {
 	return info, err
 }
 
+// loggedLstat runs os.Lstat (doesn't dereference trailing symlink), but it logs
+// the error if lstat returns any error other than nil or IsNotExist.
+func loggedLstat(name string) (os.FileInfo, error) {
+	info, err := os.Lstat(name)
+	if err != nil && !os.IsNotExist(err) {
+		log.Print(err)
+	}
+	return info, err
+}
+
 // isDir returns true if the path exists and is that of a directory.
 func isDir(path string) bool {
 	info, err := loggedStat(path)
@@ -66,6 +76,12 @@ func isDir(path string) bool {
 func isDevice(path string) bool {
 	info, err := loggedStat(path)
 	return err == nil && info.Mode()&os.ModeDevice != 0
+}
+
+// isSymlink returns true if the path exists and is that of a symlink.
+func isSymlink(path string) bool {
+	info, err := loggedLstat(path)
+	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
 // isDirCheckPerm returns true if the path exists and is a directory. If the
