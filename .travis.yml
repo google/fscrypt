@@ -21,7 +21,7 @@ jobs:
       script: make
 
     - stage: presubmits
-      env: Generate, Format, and Lint
+      name: Generate, Format, and Lint
       install:
         - make tools
       script:
@@ -32,7 +32,7 @@ jobs:
         - make lint
 
     - &build
-      env: Build and Unit Tests
+      name: Build and Unit Tests
       install: skip
       script:
         - go build github.com/google/fscrypt/cmd/fscrypt
@@ -40,8 +40,9 @@ jobs:
 
     - <<: *build
       go: 1.12.x
+      env: GO111MODULE=on
 
-    - env: Integration Tests
+    - name: Integration Tests
       sudo: required
       addons:
         apt:
@@ -57,7 +58,7 @@ jobs:
         - goveralls -coverprofile=coverage.out -service=travis-ci
 
     - stage: deploy
-      env: Release Binaries
+      name: Release Binaries
       install: skip
       script: skip
       before_deploy: make
