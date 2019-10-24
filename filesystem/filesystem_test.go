@@ -21,6 +21,7 @@ package filesystem
 
 import (
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,6 +109,22 @@ func TestRemoveAllMetadata(t *testing.T) {
 	if isDir(mnt.BaseDir()) {
 		t.Error("metadata was not removed")
 	}
+}
+
+// loggedLstat runs os.Lstat (doesn't dereference trailing symlink), but it logs
+// the error if lstat returns any error other than nil or IsNotExist.
+func loggedLstat(name string) (os.FileInfo, error) {
+	info, err := os.Lstat(name)
+	if err != nil && !os.IsNotExist(err) {
+		log.Print(err)
+	}
+	return info, err
+}
+
+// isSymlink returns true if the path exists and is that of a symlink.
+func isSymlink(path string) bool {
+	info, err := loggedLstat(path)
+	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
 // Test that when MOUNTPOINT/.fscrypt is a pre-created symlink, fscrypt will
