@@ -31,6 +31,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
 )
@@ -68,7 +69,8 @@ var (
 func CreateConfigFile(target time.Duration, useLegacy bool) error {
 	// Create the config file before computing the hashing costs, so we fail
 	// immediately if the program has insufficient permissions.
-	configFile, err := os.OpenFile(ConfigFileLocation, createFlags, configPermissions)
+	configFile, err := filesystem.OpenFileOverridingUmask(ConfigFileLocation,
+		createFlags, configPermissions)
 	switch {
 	case os.IsExist(err):
 		return ErrConfigFileExists
