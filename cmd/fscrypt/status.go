@@ -72,8 +72,8 @@ func writeGlobalStatus(w io.Writer) error {
 		return err
 	}
 
-	supportCount := 0
-	useCount := 0
+	var supportCount int
+	var useCount int
 
 	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
 	for _, mount := range mounts {

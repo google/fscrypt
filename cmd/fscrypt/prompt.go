@@ -249,7 +249,7 @@ func promptForProtector(options []*actions.ProtectorOption) (int, error) {
 	log.Printf("selecting from %s", pluralize(numOptions, "protector"))
 
 	// Get the number of load errors.
-	numLoadErrors := 0
+	var numLoadErrors int
 	for _, option := range options {
 		if option.LoadError != nil {
 			log.Printf("when loading option: %v", option.LoadError)

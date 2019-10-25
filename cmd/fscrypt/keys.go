@@ -59,7 +59,7 @@ type passphraseReader struct{}
 // should be called with the maximum buffer size for the passphrase.
 func (p passphraseReader) Read(buf []byte) (int, error) {
 	// We read one byte at a time to handle backspaces
-	position := 0
+	var position int
 	for {
 		if position == len(buf) {
 			return position, ErrMaxPassphrase

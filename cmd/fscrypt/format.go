@@ -130,7 +130,7 @@ var listRegex = regexp.MustCompile(`^\([\d]+\)$`)
 func wrapText(text string, padding int) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
-	spaceLeft := 0
+	var spaceLeft int
 	maxTextLen := lineLength - padding
 	delimiter := strings.Repeat(" ", padding)
 	for i, word := range strings.Fields(text) {

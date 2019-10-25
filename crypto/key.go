@@ -208,7 +208,7 @@ func NewKeyFromReader(reader io.Reader) (*Key, error) {
 		return nil, err
 	}
 
-	totalBytesRead := 0
+	var totalBytesRead int
 	for {
 		bytesRead, err := reader.Read(key.data[totalBytesRead:])
 		totalBytesRead += bytesRead
