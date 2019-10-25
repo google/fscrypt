@@ -64,7 +64,7 @@ checks you should make sure that in your submission:
 - If you made any changes to files ending in `.proto`, the corresponding
   `.pb.go` files should be regenerated with `make gen`.
 - Any issues found by `make lint` have been addressed.
-- If any dependencies have changed, run `go mod tidy` and `go mod vendor`.
+- If any dependencies have changed, run `go mod tidy`.
 - `make coverage.out` can be used to generate a coverage report for all of the
   tests, but isn't required for submission
   (ideally most code would be tested, we are far from that ideal).
@@ -75,7 +75,6 @@ make test-setup
 make all
 make test-teardown
 go mod tidy
-go mod vendor
 ```
 and everything succeeds, and no files are changed, you're good to submit.
 
@@ -114,11 +113,9 @@ test filesystem.
 
 ### Changing dependencies
 
-fscrypt's dependencies are managed using the [Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
-If you add or remove a dependency, be sure to update `go.mod`, `go.sum`, and the
-`vendor/` directory by running `go mod tidy` and `go mod vendor`. fscrypt still
-vendor's it's dependencies for compatibility with older users, but this will
-probobly be removed once the module system becomes widespread.
+fscrypt's dependencies are managed using the
+[Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
+If you add or remove a dependency, be sure to update `go.mod` and `go.sum`.
 
 Also, when adding a dependency, the license of the package must be compatible
 with [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0). See the
@@ -139,17 +136,15 @@ your code.
   - Downloads [`protoc`](https://github.com/google/protobuf) to compile the
   `.proto` files.
   - Turns each `.proto` file into a matching `.pb.go` file using
-    [`protoc-gen-go`](https://github.com/golang/protobuf/tree/master/protoc-gen-go)
-    (built from source in `vendor/`).
+    [`protoc-gen-go`](https://github.com/golang/protobuf/tree/master/protoc-gen-go).
 
 `make format` runs:
   - [`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports)
-    (built from source in `vendor/`) on the `.go` files.
+    on the `.go` files.
   - [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
     on the `.c` and `.h` files.
 
 `make lint` runs:
   - [`go vet`](https://golang.org/cmd/vet/) 
-  - [`golint`](https://github.com/golang/lint) (built from source in `vendor/`)
+  - [`golint`](https://github.com/golang/lint)
   - [`staticcheck`](https://github.com/dominikh/go-tools/tree/master/cmd/staticcheck)
-    (built from source in `vendor/`)

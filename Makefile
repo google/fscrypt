@@ -73,7 +73,7 @@ override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 
 ###### Find All Files and Directories ######
-FILES := $(shell find . \( -path ./vendor -o -path "./.*" \) -prune -o -type f -printf "%P\n")
+FILES := $(shell find . -path '*/.git*' -prune -o -type f -printf "%P\n")
 GO_FILES := $(filter %.go,$(FILES))
 GO_NONGEN_FILES := $(filter-out %.pb.go,$(GO_FILES))
 GO_DIRS := $(sort $(dir $(GO_FILES)))
