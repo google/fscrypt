@@ -528,7 +528,7 @@ func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
 		return nil, err
 	}
 
-	var descriptors []string
+	descriptors := make([]string, 0, len(names))
 	for _, name := range names {
 		// Be sure to include links as well
 		descriptors = append(descriptors, strings.TrimSuffix(name, linkFileExtension))
