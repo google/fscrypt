@@ -176,25 +176,17 @@ TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck g
 tools: $(TOOLS)
 
 $(BIN)/golint:
-	GO111MODULE=off go get golang.org/x/lint/golint
-	GO111MODULE=off go build -o $@ golang.org/x/lint/golint
+	go build -o $@ golang.org/x/lint/golint
 $(BIN)/protoc-gen-go:
-	GO111MODULE=off go get -d github.com/golang/protobuf/protoc-gen-go
-	git -C "$(shell go env GOPATH)/src/github.com/golang/protobuf" checkout v1.2.0
-	go install github.com/golang/protobuf/protoc-gen-go
-	GO111MODULE=off go build -o $@ github.com/golang/protobuf/protoc-gen-go
+	go build -o $@ github.com/golang/protobuf/protoc-gen-go
 $(BIN)/goimports:
-	GO111MODULE=off go get golang.org/x/tools/cmd/goimports
-	GO111MODULE=off go build -o $@ golang.org/x/tools/cmd/goimports
+	go build -o $@ golang.org/x/tools/cmd/goimports
 $(BIN)/staticcheck:
-	GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck
-	GO111MODULE=off go build -o $@ honnef.co/go/tools/cmd/staticcheck
+	go build -o $@ honnef.co/go/tools/cmd/staticcheck
 $(BIN)/gocovmerge:
-	GO111MODULE=off go get github.com/wadey/gocovmerge
-	GO111MODULE=off go build -o $@ github.com/wadey/gocovmerge
+	go build -o $@ github.com/wadey/gocovmerge
 $(BIN)/misspell:
-	GO111MODULE=off go get github.com/client9/misspell
-	GO111MODULE=off go build -o $@ github.com/client9/misspell/cmd/misspell
+	go build -o $@ github.com/client9/misspell/cmd/misspell
 
 # Non-go tools downloaded from appropriate repository
 PROTOC_VERSION := 3.6.1
