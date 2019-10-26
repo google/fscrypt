@@ -1,7 +1,7 @@
 language: go
 sudo: false
 dist: bionic
-go: 1.12.x
+go: 1.13.x
 
 notifications:
   email: false
@@ -21,7 +21,7 @@ jobs:
       script: make
 
     - stage: presubmits
-      env: Generate, Format, and Lint
+      name: Generate, Format, and Lint
       install:
         - make tools
       script:
@@ -32,16 +32,19 @@ jobs:
         - make lint
 
     - &build
-      env: Build and Unit Tests
+      name: Build and Unit Tests
       install: skip
       script:
-        - go build github.com/google/fscrypt/cmd/fscrypt
+        - go get github.com/google/fscrypt/cmd/fscrypt
         - make
+
+    - <<: *build
+      go: 1.12.x
 
     - <<: *build
       go: 1.11.x
 
-    - env: Integration Tests
+    - name: Integration Tests
       sudo: required
       addons:
         apt:
@@ -57,7 +60,7 @@ jobs:
         - goveralls -coverprofile=coverage.out -service=travis-ci
 
     - stage: deploy
-      env: Release Binaries
+      name: Release Binaries
       install: skip
       script: skip
       before_deploy: make

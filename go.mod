@@ -1,6 +1,6 @@
 module github.com/google/fscrypt
 
-go 1.12
+go 1.11
 
 require (
 	github.com/golang/protobuf v1.2.0

@@ -106,7 +106,8 @@ information about each of the commands.
 ## Building and Installing
 
 fscrypt has a minimal set of build dependencies:
-*   [Go](https://golang.org/doc/install) 1.10 or higher
+*   [Go](https://golang.org/doc/install) 1.11 or higher. Older versions may work
+    but they are not tested or supported.
 *   A C compiler (`gcc` or `clang`)
 *   `make`
 *   Headers for [`libpam`](http://www.linux-pam.org/).
