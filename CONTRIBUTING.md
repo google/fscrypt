@@ -114,7 +114,7 @@ test filesystem.
 ### Changing dependencies
 
 fscrypt's dependencies are managed using the
-[Go 1.11 module system](https://github.com/golang/go/wiki/Modules).
+[Go module system](https://github.com/golang/go/wiki/Modules).
 If you add or remove a dependency, be sure to update `go.mod` and `go.sum`.
 
 Also, when adding a dependency, the license of the package must be compatible

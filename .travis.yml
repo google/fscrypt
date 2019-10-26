@@ -34,9 +34,8 @@ jobs:
     - &build
       name: Build and Unit Tests
       install: skip
-      env: GO111MODULE=on
       script:
-        - go build github.com/google/fscrypt/cmd/fscrypt
+        - go get github.com/google/fscrypt/cmd/fscrypt
         - make
 
     - <<: *build

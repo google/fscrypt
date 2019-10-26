@@ -71,6 +71,8 @@ DATE_FLAG := -X "main.buildTime=$(shell date)"
 
 override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
+# Always use Go modules
+export GO111MODULE = on
 
 ###### Find All Files and Directories ######
 FILES := $(shell find . -path '*/.git*' -prune -o -type f -printf "%P\n")
