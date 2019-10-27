@@ -61,13 +61,14 @@ var (
 // Authenticate copies the AUTHTOK (if necessary) into the PAM data so it can be
 // used in pam_sm_open_session.
 func Authenticate(handle *pam.Handle, _ map[string]bool) error {
-	if err := handle.StartAsPamUser(); err != nil {
+	var err error
+	if err = handle.StartAsPamUser(); err != nil {
 		return err
 	}
 	defer handle.StopAsPamUser()
 
 	// If this user doesn't have a login protector, no unlocking is needed.
-	if _, err := loginProtector(handle); err != nil {
+	if _, err = loginProtector(handle); err != nil {
 		log.Printf("no protector, no need for AUTHTOK: %s", err)
 		return nil
 	}

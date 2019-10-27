@@ -85,7 +85,7 @@ func getWrappingKey(info ProtectorInfo, keyFn KeyFunc, retry bool) (*crypto.Key,
 // wrapping key until the correct key is returned by the callback or the
 // callback returns an error.
 func unwrapProtectorKey(info ProtectorInfo, keyFn KeyFunc) (*crypto.Key, error) {
-	retry := false
+	var retry bool
 	for {
 		wrappingKey, err := getWrappingKey(info, keyFn, retry)
 		if err != nil {

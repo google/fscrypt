@@ -183,7 +183,8 @@ func FindMount(path string) (*Mount, error) {
 // a filesystem has been updated since the last call to one of the mount
 // functions, run UpdateMountInfo to see changes.
 func GetMount(mountpoint string) (*Mount, error) {
-	mountpoint, err := canonicalizePath(mountpoint)
+	var err error
+	mountpoint, err = canonicalizePath(mountpoint)
 	if err != nil {
 		return nil, err
 	}

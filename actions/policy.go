@@ -47,7 +47,8 @@ var (
 // keyring. In order for this removal to have an effect, the filesystem should
 // also be unmounted.
 func PurgeAllPolicies(ctx *Context) error {
-	if err := ctx.checkContext(); err != nil {
+	var err error
+	if err = ctx.checkContext(); err != nil {
 		return err
 	}
 	policies, err := ctx.Mount.ListPolicies()
@@ -85,7 +86,8 @@ type Policy struct {
 // appropriate data on the filesystem. On error, no data is changed on the
 // filesystem.
 func CreatePolicy(ctx *Context, protector *Protector) (*Policy, error) {
-	if err := ctx.checkContext(); err != nil {
+	var err error
+	if err = ctx.checkContext(); err != nil {
 		return nil, err
 	}
 	// Randomly create the underlying policy key (and wipe if we fail)
@@ -133,7 +135,8 @@ func GetPolicy(ctx *Context, descriptor string) (*Policy, error) {
 // before using certain methods. An error is returned if the metadata is
 // inconsistent or the path is not encrypted.
 func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
-	if err := ctx.checkContext(); err != nil {
+	var err error
+	if err = ctx.checkContext(); err != nil {
 		return nil, err
 	}
 
