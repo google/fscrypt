@@ -39,7 +39,7 @@ import (
 var (
 	// These maps hold data about the state of the system's mountpoints.
 	mountsByPath   map[string]*Mount
-	mountsByDevice map[string][]*Mount
+	mountsByDevice map[DeviceNumber][]*Mount
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
 	// True if the maps have been successfully initialized.
@@ -135,7 +135,7 @@ func loadMountInfo() error {
 		return nil
 	}
 	mountsByPath = make(map[string]*Mount)
-	mountsByDevice = make(map[string][]*Mount)
+	mountsByDevice = make(map[DeviceNumber][]*Mount)
 
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
@@ -162,9 +162,7 @@ func loadMountInfo() error {
 		// filesystems are listed in mount order.
 		mountsByPath[mnt.Path] = mnt
 
-		if mnt.Device != "" {
-			mountsByDevice[mnt.Device] = append(mountsByDevice[mnt.Device], mnt)
-		}
+		mountsByDevice[mnt.DeviceNumber] = append(mountsByDevice[mnt.DeviceNumber], mnt)
 	}
 	mountsInitialized = true
 	return nil
@@ -277,7 +275,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	if filepath.Base(searchPath) != value {
 		return nil, errors.Wrapf(ErrFollowLink, "value %q is not a UUID", value)
 	}
-	devicePath, err := canonicalizePath(searchPath)
+	deviceNumber, err := getDeviceNumber(searchPath)
 	if err != nil {
 		return nil, errors.Wrapf(ErrFollowLink, "no device with UUID %q", value)
 	}
@@ -288,9 +286,11 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
-	mnts, ok := mountsByDevice[devicePath]
+	mnts, ok := mountsByDevice[deviceNumber]
 	if !ok {
-		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q", devicePath)
+		devicePath, _ := canonicalizePath(searchPath)
+		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q (%v)",
+			devicePath, deviceNumber)
 	}
 	return mnts, nil
 }
@@ -302,9 +302,6 @@ func makeLink(mnt *Mount, token string) (string, error) {
 	if token != uuidToken {
 		return "", errors.Wrapf(ErrMakeLink, "token type %q not supported", token)
 	}
-	if mnt.Device == "" {
-		return "", errors.Wrapf(ErrMakeLink, "no device for mount %q", mnt.Path)
-	}
 
 	dirContents, err := ioutil.ReadDir(uuidDirectory)
 	if err != nil {
@@ -315,14 +312,15 @@ func makeLink(mnt *Mount, token string) (string, error) {
 			continue // Only interested in UUID symlinks
 		}
 		uuid := fileInfo.Name()
-		devicePath, err := canonicalizePath(filepath.Join(uuidDirectory, uuid))
+		deviceNumber, err := getDeviceNumber(filepath.Join(uuidDirectory, uuid))
 		if err != nil {
 			log.Print(err)
 			continue
 		}
-		if mnt.Device == devicePath {
+		if mnt.DeviceNumber == deviceNumber {
 			return fmt.Sprintf("%s=%s", uuidToken, uuid), nil
 		}
 	}
-	return "", errors.Wrapf(ErrMakeLink, "device %q has no UUID", mnt.Device)
+	return "", errors.Wrapf(ErrMakeLink, "device %q (%v) has no UUID",
+		mnt.Device, mnt.DeviceNumber)
 }
