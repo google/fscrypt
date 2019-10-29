@@ -57,10 +57,10 @@ var (
 	uuidDirectory = "/dev/disk/by-uuid"
 )
 
-// getMountInfo populates the Mount mappings by parsing the filesystem
+// loadMountInfo populates the Mount mappings by parsing the filesystem
 // description file using the getmntent functions. Returns ErrBadLoad if the
 // Mount mappings cannot be populated.
-func getMountInfo() error {
+func loadMountInfo() error {
 	if mountsInitialized {
 		return nil
 	}
@@ -122,7 +122,7 @@ func getMountInfo() error {
 func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
+	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +141,7 @@ func UpdateMountInfo() error {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	mountsInitialized = false
-	return getMountInfo()
+	return loadMountInfo()
 }
 
 // FindMount returns the corresponding Mount object for some path in a
@@ -158,7 +158,7 @@ func FindMount(path string) (*Mount, error) {
 
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err = getMountInfo(); err != nil {
+	if err = loadMountInfo(); err != nil {
 		return nil, err
 	}
 
@@ -189,7 +189,7 @@ func GetMount(mountpoint string) (*Mount, error) {
 
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err = getMountInfo(); err != nil {
+	if err = loadMountInfo(); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +232,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	// Lookup mountpoints for device in global store
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
+	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
 	mnts, ok := mountsByDevice[devicePath]
