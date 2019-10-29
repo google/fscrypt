@@ -119,3 +119,13 @@ func getDeviceNumber(path string) (DeviceNumber, error) {
 	}
 	return DeviceNumber(stat.Rdev), nil
 }
+
+// getNumberOfContainingDevice returns the device number of the filesystem which
+// contains the given file.  If the file is a symlink, it is not dereferenced.
+func getNumberOfContainingDevice(path string) (DeviceNumber, error) {
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		return 0, err
+	}
+	return DeviceNumber(stat.Dev), nil
+}

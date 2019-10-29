@@ -37,9 +37,8 @@ import (
 )
 
 var (
-	// These maps hold data about the state of the system's mountpoints.
-	mountsByPath   map[string]*Mount
-	mountsByDevice map[DeviceNumber][]*Mount
+	// This map holds data about the state of the system's filesystems.
+	mountsByDevice map[DeviceNumber]*Mount
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
 	// True if the maps have been successfully initialized.
@@ -122,7 +121,13 @@ func parseMountInfoLine(line string) *Mount {
 	if err != nil {
 		return nil
 	}
+	mnt.BindMnt = unescapeString(fields[3]) != "/"
 	mnt.Path = unescapeString(fields[4])
+	for _, opt := range strings.Split(fields[5], ",") {
+		if opt == "ro" {
+			mnt.ReadOnly = true
+		}
+	}
 	mnt.FilesystemType = unescapeString(fields[n+1])
 	mnt.Device = getDeviceName(mnt.DeviceNumber)
 	return mnt
@@ -134,8 +139,8 @@ func loadMountInfo() error {
 	if mountsInitialized {
 		return nil
 	}
-	mountsByPath = make(map[string]*Mount)
-	mountsByDevice = make(map[DeviceNumber][]*Mount)
+	mountsByPath := make(map[string]*Mount)
+	mountsByDevice = make(map[DeviceNumber]*Mount)
 
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
@@ -159,17 +164,38 @@ func loadMountInfo() error {
 
 		// Note this overrides the info if we have seen the mountpoint
 		// earlier in the file. This is correct behavior because the
-		// filesystems are listed in mount order.
+		// mountpoints are listed in mount order.
 		mountsByPath[mnt.Path] = mnt
-
-		mountsByDevice[mnt.DeviceNumber] = append(mountsByDevice[mnt.DeviceNumber], mnt)
+	}
+	// fscrypt only really cares about the root directory of each
+	// filesystem, because that's where the fscrypt metadata is stored.  So
+	// keep just one Mount per filesystem, ignoring bind mounts.  Store that
+	// Mount in mountsByDevice so that it can be found later from the device
+	// number.  Also, prefer a read-write mount to a read-only one.
+	//
+	// If the filesystem has *only* bind mounts, store an explicit nil entry
+	// so that we can show a useful error message later.
+	for _, mnt := range mountsByPath {
+		existingMnt, ok := mountsByDevice[mnt.DeviceNumber]
+		if mnt.BindMnt {
+			if !ok {
+				mountsByDevice[mnt.DeviceNumber] = nil
+			}
+		} else if existingMnt == nil || (existingMnt.ReadOnly && !mnt.ReadOnly) {
+			mountsByDevice[mnt.DeviceNumber] = mnt
+		}
 	}
 	mountsInitialized = true
 	return nil
 }
 
-// AllFilesystems lists all the Mounts on the current system ordered by path.
-// Use CheckSetup() to see if they are used with fscrypt.
+func filesystemRootDirNotVisibleError(deviceNumber DeviceNumber) error {
+	return errors.Errorf("root of filesystem on device %q (%v) is not visible in the current mount namespace",
+		getDeviceName(deviceNumber), deviceNumber)
+}
+
+// AllFilesystems lists all non-bind Mounts on the current system ordered by
+// path.  Use CheckSetup() to see if they are used with fscrypt.
 func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
@@ -177,9 +203,11 @@ func AllFilesystems() ([]*Mount, error) {
 		return nil, err
 	}
 
-	mounts := make([]*Mount, 0, len(mountsByPath))
-	for _, mount := range mountsByPath {
-		mounts = append(mounts, mount)
+	mounts := make([]*Mount, 0, len(mountsByDevice))
+	for _, mount := range mountsByDevice {
+		if mount != nil {
+			mounts = append(mounts, mount)
+		}
 	}
 
 	sort.Sort(PathSorter(mounts))
@@ -195,70 +223,64 @@ func UpdateMountInfo() error {
 	return loadMountInfo()
 }
 
-// FindMount returns the corresponding Mount object for some path in a
-// filesystem. Note that in the case of a bind mounts there may be two Mount
-// objects for the same underlying filesystem. An error is returned if the path
-// is invalid or we cannot load the required mount data. If a filesystem has
-// been updated since the last call to one of the mount functions, run
-// UpdateMountInfo to see changes.
+// FindMount returns the main Mount object for the filesystem which contains the
+// file at the specified path. An error is returned if the path is invalid or if
+// we cannot load the required mount data. If a mount has been updated since the
+// last call to one of the mount functions, run UpdateMountInfo to see changes.
 func FindMount(path string) (*Mount, error) {
-	path, err := canonicalizePath(path)
+	mountMutex.Lock()
+	defer mountMutex.Unlock()
+	if err := loadMountInfo(); err != nil {
+		return nil, err
+	}
+	deviceNumber, err := getNumberOfContainingDevice(path)
 	if err != nil {
 		return nil, err
 	}
-
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err = loadMountInfo(); err != nil {
-		return nil, err
+	mnt, ok := mountsByDevice[deviceNumber]
+	if !ok {
+		return nil, errors.Errorf("couldn't find mountpoint containing %q", path)
 	}
-
-	// Traverse up the directory tree until we find a mountpoint
-	for {
-		if mnt, ok := mountsByPath[path]; ok {
-			return mnt, nil
-		}
-
-		// Move to the parent directory unless we have reached the root.
-		parent := filepath.Dir(path)
-		if parent == path {
-			return nil, errors.Wrap(ErrNotAMountpoint, path)
-		}
-		path = parent
+	if mnt == nil {
+		return nil, filesystemRootDirNotVisibleError(deviceNumber)
 	}
+	return mnt, nil
 }
 
-// GetMount returns the Mount object with a matching mountpoint. An error is
-// returned if the path is invalid or we cannot load the required mount data. If
-// a filesystem has been updated since the last call to one of the mount
-// functions, run UpdateMountInfo to see changes.
+// GetMount is like FindMount, except GetMount also returns an error if the path
+// isn't the root directory of a filesystem.  For example, if a filesystem is
+// mounted at "/mnt" and the file "/mnt/a" exists, FindMount("/mnt/a") will
+// succeed whereas GetMount("/mnt/a") will fail.
 func GetMount(mountpoint string) (*Mount, error) {
-	mountpoint, err := canonicalizePath(mountpoint)
+	mnt, err := FindMount(mountpoint)
+	if err != nil {
+		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+	}
+	// Check whether 'mountpoint' is the root directory of the filesystem,
+	// i.e. is the same directory as 'mnt.Path'.  Use os.SameFile() (i.e.,
+	// compare inode numbers) rather than compare canonical paths, since the
+	// filesystem might be fully mounted in multiple places.
+	fi1, err := os.Stat(mountpoint)
 	if err != nil {
 		return nil, err
 	}
-
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err = loadMountInfo(); err != nil {
+	fi2, err := os.Stat(mnt.Path)
+	if err != nil {
 		return nil, err
 	}
-
-	if mnt, ok := mountsByPath[mountpoint]; ok {
-		return mnt, nil
+	if !os.SameFile(fi1, fi2) {
+		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
 	}
-
-	return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+	return mnt, nil
 }
 
-// getMountsFromLink returns the Mount objects which match the provided link.
+// getMountsFromLink returns the Mount object which matches the provided link.
 // This link is formatted as a tag (e.g. <token>=<value>) similar to how they
-// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
-// that this can match multiple Mounts (due to the existence of bind mounts). An
-// error is returned if the link is invalid or we cannot load the required mount
-// data. If a filesystem has been updated since the last call to one of the
-// mount functions, run UpdateMountInfo to see the change.
-func getMountsFromLink(link string) ([]*Mount, error) {
+// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. An error
+// is returned if the link is invalid or we cannot load the required mount data.
+// If a mount has been updated since the last call to one of the mount
+// functions, run UpdateMountInfo to see the change.
+func getMountFromLink(link string) (*Mount, error) {
 	// Parse the link
 	linkComponents := strings.Split(link, "=")
 	if len(linkComponents) != 2 {
@@ -286,13 +308,16 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
-	mnts, ok := mountsByDevice[deviceNumber]
+	mnt, ok := mountsByDevice[deviceNumber]
 	if !ok {
 		devicePath, _ := canonicalizePath(searchPath)
 		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q (%v)",
 			devicePath, deviceNumber)
 	}
-	return mnts, nil
+	if mnt == nil {
+		return nil, filesystemRootDirNotVisibleError(deviceNumber)
+	}
+	return mnt, nil
 }
 
 // makeLink returns a link of the form <token>=<value> where value is the tag
