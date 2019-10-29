@@ -134,12 +134,6 @@ func loadMountInfo() error {
 			continue
 		}
 
-		// Skip invalid mountpoints
-		var err error
-		if mnt.Path, err = canonicalizePath(mnt.Path); err != nil {
-			log.Printf("getting mnt_dir: %v", err)
-			continue
-		}
 		// We can only use mountpoints that are directories for fscrypt.
 		if !isDir(mnt.Path) {
 			log.Printf("ignoring mountpoint %q because it is not a directory", mnt.Path)
@@ -151,6 +145,7 @@ func loadMountInfo() error {
 		// filesystems are listed in mount order.
 		mountsByPath[mnt.Path] = mnt
 
+		var err error
 		mnt.Device, err = canonicalizePath(mnt.Device)
 		// Only use real valid devices (unlike cgroups, tmpfs, ...)
 		if err == nil && isDevice(mnt.Device) {
