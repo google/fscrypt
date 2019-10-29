@@ -22,26 +22,19 @@
 package filesystem
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
 )
-
-/*
-#include <mntent.h>      // setmntent, getmntent, endmntent
-
-// The file containing mountpoints info and how we should read it
-const char* mountpoints_filename = "/proc/mounts";
-const char* read_mode = "r";
-*/
-import "C"
 
 var (
 	// These maps hold data about the state of the system's mountpoints.
@@ -57,38 +50,88 @@ var (
 	uuidDirectory = "/dev/disk/by-uuid"
 )
 
-// loadMountInfo populates the Mount mappings by parsing the filesystem
-// description file using the getmntent functions. Returns ErrBadLoad if the
-// Mount mappings cannot be populated.
+// Unescape octal-encoded escape sequences in a string from the mountinfo file.
+// The kernel encodes the ' ', '\t', '\n', and '\\' bytes this way.  This
+// function exactly inverts what the kernel does, including by preserving
+// invalid UTF-8.
+func unescapeString(str string) string {
+	var sb strings.Builder
+	for i := 0; i < len(str); i++ {
+		b := str[i]
+		if b == '\\' && i+3 < len(str) {
+			if parsed, err := strconv.ParseInt(str[i+1:i+4], 8, 8); err == nil {
+				b = uint8(parsed)
+				i += 3
+			}
+		}
+		sb.WriteByte(b)
+	}
+	return sb.String()
+}
+
+// Parse one line of /proc/self/mountinfo.
+//
+// The line contains the following space-separated fields:
+//	[0] mount ID
+//	[1] parent ID
+//	[2] major:minor
+//	[3] root
+//	[4] mount point
+//	[5] mount options
+//	[6...n-1] optional field(s)
+//	[n] separator
+//	[n+1] filesystem type
+//	[n+2] mount source
+//	[n+3] super options
+//
+// For more details, see https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+func parseMountInfoLine(line string) *Mount {
+	fields := strings.Split(line, " ")
+	if len(fields) < 10 {
+		return nil
+	}
+
+	// Count the optional fields.  In case new fields are appended later,
+	// don't simply assume that n == len(fields) - 4.
+	n := 6
+	for fields[n] != "-" {
+		n++
+		if n >= len(fields) {
+			return nil
+		}
+	}
+	if n+3 >= len(fields) {
+		return nil
+	}
+
+	var mnt *Mount = &Mount{}
+	mnt.Path = unescapeString(fields[4])
+	mnt.FilesystemType = unescapeString(fields[n+1])
+	mnt.Device = unescapeString(fields[n+2])
+	return mnt
+}
+
+// loadMountInfo populates the Mount mappings by parsing /proc/self/mountinfo.
+// It returns an error if the Mount mappings cannot be populated.
 func loadMountInfo() error {
 	if mountsInitialized {
 		return nil
 	}
-
-	// make new maps
 	mountsByPath = make(map[string]*Mount)
 	mountsByDevice = make(map[string][]*Mount)
 
-	// Load the mount information from mountpoints_filename
-	fileHandle := C.setmntent(C.mountpoints_filename, C.read_mode)
-	if fileHandle == nil {
-		return errors.Wrapf(ErrGlobalMountInfo, "could not read %q",
-			C.GoString(C.mountpoints_filename))
+	file, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return err
 	}
-	defer C.endmntent(fileHandle)
-
-	for {
-		entry := C.getmntent(fileHandle)
-		// When getmntent returns nil, we have read all of the entries.
-		if entry == nil {
-			mountsInitialized = true
-			return nil
-		}
-
-		// Create the Mount structure by converting types.
-		mnt := Mount{
-			Path:           C.GoString(entry.mnt_dir),
-			FilesystemType: C.GoString(entry.mnt_type),
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		mnt := parseMountInfoLine(line)
+		if mnt == nil {
+			log.Printf("ignoring invalid mountinfo line %q", line)
+			continue
 		}
 
 		// Skip invalid mountpoints
@@ -99,22 +142,25 @@ func loadMountInfo() error {
 		}
 		// We can only use mountpoints that are directories for fscrypt.
 		if !isDir(mnt.Path) {
-			log.Printf("mnt_dir %v: not a directory", mnt.Path)
+			log.Printf("ignoring mountpoint %q because it is not a directory", mnt.Path)
 			continue
 		}
 
 		// Note this overrides the info if we have seen the mountpoint
 		// earlier in the file. This is correct behavior because the
 		// filesystems are listed in mount order.
-		mountsByPath[mnt.Path] = &mnt
+		mountsByPath[mnt.Path] = mnt
 
-		deviceName, err := canonicalizePath(C.GoString(entry.mnt_fsname))
+		mnt.Device, err = canonicalizePath(mnt.Device)
 		// Only use real valid devices (unlike cgroups, tmpfs, ...)
-		if err == nil && isDevice(deviceName) {
-			mnt.Device = deviceName
-			mountsByDevice[deviceName] = append(mountsByDevice[deviceName], &mnt)
+		if err == nil && isDevice(mnt.Device) {
+			mountsByDevice[mnt.Device] = append(mountsByDevice[mnt.Device], mnt)
+		} else {
+			mnt.Device = ""
 		}
 	}
+	mountsInitialized = true
+	return nil
 }
 
 // AllFilesystems lists all the Mounts on the current system ordered by path.
