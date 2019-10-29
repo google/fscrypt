@@ -78,7 +78,7 @@ func NewContextFromPath(path string, target *user.User) (*Context, error) {
 	}
 
 	log.Printf("%s is on %s filesystem %q (%s)", path,
-		ctx.Mount.Filesystem, ctx.Mount.Path, ctx.Mount.Device)
+		ctx.Mount.FilesystemType, ctx.Mount.Path, ctx.Mount.Device)
 	return ctx, nil
 }
 
@@ -95,7 +95,7 @@ func NewContextFromMountpoint(mountpoint string, target *user.User) (*Context, e
 		return nil, err
 	}
 
-	log.Printf("found %s filesystem %q (%s)", ctx.Mount.Filesystem,
+	log.Printf("found %s filesystem %q (%s)", ctx.Mount.FilesystemType,
 		ctx.Mount.Path, ctx.Mount.Device)
 	return ctx, nil
 }
@@ -137,9 +137,9 @@ func (ctx *Context) checkContext() error {
 func (ctx *Context) getService() string {
 	// For legacy configurations, we may need non-standard services
 	if ctx.Config.HasCompatibilityOption(LegacyConfig) {
-		switch ctx.Mount.Filesystem {
+		switch ctx.Mount.FilesystemType {
 		case "ext4", "f2fs":
-			return ctx.Mount.Filesystem + ":"
+			return ctx.Mount.FilesystemType + ":"
 		}
 	}
 	return unix.FS_KEY_DESC_PREFIX

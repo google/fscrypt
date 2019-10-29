@@ -64,10 +64,10 @@ var (
 )
 
 // Mount contains information for a specific mounted filesystem.
-//	Path       - Absolute path where the directory is mounted
-//	Filesystem - Name of the mounted filesystem
-//	Options    - List of options used when mounting the filesystem
-//	Device     - Device for filesystem (empty string if we cannot find one)
+//	Path           - Absolute path where the directory is mounted
+//	FilesystemType - Type of the mounted filesystem, e.g. "ext4"
+//	Options        - List of options used when mounting the filesystem
+//	Device         - Device for filesystem (empty string if we cannot find one)
 //
 // In order to use a Mount to store fscrypt metadata, some directories must be
 // setup first. Specifically, the directories created look like:
@@ -90,10 +90,10 @@ var (
 // allows login protectors to be created when the root filesystem is read-only,
 // provided that "/.fscrypt" is a symlink pointing to a writable location.
 type Mount struct {
-	Path       string
-	Filesystem string
-	Options    []string
-	Device     string
+	Path           string
+	FilesystemType string
+	Options        []string
+	Device         string
 }
 
 // PathSorter allows mounts to be sorted by Path.
@@ -123,9 +123,9 @@ const (
 
 func (m *Mount) String() string {
 	return fmt.Sprintf(`%s
-	Filsystem: %s
-	Options:   %v
-	Device:    %s`, m.Path, m.Filesystem, m.Options, m.Device)
+	FilesystemType: %s
+	Options:        %v
+	Device:         %s`, m.Path, m.FilesystemType, m.Options, m.Device)
 }
 
 // BaseDir returns the path to the base fscrypt directory for this filesystem.

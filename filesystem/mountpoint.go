@@ -87,9 +87,9 @@ func getMountInfo() error {
 
 		// Create the Mount structure by converting types.
 		mnt := Mount{
-			Path:       C.GoString(entry.mnt_dir),
-			Filesystem: C.GoString(entry.mnt_type),
-			Options:    strings.Split(C.GoString(entry.mnt_opts), ","),
+			Path:           C.GoString(entry.mnt_dir),
+			FilesystemType: C.GoString(entry.mnt_type),
+			Options:        strings.Split(C.GoString(entry.mnt_opts), ","),
 		}
 
 		// Skip invalid mountpoints
