@@ -73,12 +73,6 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// isDevice returns true if the path exists and is that of a device.
-func isDevice(path string) bool {
-	info, err := loggedStat(path)
-	return err == nil && info.Mode()&os.ModeDevice != 0
-}
-
 // isDirCheckPerm returns true if the path exists and is a directory. If the
 // specified permissions and sticky bit of mode do not match the path, an error
 // is logged.

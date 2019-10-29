@@ -69,6 +69,18 @@ func unescapeString(str string) string {
 	return sb.String()
 }
 
+// We get the device name via the device number rather than use the mount source
+// field directly.  This is necessary to handle a rootfs that was mounted via
+// the kernel command line, since mountinfo always shows /dev/root for that.
+// This assumes that the device nodes are in the standard location.
+func getDeviceName(num DeviceNumber) string {
+	linkPath := fmt.Sprintf("/sys/dev/block/%v", num)
+	if target, err := os.Readlink(linkPath); err == nil {
+		return fmt.Sprintf("/dev/%s", filepath.Base(target))
+	}
+	return ""
+}
+
 // Parse one line of /proc/self/mountinfo.
 //
 // The line contains the following space-separated fields:
@@ -105,9 +117,14 @@ func parseMountInfoLine(line string) *Mount {
 	}
 
 	var mnt *Mount = &Mount{}
+	var err error
+	mnt.DeviceNumber, err = newDeviceNumberFromString(fields[2])
+	if err != nil {
+		return nil
+	}
 	mnt.Path = unescapeString(fields[4])
 	mnt.FilesystemType = unescapeString(fields[n+1])
-	mnt.Device = unescapeString(fields[n+2])
+	mnt.Device = getDeviceName(mnt.DeviceNumber)
 	return mnt
 }
 
@@ -145,13 +162,8 @@ func loadMountInfo() error {
 		// filesystems are listed in mount order.
 		mountsByPath[mnt.Path] = mnt
 
-		var err error
-		mnt.Device, err = canonicalizePath(mnt.Device)
-		// Only use real valid devices (unlike cgroups, tmpfs, ...)
-		if err == nil && isDevice(mnt.Device) {
+		if mnt.Device != "" {
 			mountsByDevice[mnt.Device] = append(mountsByDevice[mnt.Device], mnt)
-		} else {
-			mnt.Device = ""
 		}
 	}
 	mountsInitialized = true

@@ -67,6 +67,9 @@ var (
 //	Path           - Absolute path where the directory is mounted
 //	FilesystemType - Type of the mounted filesystem, e.g. "ext4"
 //	Device         - Device for filesystem (empty string if we cannot find one)
+//	DeviceNumber   - Device number of the filesystem.  This is set even if
+//			 Device isn't, since all filesystems have a device
+//			 number assigned by the kernel, even pseudo-filesystems.
 //
 // In order to use a Mount to store fscrypt metadata, some directories must be
 // setup first. Specifically, the directories created look like:
@@ -92,6 +95,7 @@ type Mount struct {
 	Path           string
 	FilesystemType string
 	Device         string
+	DeviceNumber   DeviceNumber
 }
 
 // PathSorter allows mounts to be sorted by Path.
