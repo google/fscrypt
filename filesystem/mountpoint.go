@@ -89,7 +89,6 @@ func getMountInfo() error {
 		mnt := Mount{
 			Path:           C.GoString(entry.mnt_dir),
 			FilesystemType: C.GoString(entry.mnt_type),
-			Options:        strings.Split(C.GoString(entry.mnt_opts), ","),
 		}
 
 		// Skip invalid mountpoints
