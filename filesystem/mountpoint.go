@@ -24,6 +24,7 @@ package filesystem
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -133,21 +134,12 @@ func parseMountInfoLine(line string) *Mount {
 	return mnt
 }
 
-// loadMountInfo populates the Mount mappings by parsing /proc/self/mountinfo.
-// It returns an error if the Mount mappings cannot be populated.
-func loadMountInfo() error {
-	if mountsInitialized {
-		return nil
-	}
+// This is separate from loadMountInfo() only for unit testing.
+func readMountInfo(r io.Reader) error {
 	mountsByPath := make(map[string]*Mount)
 	mountsByDevice = make(map[DeviceNumber]*Mount)
 
-	file, err := os.Open("/proc/self/mountinfo")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
 		mnt := parseMountInfoLine(line)
@@ -185,7 +177,23 @@ func loadMountInfo() error {
 			mountsByDevice[mnt.DeviceNumber] = mnt
 		}
 	}
-	mountsInitialized = true
+	return nil
+}
+
+// loadMountInfo populates the Mount mappings by parsing /proc/self/mountinfo.
+// It returns an error if the Mount mappings cannot be populated.
+func loadMountInfo() error {
+	if !mountsInitialized {
+		file, err := os.Open("/proc/self/mountinfo")
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err := readMountInfo(file); err != nil {
+			return err
+		}
+		mountsInitialized = true
+	}
 	return nil
 }
 
