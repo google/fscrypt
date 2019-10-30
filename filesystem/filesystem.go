@@ -64,10 +64,15 @@ var (
 )
 
 // Mount contains information for a specific mounted filesystem.
-//	Path       - Absolute path where the directory is mounted
-//	Filesystem - Name of the mounted filesystem
-//	Options    - List of options used when mounting the filesystem
-//	Device     - Device for filesystem (empty string if we cannot find one)
+//	Path           - Absolute path where the directory is mounted
+//	FilesystemType - Type of the mounted filesystem, e.g. "ext4"
+//	Device         - Device for filesystem (empty string if we cannot find one)
+//	DeviceNumber   - Device number of the filesystem.  This is set even if
+//			 Device isn't, since all filesystems have a device
+//			 number assigned by the kernel, even pseudo-filesystems.
+//	BindMnt        - True if this mount is not for the full filesystem but
+//			 rather is only for a subtree.
+//	ReadOnly       - True if this is a read-only mount
 //
 // In order to use a Mount to store fscrypt metadata, some directories must be
 // setup first. Specifically, the directories created look like:
@@ -90,10 +95,12 @@ var (
 // allows login protectors to be created when the root filesystem is read-only,
 // provided that "/.fscrypt" is a symlink pointing to a writable location.
 type Mount struct {
-	Path       string
-	Filesystem string
-	Options    []string
-	Device     string
+	Path           string
+	FilesystemType string
+	Device         string
+	DeviceNumber   DeviceNumber
+	BindMnt        bool
+	ReadOnly       bool
 }
 
 // PathSorter allows mounts to be sorted by Path.
@@ -123,9 +130,8 @@ const (
 
 func (m *Mount) String() string {
 	return fmt.Sprintf(`%s
-	Filsystem: %s
-	Options:   %v
-	Device:    %s`, m.Path, m.Filesystem, m.Options, m.Device)
+	FilesystemType: %s
+	Device:         %s`, m.Path, m.FilesystemType, m.Device)
 }
 
 // BaseDir returns the path to the base fscrypt directory for this filesystem.
@@ -436,21 +442,16 @@ func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData
 		return nil, nil, m.err(err)
 	}
 
-	// As the link could refer to multiple filesystems, we check each one
-	// for valid metadata.
-	mnts, err := getMountsFromLink(string(link))
+	linkedMnt, err := getMountFromLink(string(link))
 	if err != nil {
 		return nil, nil, m.err(err)
 	}
-
-	for _, mnt := range mnts {
-		if data, err := mnt.GetRegularProtector(descriptor); err != nil {
-			log.Print(err)
-		} else {
-			return mnt, data, nil
-		}
+	data, err := linkedMnt.GetRegularProtector(descriptor)
+	if err != nil {
+		log.Print(err)
+		return nil, nil, m.err(errors.Wrapf(ErrLinkExpired, "protector %s", descriptor))
 	}
-	return nil, nil, m.err(errors.Wrapf(ErrLinkExpired, "protector %s", descriptor))
+	return linkedMnt, data, nil
 }
 
 // RemoveProtector deletes the protector metadata (or a link to another

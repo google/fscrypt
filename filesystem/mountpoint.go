@@ -22,31 +22,24 @@
 package filesystem
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
 )
 
-/*
-#include <mntent.h>      // setmntent, getmntent, endmntent
-
-// The file containing mountpoints info and how we should read it
-const char* mountpoints_filename = "/proc/mounts";
-const char* read_mode = "r";
-*/
-import "C"
-
 var (
-	// These maps hold data about the state of the system's mountpoints.
-	mountsByPath   map[string]*Mount
-	mountsByDevice map[string][]*Mount
+	// This map holds data about the state of the system's filesystems.
+	mountsByDevice map[DeviceNumber]*Mount
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
 	// True if the maps have been successfully initialized.
@@ -57,79 +50,172 @@ var (
 	uuidDirectory = "/dev/disk/by-uuid"
 )
 
-// getMountInfo populates the Mount mappings by parsing the filesystem
-// description file using the getmntent functions. Returns ErrBadLoad if the
-// Mount mappings cannot be populated.
-func getMountInfo() error {
-	if mountsInitialized {
+// Unescape octal-encoded escape sequences in a string from the mountinfo file.
+// The kernel encodes the ' ', '\t', '\n', and '\\' bytes this way.  This
+// function exactly inverts what the kernel does, including by preserving
+// invalid UTF-8.
+func unescapeString(str string) string {
+	var sb strings.Builder
+	for i := 0; i < len(str); i++ {
+		b := str[i]
+		if b == '\\' && i+3 < len(str) {
+			if parsed, err := strconv.ParseInt(str[i+1:i+4], 8, 8); err == nil {
+				b = uint8(parsed)
+				i += 3
+			}
+		}
+		sb.WriteByte(b)
+	}
+	return sb.String()
+}
+
+// We get the device name via the device number rather than use the mount source
+// field directly.  This is necessary to handle a rootfs that was mounted via
+// the kernel command line, since mountinfo always shows /dev/root for that.
+// This assumes that the device nodes are in the standard location.
+func getDeviceName(num DeviceNumber) string {
+	linkPath := fmt.Sprintf("/sys/dev/block/%v", num)
+	if target, err := os.Readlink(linkPath); err == nil {
+		return fmt.Sprintf("/dev/%s", filepath.Base(target))
+	}
+	return ""
+}
+
+// Parse one line of /proc/self/mountinfo.
+//
+// The line contains the following space-separated fields:
+//	[0] mount ID
+//	[1] parent ID
+//	[2] major:minor
+//	[3] root
+//	[4] mount point
+//	[5] mount options
+//	[6...n-1] optional field(s)
+//	[n] separator
+//	[n+1] filesystem type
+//	[n+2] mount source
+//	[n+3] super options
+//
+// For more details, see https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+func parseMountInfoLine(line string) *Mount {
+	fields := strings.Split(line, " ")
+	if len(fields) < 10 {
 		return nil
 	}
 
-	// make new maps
-	mountsByPath = make(map[string]*Mount)
-	mountsByDevice = make(map[string][]*Mount)
-
-	// Load the mount information from mountpoints_filename
-	fileHandle := C.setmntent(C.mountpoints_filename, C.read_mode)
-	if fileHandle == nil {
-		return errors.Wrapf(ErrGlobalMountInfo, "could not read %q",
-			C.GoString(C.mountpoints_filename))
-	}
-	defer C.endmntent(fileHandle)
-
-	for {
-		entry := C.getmntent(fileHandle)
-		// When getmntent returns nil, we have read all of the entries.
-		if entry == nil {
-			mountsInitialized = true
+	// Count the optional fields.  In case new fields are appended later,
+	// don't simply assume that n == len(fields) - 4.
+	n := 6
+	for fields[n] != "-" {
+		n++
+		if n >= len(fields) {
 			return nil
 		}
+	}
+	if n+3 >= len(fields) {
+		return nil
+	}
 
-		// Create the Mount structure by converting types.
-		mnt := Mount{
-			Path:       C.GoString(entry.mnt_dir),
-			Filesystem: C.GoString(entry.mnt_type),
-			Options:    strings.Split(C.GoString(entry.mnt_opts), ","),
+	var mnt *Mount = &Mount{}
+	var err error
+	mnt.DeviceNumber, err = newDeviceNumberFromString(fields[2])
+	if err != nil {
+		return nil
+	}
+	mnt.BindMnt = unescapeString(fields[3]) != "/"
+	mnt.Path = unescapeString(fields[4])
+	for _, opt := range strings.Split(fields[5], ",") {
+		if opt == "ro" {
+			mnt.ReadOnly = true
 		}
+	}
+	mnt.FilesystemType = unescapeString(fields[n+1])
+	mnt.Device = getDeviceName(mnt.DeviceNumber)
+	return mnt
+}
 
-		// Skip invalid mountpoints
-		var err error
-		if mnt.Path, err = canonicalizePath(mnt.Path); err != nil {
-			log.Printf("getting mnt_dir: %v", err)
+// This is separate from loadMountInfo() only for unit testing.
+func readMountInfo(r io.Reader) error {
+	mountsByPath := make(map[string]*Mount)
+	mountsByDevice = make(map[DeviceNumber]*Mount)
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+		mnt := parseMountInfoLine(line)
+		if mnt == nil {
+			log.Printf("ignoring invalid mountinfo line %q", line)
 			continue
 		}
+
 		// We can only use mountpoints that are directories for fscrypt.
 		if !isDir(mnt.Path) {
-			log.Printf("mnt_dir %v: not a directory", mnt.Path)
+			log.Printf("ignoring mountpoint %q because it is not a directory", mnt.Path)
 			continue
 		}
 
 		// Note this overrides the info if we have seen the mountpoint
 		// earlier in the file. This is correct behavior because the
-		// filesystems are listed in mount order.
-		mountsByPath[mnt.Path] = &mnt
-
-		deviceName, err := canonicalizePath(C.GoString(entry.mnt_fsname))
-		// Only use real valid devices (unlike cgroups, tmpfs, ...)
-		if err == nil && isDevice(deviceName) {
-			mnt.Device = deviceName
-			mountsByDevice[deviceName] = append(mountsByDevice[deviceName], &mnt)
+		// mountpoints are listed in mount order.
+		mountsByPath[mnt.Path] = mnt
+	}
+	// fscrypt only really cares about the root directory of each
+	// filesystem, because that's where the fscrypt metadata is stored.  So
+	// keep just one Mount per filesystem, ignoring bind mounts.  Store that
+	// Mount in mountsByDevice so that it can be found later from the device
+	// number.  Also, prefer a read-write mount to a read-only one.
+	//
+	// If the filesystem has *only* bind mounts, store an explicit nil entry
+	// so that we can show a useful error message later.
+	for _, mnt := range mountsByPath {
+		existingMnt, ok := mountsByDevice[mnt.DeviceNumber]
+		if mnt.BindMnt {
+			if !ok {
+				mountsByDevice[mnt.DeviceNumber] = nil
+			}
+		} else if existingMnt == nil || (existingMnt.ReadOnly && !mnt.ReadOnly) {
+			mountsByDevice[mnt.DeviceNumber] = mnt
 		}
 	}
+	return nil
 }
 
-// AllFilesystems lists all the Mounts on the current system ordered by path.
-// Use CheckSetup() to see if they are used with fscrypt.
+// loadMountInfo populates the Mount mappings by parsing /proc/self/mountinfo.
+// It returns an error if the Mount mappings cannot be populated.
+func loadMountInfo() error {
+	if !mountsInitialized {
+		file, err := os.Open("/proc/self/mountinfo")
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if err := readMountInfo(file); err != nil {
+			return err
+		}
+		mountsInitialized = true
+	}
+	return nil
+}
+
+func filesystemRootDirNotVisibleError(deviceNumber DeviceNumber) error {
+	return errors.Errorf("root of filesystem on device %q (%v) is not visible in the current mount namespace",
+		getDeviceName(deviceNumber), deviceNumber)
+}
+
+// AllFilesystems lists all non-bind Mounts on the current system ordered by
+// path.  Use CheckSetup() to see if they are used with fscrypt.
 func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
+	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
 
-	mounts := make([]*Mount, 0, len(mountsByPath))
-	for _, mount := range mountsByPath {
-		mounts = append(mounts, mount)
+	mounts := make([]*Mount, 0, len(mountsByDevice))
+	for _, mount := range mountsByDevice {
+		if mount != nil {
+			mounts = append(mounts, mount)
+		}
 	}
 
 	sort.Sort(PathSorter(mounts))
@@ -142,73 +228,67 @@ func UpdateMountInfo() error {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	mountsInitialized = false
-	return getMountInfo()
+	return loadMountInfo()
 }
 
-// FindMount returns the corresponding Mount object for some path in a
-// filesystem. Note that in the case of a bind mounts there may be two Mount
-// objects for the same underlying filesystem. An error is returned if the path
-// is invalid or we cannot load the required mount data. If a filesystem has
-// been updated since the last call to one of the mount functions, run
-// UpdateMountInfo to see changes.
+// FindMount returns the main Mount object for the filesystem which contains the
+// file at the specified path. An error is returned if the path is invalid or if
+// we cannot load the required mount data. If a mount has been updated since the
+// last call to one of the mount functions, run UpdateMountInfo to see changes.
 func FindMount(path string) (*Mount, error) {
-	path, err := canonicalizePath(path)
+	mountMutex.Lock()
+	defer mountMutex.Unlock()
+	if err := loadMountInfo(); err != nil {
+		return nil, err
+	}
+	deviceNumber, err := getNumberOfContainingDevice(path)
 	if err != nil {
 		return nil, err
 	}
-
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err = getMountInfo(); err != nil {
-		return nil, err
+	mnt, ok := mountsByDevice[deviceNumber]
+	if !ok {
+		return nil, errors.Errorf("couldn't find mountpoint containing %q", path)
 	}
-
-	// Traverse up the directory tree until we find a mountpoint
-	for {
-		if mnt, ok := mountsByPath[path]; ok {
-			return mnt, nil
-		}
-
-		// Move to the parent directory unless we have reached the root.
-		parent := filepath.Dir(path)
-		if parent == path {
-			return nil, errors.Wrap(ErrNotAMountpoint, path)
-		}
-		path = parent
+	if mnt == nil {
+		return nil, filesystemRootDirNotVisibleError(deviceNumber)
 	}
+	return mnt, nil
 }
 
-// GetMount returns the Mount object with a matching mountpoint. An error is
-// returned if the path is invalid or we cannot load the required mount data. If
-// a filesystem has been updated since the last call to one of the mount
-// functions, run UpdateMountInfo to see changes.
+// GetMount is like FindMount, except GetMount also returns an error if the path
+// isn't the root directory of a filesystem.  For example, if a filesystem is
+// mounted at "/mnt" and the file "/mnt/a" exists, FindMount("/mnt/a") will
+// succeed whereas GetMount("/mnt/a") will fail.
 func GetMount(mountpoint string) (*Mount, error) {
-	mountpoint, err := canonicalizePath(mountpoint)
+	mnt, err := FindMount(mountpoint)
+	if err != nil {
+		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+	}
+	// Check whether 'mountpoint' is the root directory of the filesystem,
+	// i.e. is the same directory as 'mnt.Path'.  Use os.SameFile() (i.e.,
+	// compare inode numbers) rather than compare canonical paths, since the
+	// filesystem might be fully mounted in multiple places.
+	fi1, err := os.Stat(mountpoint)
 	if err != nil {
 		return nil, err
 	}
-
-	mountMutex.Lock()
-	defer mountMutex.Unlock()
-	if err = getMountInfo(); err != nil {
+	fi2, err := os.Stat(mnt.Path)
+	if err != nil {
 		return nil, err
 	}
-
-	if mnt, ok := mountsByPath[mountpoint]; ok {
-		return mnt, nil
+	if !os.SameFile(fi1, fi2) {
+		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
 	}
-
-	return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+	return mnt, nil
 }
 
-// getMountsFromLink returns the Mount objects which match the provided link.
+// getMountsFromLink returns the Mount object which matches the provided link.
 // This link is formatted as a tag (e.g. <token>=<value>) similar to how they
-// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. Note
-// that this can match multiple Mounts (due to the existence of bind mounts). An
-// error is returned if the link is invalid or we cannot load the required mount
-// data. If a filesystem has been updated since the last call to one of the
-// mount functions, run UpdateMountInfo to see the change.
-func getMountsFromLink(link string) ([]*Mount, error) {
+// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. An error
+// is returned if the link is invalid or we cannot load the required mount data.
+// If a mount has been updated since the last call to one of the mount
+// functions, run UpdateMountInfo to see the change.
+func getMountFromLink(link string) (*Mount, error) {
 	// Parse the link
 	linkComponents := strings.Split(link, "=")
 	if len(linkComponents) != 2 {
@@ -225,7 +305,7 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	if filepath.Base(searchPath) != value {
 		return nil, errors.Wrapf(ErrFollowLink, "value %q is not a UUID", value)
 	}
-	devicePath, err := canonicalizePath(searchPath)
+	deviceNumber, err := getDeviceNumber(searchPath)
 	if err != nil {
 		return nil, errors.Wrapf(ErrFollowLink, "no device with UUID %q", value)
 	}
@@ -233,14 +313,19 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 	// Lookup mountpoints for device in global store
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := getMountInfo(); err != nil {
+	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
-	mnts, ok := mountsByDevice[devicePath]
+	mnt, ok := mountsByDevice[deviceNumber]
 	if !ok {
-		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q", devicePath)
+		devicePath, _ := canonicalizePath(searchPath)
+		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q (%v)",
+			devicePath, deviceNumber)
 	}
-	return mnts, nil
+	if mnt == nil {
+		return nil, filesystemRootDirNotVisibleError(deviceNumber)
+	}
+	return mnt, nil
 }
 
 // makeLink returns a link of the form <token>=<value> where value is the tag
@@ -249,9 +334,6 @@ func getMountsFromLink(link string) ([]*Mount, error) {
 func makeLink(mnt *Mount, token string) (string, error) {
 	if token != uuidToken {
 		return "", errors.Wrapf(ErrMakeLink, "token type %q not supported", token)
-	}
-	if mnt.Device == "" {
-		return "", errors.Wrapf(ErrMakeLink, "no device for mount %q", mnt.Path)
 	}
 
 	dirContents, err := ioutil.ReadDir(uuidDirectory)
@@ -263,14 +345,15 @@ func makeLink(mnt *Mount, token string) (string, error) {
 			continue // Only interested in UUID symlinks
 		}
 		uuid := fileInfo.Name()
-		devicePath, err := canonicalizePath(filepath.Join(uuidDirectory, uuid))
+		deviceNumber, err := getDeviceNumber(filepath.Join(uuidDirectory, uuid))
 		if err != nil {
 			log.Print(err)
 			continue
 		}
-		if mnt.Device == devicePath {
+		if mnt.DeviceNumber == deviceNumber {
 			return fmt.Sprintf("%s=%s", uuidToken, uuid), nil
 		}
 	}
-	return "", errors.Wrapf(ErrMakeLink, "device %q has no UUID", mnt.Device)
+	return "", errors.Wrapf(ErrMakeLink, "device %q (%v) has no UUID",
+		mnt.Device, mnt.DeviceNumber)
 }

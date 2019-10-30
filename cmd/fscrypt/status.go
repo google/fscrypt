@@ -91,8 +91,8 @@ func writeGlobalStatus(w io.Writer) error {
 			continue
 		}
 
-		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", mount.Path, mount.Device, mount.Filesystem,
-			supportString, yesNoString(usingFscrypt))
+		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", mount.Path, mount.Device,
+			mount.FilesystemType, supportString, yesNoString(usingFscrypt))
 
 		if supportErr == nil {
 			supportCount++
@@ -139,8 +139,9 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.Filesystem, ctx.Mount.Path,
-		pluralize(len(options), "protector"), pluralize(len(policyDescriptors), "policy"))
+	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.FilesystemType,
+		ctx.Mount.Path, pluralize(len(options), "protector"),
+		pluralize(len(policyDescriptors), "policy"))
 
 	if len(options) > 0 {
 		writeOptions(w, options)

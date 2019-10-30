@@ -20,6 +20,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -72,12 +73,6 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-// isDevice returns true if the path exists and is that of a device.
-func isDevice(path string) bool {
-	info, err := loggedStat(path)
-	return err == nil && info.Mode()&os.ModeDevice != 0
-}
-
 // isDirCheckPerm returns true if the path exists and is a directory. If the
 // specified permissions and sticky bit of mode do not match the path, an error
 // is logged.
@@ -98,4 +93,39 @@ func isDirCheckPerm(path string, mode os.FileMode) bool {
 func isRegularFile(path string) bool {
 	info, err := loggedStat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// DeviceNumber represents a combined major:minor device number.
+type DeviceNumber uint64
+
+func (num DeviceNumber) String() string {
+	return fmt.Sprintf("%d:%d", unix.Major(uint64(num)), unix.Minor(uint64(num)))
+}
+
+func newDeviceNumberFromString(str string) (DeviceNumber, error) {
+	var major, minor uint32
+	if count, _ := fmt.Sscanf(str, "%d:%d", &major, &minor); count != 2 {
+		return 0, errors.Errorf("invalid device number string %q", str)
+	}
+	return DeviceNumber(unix.Mkdev(major, minor)), nil
+}
+
+// getDeviceNumber returns the device number of the device node at the given
+// path.  If there is a symlink at the path, it is dereferenced.
+func getDeviceNumber(path string) (DeviceNumber, error) {
+	var stat unix.Stat_t
+	if err := unix.Stat(path, &stat); err != nil {
+		return 0, err
+	}
+	return DeviceNumber(stat.Rdev), nil
+}
+
+// getNumberOfContainingDevice returns the device number of the filesystem which
+// contains the given file.  If the file is a symlink, it is not dereferenced.
+func getNumberOfContainingDevice(path string) (DeviceNumber, error) {
+	var stat unix.Stat_t
+	if err := unix.Lstat(path, &stat); err != nil {
+		return 0, err
+	}
+	return DeviceNumber(stat.Dev), nil
 }
