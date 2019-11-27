@@ -185,7 +185,7 @@ func promptForSource(ctx *actions.Context) error {
 	}
 
 	// We print all the sources with their number, description, and name.
-	fmt.Println("Your data can be protected with one of the following sources:")
+	fmt.Println("The following protector sources are available:")
 	for idx := 1; idx < len(metadata.SourceType_value); idx++ {
 		source := metadata.SourceType(idx)
 		description := sourceDescriptions[source]

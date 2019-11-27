@@ -257,7 +257,7 @@ Metadata directories created at "/mnt/disk/.fscrypt".
 >>>>> mkdir /mnt/disk/dir1
 >>>>> fscrypt encrypt /mnt/disk/dir1
 Should we create a new protector? [Y/n] y
-Your data can be protected with one of the following sources:
+The following protector sources are available:
 1 - Your login passphrase (pam_passphrase)
 2 - A custom passphrase (custom_passphrase)
 3 - A raw 256-bit key (raw_key)
@@ -364,7 +364,7 @@ passphrase.
 >>>>> mkdir /mnt/disk/dir2
 >>>>> fscrypt encrypt /mnt/disk/dir2
 Should we create a new protector? [Y/n] y
-Your data can be protected with one of the following sources:
+The following protector sources are available:
 1 - Your login passphrase (pam_passphrase)
 2 - A custom passphrase (custom_passphrase)
 3 - A raw 256-bit key (raw_key)
@@ -449,7 +449,7 @@ sure you are aware of
 # could also use `fscrypt encrypt --key=secret.key` to achieve the same thing.
 >>>>> fscrypt metadata create protector /mnt/disk
 Create new protector on "/mnt/disk" [Y/n] y
-Your data can be protected with one of the following sources:
+The following protector sources are available:
 1 - Your login passphrase (pam_passphrase)
 2 - A custom passphrase (custom_passphrase)
 3 - A raw 256-bit key (raw_key)
