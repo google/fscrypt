@@ -56,7 +56,7 @@ var (
 	fakeValidDescriptor = "0123456789abcdef"
 	fakeSalt            = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
 	fakePassword        = []byte("password")
-	defaultService      = unix.FS_KEY_DESC_PREFIX
+	defaultService      = unix.FSCRYPT_KEY_DESC_PREFIX
 
 	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
 	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)

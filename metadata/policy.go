@@ -46,7 +46,7 @@ var (
 // pointers and file descriptors to the IOCTL syscall. This function also takes
 // some of the unclear errors returned by the syscall and translates then into
 // more specific error strings.
-func policyIoctl(file *os.File, request uintptr, policy *unix.FscryptPolicy) error {
+func policyIoctl(file *os.File, request uintptr, policy *unix.FscryptPolicyV1) error {
 	// The returned errno value can sometimes give strange errors, so we
 	// return encryption specific errors.
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), request, uintptr(unsafe.Pointer(policy)))
@@ -68,11 +68,11 @@ func policyIoctl(file *os.File, request uintptr, policy *unix.FscryptPolicy) err
 	}
 }
 
-// Maps EncryptionOptions.Padding <-> FscryptPolicy.Flags
+// Maps EncryptionOptions.Padding <-> FSCRYPT_POLICY_FLAGS
 var (
 	paddingArray = []int64{4, 8, 16, 32}
-	flagsArray   = []int64{unix.FS_POLICY_FLAGS_PAD_4, unix.FS_POLICY_FLAGS_PAD_8,
-		unix.FS_POLICY_FLAGS_PAD_16, unix.FS_POLICY_FLAGS_PAD_32}
+	flagsArray   = []int64{unix.FSCRYPT_POLICY_FLAGS_PAD_4, unix.FSCRYPT_POLICY_FLAGS_PAD_8,
+		unix.FSCRYPT_POLICY_FLAGS_PAD_16, unix.FSCRYPT_POLICY_FLAGS_PAD_32}
 )
 
 // GetPolicy returns the Policy data for the given directory or file (includes
@@ -85,13 +85,13 @@ func GetPolicy(path string) (*PolicyData, error) {
 	}
 	defer file.Close()
 
-	var policy unix.FscryptPolicy
+	var policy unix.FscryptPolicyV1
 	if err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY, &policy); err != nil {
 		return nil, errors.Wrapf(err, "get encryption policy %s", path)
 	}
 
 	// Convert the padding flag into an amount of padding
-	paddingFlag := int64(policy.Flags & unix.FS_POLICY_FLAGS_PAD_MASK)
+	paddingFlag := int64(policy.Flags & unix.FSCRYPT_POLICY_FLAGS_PAD_MASK)
 
 	// This lookup should always succeed
 	padding, ok := util.Lookup(paddingFlag, flagsArray, paddingArray)
@@ -147,12 +147,11 @@ func SetPolicy(path string, data *PolicyData) error {
 	}
 
 	if shouldUseDirectKeyFlag(data.Options) {
-		// TODO: use unix.FS_POLICY_FLAG_DIRECT_KEY here once available
-		flags |= 0x4
+		flags |= unix.FSCRYPT_POLICY_FLAG_DIRECT_KEY
 	}
 
-	policy := unix.FscryptPolicy{
-		Version:                   0, // Version must always be zero
+	policy := unix.FscryptPolicyV1{
+		Version:                   unix.FSCRYPT_POLICY_V1,
 		Contents_encryption_mode:  uint8(data.Options.Contents),
 		Filenames_encryption_mode: uint8(data.Options.Filenames),
 		Flags:                     uint8(flags),
@@ -189,7 +188,7 @@ func CheckSupport(path string) error {
 	defer file.Close()
 
 	// On supported directories, giving a bad policy will return EINVAL
-	badPolicy := unix.FscryptPolicy{
+	badPolicy := unix.FscryptPolicyV1{
 		Version:                   math.MaxUint8,
 		Contents_encryption_mode:  math.MaxUint8,
 		Filenames_encryption_mode: math.MaxUint8,

@@ -63,7 +63,7 @@ message ProtectorData {
 message EncryptionOptions {
   int64 padding = 1;
 
-  // Type of encryption; should match declarations of unix.FS_ENCRYPTION_MODE
+  // Type of encryption; should match declarations of unix.FSCRYPT_MODE
   enum Mode {
     default = 0;
     AES_256_XTS = 1;

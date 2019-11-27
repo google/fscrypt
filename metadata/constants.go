@@ -28,7 +28,7 @@ import (
 // Lengths for our keys, buffers, and strings used in fscrypt.
 const (
 	// DescriptorLen is the length of all Protector and Policy descriptors.
-	DescriptorLen = 2 * unix.FS_KEY_DESCRIPTOR_SIZE
+	DescriptorLen = 2 * unix.FSCRYPT_KEY_DESCRIPTOR_SIZE
 	// We always use 256-bit keys internally (compared to 512-bit policy keys).
 	InternalKeyLen = 32
 	IVLen          = 16
@@ -36,7 +36,7 @@ const (
 	// We use SHA256 for the HMAC, and len(HMAC) == len(hash size).
 	HMACLen = sha256.Size
 	// PolicyKeyLen is the length of all keys passed directly to the Keyring
-	PolicyKeyLen = unix.FS_MAX_KEY_SIZE
+	PolicyKeyLen = unix.FSCRYPT_MAX_KEY_SIZE
 )
 
 var (

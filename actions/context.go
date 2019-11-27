@@ -142,7 +142,7 @@ func (ctx *Context) getService() string {
 			return ctx.Mount.FilesystemType + ":"
 		}
 	}
-	return unix.FS_KEY_DESC_PREFIX
+	return unix.FSCRYPT_KEY_DESC_PREFIX
 }
 
 // getProtectorOption returns the ProtectorOption for the protector on the

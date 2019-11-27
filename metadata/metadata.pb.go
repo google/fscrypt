@@ -45,10 +45,10 @@ func (x SourceType) String() string {
 	return proto.EnumName(SourceType_name, int32(x))
 }
 func (SourceType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{0}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{0}
 }
 
-// Type of encryption; should match declarations of unix.FS_ENCRYPTION_MODE
+// Type of encryption; should match declarations of unix.FSCRYPT_MODE
 type EncryptionOptions_Mode int32
 
 const (
@@ -87,7 +87,7 @@ func (x EncryptionOptions_Mode) String() string {
 	return proto.EnumName(EncryptionOptions_Mode_name, int32(x))
 }
 func (EncryptionOptions_Mode) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{3, 0}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{3, 0}
 }
 
 // Cost parameters to be used in our hashing functions.
@@ -104,7 +104,7 @@ func (m *HashingCosts) Reset()         { *m = HashingCosts{} }
 func (m *HashingCosts) String() string { return proto.CompactTextString(m) }
 func (*HashingCosts) ProtoMessage()    {}
 func (*HashingCosts) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{0}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{0}
 }
 func (m *HashingCosts) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_HashingCosts.Unmarshal(m, b)
@@ -159,7 +159,7 @@ func (m *WrappedKeyData) Reset()         { *m = WrappedKeyData{} }
 func (m *WrappedKeyData) String() string { return proto.CompactTextString(m) }
 func (*WrappedKeyData) ProtoMessage()    {}
 func (*WrappedKeyData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{1}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{1}
 }
 func (m *WrappedKeyData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WrappedKeyData.Unmarshal(m, b)
@@ -219,7 +219,7 @@ func (m *ProtectorData) Reset()         { *m = ProtectorData{} }
 func (m *ProtectorData) String() string { return proto.CompactTextString(m) }
 func (*ProtectorData) ProtoMessage()    {}
 func (*ProtectorData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{2}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{2}
 }
 func (m *ProtectorData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ProtectorData.Unmarshal(m, b)
@@ -302,7 +302,7 @@ func (m *EncryptionOptions) Reset()         { *m = EncryptionOptions{} }
 func (m *EncryptionOptions) String() string { return proto.CompactTextString(m) }
 func (*EncryptionOptions) ProtoMessage()    {}
 func (*EncryptionOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{3}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{3}
 }
 func (m *EncryptionOptions) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_EncryptionOptions.Unmarshal(m, b)
@@ -355,7 +355,7 @@ func (m *WrappedPolicyKey) Reset()         { *m = WrappedPolicyKey{} }
 func (m *WrappedPolicyKey) String() string { return proto.CompactTextString(m) }
 func (*WrappedPolicyKey) ProtoMessage()    {}
 func (*WrappedPolicyKey) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{4}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{4}
 }
 func (m *WrappedPolicyKey) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_WrappedPolicyKey.Unmarshal(m, b)
@@ -403,7 +403,7 @@ func (m *PolicyData) Reset()         { *m = PolicyData{} }
 func (m *PolicyData) String() string { return proto.CompactTextString(m) }
 func (*PolicyData) ProtoMessage()    {}
 func (*PolicyData) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{5}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{5}
 }
 func (m *PolicyData) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PolicyData.Unmarshal(m, b)
@@ -459,7 +459,7 @@ func (m *Config) Reset()         { *m = Config{} }
 func (m *Config) String() string { return proto.CompactTextString(m) }
 func (*Config) ProtoMessage()    {}
 func (*Config) Descriptor() ([]byte, []int) {
-	return fileDescriptor_metadata_5e732a616277e389, []int{6}
+	return fileDescriptor_metadata_fa046c95c3cd6aa1, []int{6}
 }
 func (m *Config) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Config.Unmarshal(m, b)
@@ -519,9 +519,9 @@ func init() {
 	proto.RegisterEnum("metadata.EncryptionOptions_Mode", EncryptionOptions_Mode_name, EncryptionOptions_Mode_value)
 }
 
-func init() { proto.RegisterFile("metadata/metadata.proto", fileDescriptor_metadata_5e732a616277e389) }
+func init() { proto.RegisterFile("metadata/metadata.proto", fileDescriptor_metadata_fa046c95c3cd6aa1) }
 
-var fileDescriptor_metadata_5e732a616277e389 = []byte{
+var fileDescriptor_metadata_fa046c95c3cd6aa1 = []byte{
 	// 656 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x94, 0xef, 0x6a, 0xdb, 0x3c,
 	0x14, 0xc6, 0x5f, 0xdb, 0x69, 0xd2, 0x9c, 0xfc, 0x79, 0x5d, 0xb5, 0x6f, 0x5f, 0xb3, 0x7d, 0x09,
