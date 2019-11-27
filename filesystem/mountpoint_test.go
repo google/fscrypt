@@ -255,6 +255,38 @@ func TestLoadOnlyBindMounts(t *testing.T) {
 	}
 }
 
+// Test making a filesystem link (i.e. "UUID=...") and following it, and test
+// that leading and trailing whitespace in the link is ignored.
+func TestGetMountFromLink(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Skip(err)
+	}
+	link, err := makeLink(mnt, uuidToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkedMnt, err := getMountFromLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+	if linkedMnt, err = getMountFromLink(link + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+	if linkedMnt, err = getMountFromLink("  " + link + "  \r\n"); err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+}
+
 // Benchmarks how long it takes to update the mountpoint data
 func BenchmarkLoadFirst(b *testing.B) {
 	for n := 0; n < b.N; n++ {

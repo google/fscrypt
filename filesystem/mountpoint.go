@@ -282,7 +282,7 @@ func GetMount(mountpoint string) (*Mount, error) {
 	return mnt, nil
 }
 
-// getMountsFromLink returns the Mount object which matches the provided link.
+// getMountFromLink returns the Mount object which matches the provided link.
 // This link is formatted as a tag (e.g. <token>=<value>) similar to how they
 // appear in "/etc/fstab". Currently, only "UUID" tokens are supported. An error
 // is returned if the link is invalid or we cannot load the required mount data.
@@ -290,6 +290,7 @@ func GetMount(mountpoint string) (*Mount, error) {
 // functions, run UpdateMountInfo to see the change.
 func getMountFromLink(link string) (*Mount, error) {
 	// Parse the link
+	link = strings.TrimSpace(link)
 	linkComponents := strings.Split(link, "=")
 	if len(linkComponents) != 2 {
 		return nil, errors.Wrapf(ErrFollowLink, "link %q format is invalid", link)
