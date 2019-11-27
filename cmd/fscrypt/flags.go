@@ -255,18 +255,18 @@ func matchMetadataFlag(flagValue string) (mountpoint, descriptor string, err err
 // parseMetadataFlag takes the value of either protectorFlag or policyFlag
 // formatted as MOUNTPOINT:DESCRIPTOR, and returns a context for the mountpoint
 // and a string for the descriptor.
-func parseMetadataFlag(flagValue string, target *user.User) (*actions.Context, string, error) {
+func parseMetadataFlag(flagValue string, targetUser *user.User) (*actions.Context, string, error) {
 	mountpoint, descriptor, err := matchMetadataFlag(flagValue)
 	if err != nil {
 		return nil, "", err
 	}
-	ctx, err := actions.NewContextFromMountpoint(mountpoint, target)
+	ctx, err := actions.NewContextFromMountpoint(mountpoint, targetUser)
 	return ctx, descriptor, err
 }
 
 // getProtectorFromFlag gets an existing locked protector from protectorFlag.
-func getProtectorFromFlag(flagValue string, target *user.User) (*actions.Protector, error) {
-	ctx, descriptor, err := parseMetadataFlag(flagValue, target)
+func getProtectorFromFlag(flagValue string, targetUser *user.User) (*actions.Protector, error) {
+	ctx, descriptor, err := parseMetadataFlag(flagValue, targetUser)
 	if err != nil {
 		return nil, err
 	}
@@ -274,8 +274,8 @@ func getProtectorFromFlag(flagValue string, target *user.User) (*actions.Protect
 }
 
 // getPolicyFromFlag gets an existing locked policy from policyFlag.
-func getPolicyFromFlag(flagValue string, target *user.User) (*actions.Policy, error) {
-	ctx, descriptor, err := parseMetadataFlag(flagValue, target)
+func getPolicyFromFlag(flagValue string, targetUser *user.User) (*actions.Policy, error) {
+	ctx, descriptor, err := parseMetadataFlag(flagValue, targetUser)
 	if err != nil {
 		return nil, err
 	}

@@ -47,8 +47,8 @@ var (
 // FindKey tries to locate a key in the kernel keyring with the provided
 // description. The key ID is returned if we can find the key. An error is
 // returned if the key does not exist.
-func FindKey(description string, target *user.User) (int, error) {
-	keyringID, err := UserKeyringID(target, false)
+func FindKey(description string, targetUser *user.User) (int, error) {
+	keyringID, err := UserKeyringID(targetUser, false)
 	if err != nil {
 		return 0, err
 	}
@@ -63,8 +63,8 @@ func FindKey(description string, target *user.User) (int, error) {
 
 // RemoveKey tries to remove a policy key from the kernel keyring with the
 // provided description. An error is returned if the key does not exist.
-func RemoveKey(description string, target *user.User) error {
-	keyID, err := FindKey(description, target)
+func RemoveKey(description string, targetUser *user.User) error {
+	keyID, err := FindKey(description, targetUser)
 	if err != nil {
 		return err
 	}
@@ -81,8 +81,8 @@ func RemoveKey(description string, target *user.User) error {
 
 // InsertKey puts the provided data into the kernel keyring with the provided
 // description.
-func InsertKey(data []byte, description string, target *user.User) error {
-	keyringID, err := UserKeyringID(target, true)
+func InsertKey(data []byte, description string, targetUser *user.User) error {
+	keyringID, err := UserKeyringID(targetUser, true)
 	if err != nil {
 		return err
 	}
@@ -106,8 +106,8 @@ var (
 // keyring and linking it into the root user keyring (permissions allowing). If
 // checkSession is true, an error is returned if a normal user requests their
 // user keyring, but it is not in the current session keyring.
-func UserKeyringID(target *user.User, checkSession bool) (int, error) {
-	uid := util.AtoiOrPanic(target.Uid)
+func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
+	uid := util.AtoiOrPanic(targetUser.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
 	if err != nil {
 		return 0, errors.Wrap(ErrAccessUserKeyring, err.Error())
