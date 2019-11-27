@@ -24,11 +24,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
@@ -188,6 +190,7 @@ func encryptPath(path string) (err error) {
 	}
 
 	var policy *actions.Policy
+	var recoveryPassphrase *crypto.Key
 	if policyFlag.Value != "" {
 		log.Printf("getting policy for %q", path)
 
@@ -227,6 +230,19 @@ func encryptPath(path string) (err error) {
 		if policy, err = actions.CreatePolicy(ctx, protector); err != nil {
 			return
 		}
+		// Automatically generate a recovery passphrase if the protector
+		// is on a different filesystem from the policy.  In practice,
+		// this happens for login passphrase-protected directories that
+		// aren't on the root filesystem, since login protectors are
+		// always stored on the root filesystem.
+		if ctx.Mount != protector.Context.Mount {
+			fmt.Printf("Generating recovery passphrase because protector is on a different filesystem.\n")
+			if recoveryPassphrase, _, err = actions.AddRecoveryPassphrase(
+				policy, filepath.Base(path)); err != nil {
+				return
+			}
+			defer recoveryPassphrase.Wipe()
+		}
 	}
 	// Successfully created policy should be reverted on failure.
 	defer func() {
@@ -254,6 +270,16 @@ func encryptPath(path string) (err error) {
 	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
 		// EACCES at this point indicates ownership issues.
 		err = errors.Wrap(ErrBadOwners, path)
+	}
+	if err != nil {
+		return
+	}
+	if recoveryPassphrase != nil {
+		recoveryFile := filepath.Join(path, "fscrypt_recovery_readme.txt")
+		if err = actions.WriteRecoveryInstructions(recoveryPassphrase, recoveryFile); err != nil {
+			return
+		}
+		fmt.Printf("See %q for important recovery instructions!\n", recoveryFile)
 	}
 	return
 }
