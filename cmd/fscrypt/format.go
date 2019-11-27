@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
@@ -120,9 +119,6 @@ func longDisplay(f prettyFlag, defaultString ...string) string {
 	return indent + shortDisp + indent + wrapText(usage, flagPaddingLength)
 }
 
-// Regex that determines if we are starting an ordered list
-var listRegex = regexp.MustCompile(`^\([\d]+\)$`)
-
 // Takes an input string text, and wraps the text so that each line begins with
 // padding spaces (except for the first line), ends with a newline (except the
 // last line), and each line has length less than lineLength. If the text
@@ -130,31 +126,42 @@ var listRegex = regexp.MustCompile(`^\([\d]+\)$`)
 func wrapText(text string, padding int) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
-	spaceLeft := 0
-	maxTextLen := lineLength - padding
+	filled := 0
 	delimiter := strings.Repeat(" ", padding)
-	for i, word := range strings.Fields(text) {
-		wordLen := utf8.RuneCountInString(word)
-		switch {
-		case i == 0:
-			// No delimiter for the first line
-			buffer.WriteString(word)
-			spaceLeft = maxTextLen - wordLen
-		case listRegex.Match([]byte(word)):
-			// Add an additional line to separate list items.
+
+	for _, line := range strings.Split(text, "\n") {
+		words := strings.Fields(line)
+
+		// Preserve empty lines (paragraph separators).
+		if len(words) == 0 {
+			if filled != 0 {
+				buffer.WriteString("\n")
+			}
 			buffer.WriteString("\n")
-			fallthrough
-		case wordLen+1 > spaceLeft:
-			// If no room left, write the word on the next line.
-			buffer.WriteString("\n")
-			buffer.WriteString(delimiter)
+			filled = 0
+			continue
+		}
+
+		for _, word := range words {
+			wordLen := utf8.RuneCountInString(word)
+			// Write a newline if needed.
+			if filled != 0 && filled+1+wordLen > lineLength {
+				buffer.WriteString("\n")
+				filled = 0
+			}
+			// Write a delimiter or space if needed.
+			if filled == 0 {
+				if buffer.Len() != 0 {
+					buffer.WriteString(delimiter)
+				}
+				filled += padding
+			} else {
+				buffer.WriteByte(' ')
+				filled++
+			}
+			// Write the word.
 			buffer.WriteString(word)
-			spaceLeft = maxTextLen - wordLen
-		default:
-			// Write word on this line
-			buffer.WriteByte(' ')
-			buffer.WriteString(word)
-			spaceLeft -= 1 + wordLen
+			filled += wordLen
 		}
 	}
 
