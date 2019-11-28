@@ -227,20 +227,22 @@ backwards compatibility for metadata, but we give no guarantees.
 
 ## Example Usage
 
-All these examples assume we have ext4 filesystems mounted at `/` and
-`/mnt/disk` which both support encryption and that `/mnt/disk` contains
-directories we want to encrypt.
+All these examples assume there is an ext4 filesystem which supports
+encryption mounted at `/mnt/disk`.  See
+[here](#getting-encryption-not-enabled-on-an-ext4-filesystem) for how
+to enable encryption support on an ext4 filesystem.
 
 ### Setting up fscrypt on a directory
 
 ```bash
 # Check which directories on our system support encryption
 >>>>> fscrypt status
-2 filesystem(s) on this system support encryption
+filesystems supporting encryption: 1
+filesystems with fscrypt metadata: 0
 
-MOUNTPOINT            DEVICE     FILESYSTEM  STATUS
-/                     /dev/sda1  ext4        encryption not enabled
-/mnt/disk             /dev/sdb   ext4        not setup with fscrypt
+MOUNTPOINT  DEVICE     FILESYSTEM  ENCRYPTION   FSCRYPT
+/           /dev/sda1  ext4        not enabled  No
+/mnt/disk   /dev/sdb   ext4        supported    No
 
 # Create the global configuration file. Nothing else necessarily needs root.
 >>>>> sudo fscrypt setup
@@ -256,7 +258,6 @@ Metadata directories created at "/mnt/disk/.fscrypt".
 # Initialize encryption on a new empty directory
 >>>>> mkdir /mnt/disk/dir1
 >>>>> fscrypt encrypt /mnt/disk/dir1
-Should we create a new protector? [Y/n] y
 The following protector sources are available:
 1 - Your login passphrase (pam_passphrase)
 2 - A custom passphrase (custom_passphrase)
@@ -269,7 +270,7 @@ Confirm passphrase:
 
 # We can see this created one policy and one protector for this directory
 >>>>> fscrypt status /mnt/disk
-ext4 filesystem "/mnt/disk" has 1 protector(s) and 1 policy(ies)
+ext4 filesystem "/mnt/disk" has 1 protector and 1 policy
 
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
@@ -287,9 +288,6 @@ POLICY            UNLOCKED  PROTECTORS
 
 ### Locking and unlocking a directory
 
-As noted in the troubleshooting below, we (as of now) have to unmount a
-filesystem after purging its keys to clear the necessary caches.
-
 ```bash
 # Write a file to our encrypted directory.
 >>>>> echo "Hello World" > /mnt/disk/dir1/secret.txt
@@ -297,27 +295,27 @@ filesystem after purging its keys to clear the necessary caches.
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: Yes
 
-Protected with 1 protector(s):
+Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-# Purging, unmounting, and remounting a filesystem locks all the files.
->>>>> fscrypt purge /mnt/disk
-WARNING: This may make data encrypted with fscrypt inaccessible.
-Purge all policy keys from "/mnt/disk" (this will lock all encrypted directories) [y/N] y
-All keys purged for "/mnt/disk".
-Filesystem "/mnt/disk" should now be unmounted.
->>>>> umount /mnt/disk
->>>>> mount /mnt/disk
+# Purging a filesystem locks all the files.
+>>>>> sudo fscrypt purge /mnt/disk --user=$USER
+WARNING: Encrypted data on this filesystem will be inaccessible until unlocked again!!
+Purge all policy keys from "/mnt/disk" and drop global inode cache? [y/N] y
+Policies purged for "/mnt/disk".
+
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: No
 
-Protected with 1 protector(s):
+Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
@@ -335,9 +333,10 @@ Enter custom passphrase for protector "Super Secret":
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: Yes
 
-Protected with 1 protector(s):
+Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 >>>>> cat /mnt/disk/dir1/secret.txt
@@ -346,10 +345,8 @@ Hello World
 
 #### Quiet Version
 ```bash
->>>>> fscrypt purge /mnt/disk --quiet --force
->>>>> umount /mnt/disk
->>>>> mount /mnt/disk
->>>>> printf "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
+>>>>> sudo fscrypt purge /mnt/disk --user=$USER --quiet --force
+>>>>> echo "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
 ```
 
 ### Protecting a directory with your login passphrase
@@ -358,7 +355,7 @@ Hello World
 # Select your login passphrase as the desired source.
 >>>>> mkdir /mnt/disk/dir2
 >>>>> fscrypt encrypt /mnt/disk/dir2
-Should we create a new protector? [Y/n] y
+Should we create a new protector? [y/N] y
 The following protector sources are available:
 1 - Your login passphrase (pam_passphrase)
 2 - A custom passphrase (custom_passphrase)
@@ -372,13 +369,14 @@ Enter login passphrase for joerichey:
 "/mnt/disk/dir2" is encrypted with fscrypt.
 
 Policy:   fe1c92009abc1cff
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: Yes
 
-Protected with 1 protector(s):
+Protected with 1 protector:
 PROTECTOR         LINKED   DESCRIPTION
 6891f0a901f0065e  Yes (/)  login protector for joerichey
 >>>>> fscrypt status /mnt/disk
-ext4 filesystem "/mnt/disk" has 3 protector(s) and 3 policy(ies)
+ext4 filesystem "/mnt/disk" has 2 protectors and 2 policies
 
 PROTECTOR         LINKED   DESCRIPTION
 7626382168311a9d  No       custom protector "Super Secret"
@@ -397,7 +395,7 @@ PROTECTOR         LINKED  DESCRIPTION
 #### Quiet Version
 ```bash
 >>>>> mkdir /mnt/disk/dir2
->>>>> echo "password" | fscrypt encrypt /mnt/disk/dir1 --source=pam_passphrase --quiet
+>>>>> echo "password" | fscrypt encrypt /mnt/disk/dir2 --source=pam_passphrase --quiet
 ```
 
 ### Changing a custom passphrase
@@ -407,9 +405,10 @@ PROTECTOR         LINKED  DESCRIPTION
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: Yes
 
-Protected with 1 protector(s):
+Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
@@ -453,7 +452,7 @@ Enter a name for the new protector: Skeleton
 Enter key file for protector "Skeleton": secret.key
 Protector 2c75f519b9c9959d created on filesystem "/mnt/disk".
 >>>>> fscrypt status /mnt/disk
-ext4 filesystem "/mnt/disk" has 3 protectors and 3 policies
+ext4 filesystem "/mnt/disk" has 3 protectors and 2 policies
 
 PROTECTOR         LINKED   DESCRIPTION
 7626382168311a9d  No       custom protector "Super Secret"
@@ -502,6 +501,7 @@ fe1c92009abc1cff  No        6891f0a901f0065e
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: No
 
 Protected with 1 protector:
@@ -517,6 +517,7 @@ Protector 2c75f519b9c9959d now protecting policy 16382f282d7b29ee.
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
 Unlocked: No
 
 Protected with 2 protectors:
