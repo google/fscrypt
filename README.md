@@ -354,11 +354,6 @@ Hello World
 
 ### Protecting a directory with your login passphrase
 
-As noted above and in the troubleshooting below, fscrypt cannot (yet) detect
-when your login passphrase changes. So if you protect a directory with your
-login passphrase, you may have to do additional work when you change your system
-passphrase.
-
 ```bash
 # Select your login passphrase as the desired source.
 >>>>> mkdir /mnt/disk/dir2
