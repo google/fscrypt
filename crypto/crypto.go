@@ -167,7 +167,7 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 		return nil, ErrBadAuth
 	}
 
-	secretKey, err := newBlankKey(len(data.EncryptedKey))
+	secretKey, err := NewBlankKey(len(data.EncryptedKey))
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) 
 	p := uint8(costs.Parallelism)
 	key := argon2.IDKey(passphrase.data, salt, t, m, p, metadata.InternalKeyLen)
 
-	hash, err := newBlankKey(metadata.InternalKeyLen)
+	hash, err := NewBlankKey(metadata.InternalKeyLen)
 	if err != nil {
 		return nil, err
 	}

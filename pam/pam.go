@@ -34,6 +34,7 @@ import (
 	"os/user"
 	"unsafe"
 
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/security"
 )
 
@@ -130,7 +131,7 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 // StartAsPamUser sets the effective privileges to that of the PAM user, and
 // configures the PAM user's keyrings to be properly linked.
 func (h *Handle) StartAsPamUser() error {
-	if _, err := security.UserKeyringID(h.PamUser, true); err != nil {
+	if _, err := keyring.UserKeyringID(h.PamUser, true); err != nil {
 		log.Printf("Setting up keyrings in PAM: %v", err)
 	}
 	userPrivs, err := security.UserPrivileges(h.PamUser)

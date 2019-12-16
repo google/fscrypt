@@ -33,7 +33,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/user"
 	"runtime"
 	"unsafe"
 
@@ -41,7 +40,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -94,9 +92,9 @@ type Key struct {
 	data []byte
 }
 
-// newBlankKey constructs a blank key of a specified length and returns an error
+// NewBlankKey constructs a blank key of a specified length and returns an error
 // if we are unable to allocate or lock the necessary memory.
-func newBlankKey(length int) (*Key, error) {
+func NewBlankKey(length int) (*Key, error) {
 	if length == 0 {
 		return &Key{data: nil}, nil
 	} else if length < 0 {
@@ -167,12 +165,24 @@ func (key *Key) resize(requestedSize int) (*Key, error) {
 	}
 	defer key.Wipe()
 
-	resizedKey, err := newBlankKey(requestedSize)
+	resizedKey, err := NewBlankKey(requestedSize)
 	if err != nil {
 		return nil, err
 	}
 	copy(resizedKey.data, key.data)
 	return resizedKey, nil
+}
+
+// Data returns a slice of the key's underlying data. Note that this may become
+// outdated if the key is resized.
+func (key *Key) Data() []byte {
+	return key.data
+}
+
+// UnsafePtr returns an unsafe pointer to the key's underlying data. Note that
+// this will only be valid as long as the key is not resized.
+func (key *Key) UnsafePtr() unsafe.Pointer {
+	return util.Ptr(key.data)
 }
 
 // UnsafeToCString makes a copy of the string's data into a null-terminated C
@@ -190,7 +200,7 @@ func (key *Key) UnsafeToCString() unsafe.Pointer {
 // ensure that this original copy is secured.
 func NewKeyFromCString(str unsafe.Pointer) (*Key, error) {
 	size := C.strlen((*C.char)(str))
-	key, err := newBlankKey(int(size))
+	key, err := NewBlankKey(int(size))
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +213,7 @@ func NewKeyFromCString(str unsafe.Pointer) (*Key, error) {
 func NewKeyFromReader(reader io.Reader) (*Key, error) {
 	// Use an initial key size of a page. As Mmap allocates a page anyway,
 	// there isn't much additional overhead from starting with a whole page.
-	key, err := newBlankKey(os.Getpagesize())
+	key, err := NewBlankKey(os.Getpagesize())
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +245,7 @@ func NewKeyFromReader(reader io.Reader) (*Key, error) {
 // NewFixedLengthKeyFromReader constructs a key with a specified length by
 // reading exactly length bytes from reader.
 func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
-	key, err := newBlankKey(length)
+	key, err := NewBlankKey(length)
 	if err != nil {
 		return nil, err
 	}
@@ -244,30 +254,6 @@ func NewFixedLengthKeyFromReader(reader io.Reader, length int) (*Key, error) {
 		return nil, err
 	}
 	return key, nil
-}
-
-// InsertPolicyKey puts the provided policy key into the kernel keyring with the
-// provided description, and type logon. The key must be a policy key.
-func InsertPolicyKey(key *Key, description string, targetUser *user.User) error {
-	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
-		return errors.Wrap(err, "policy key")
-	}
-
-	// Create our payload (containing an FscryptKey)
-	payload, err := newBlankKey(int(unsafe.Sizeof(unix.FscryptKey{})))
-	if err != nil {
-		return err
-	}
-	defer payload.Wipe()
-
-	// Cast the payload to an FscryptKey so we can initialize the fields.
-	fscryptKey := (*unix.FscryptKey)(util.Ptr(payload.data))
-	// Mode is ignored by the kernel
-	fscryptKey.Mode = 0
-	fscryptKey.Size = metadata.PolicyKeyLen
-	copy(fscryptKey.Raw[:], key.data)
-
-	return security.InsertKey(payload.data, description, targetUser)
 }
 
 var (
@@ -290,7 +276,7 @@ func WriteRecoveryCode(key *Key, writer io.Writer) error {
 	}
 
 	// We store the base32 encoded data (without separators) in a temp key
-	encodedKey, err := newBlankKey(encodedLength)
+	encodedKey, err := NewBlankKey(encodedLength)
 	if err != nil {
 		return err
 	}
@@ -318,7 +304,7 @@ func WriteRecoveryCode(key *Key, writer io.Writer) error {
 // be given the same level of protection as a raw cryptographic key.
 func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	// We store the base32 encoded data (without separators) in a temp key
-	encodedKey, err := newBlankKey(encodedLength)
+	encodedKey, err := NewBlankKey(encodedLength)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +333,7 @@ func ReadRecoveryCode(reader io.Reader) (*Key, error) {
 	}
 
 	// Now we decode the key, resizing if necessary
-	decodedKey, err := newBlankKey(decodedLength)
+	decodedKey, err := NewBlankKey(decodedLength)
 	if err != nil {
 		return nil, err
 	}

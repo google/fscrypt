@@ -33,7 +33,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
-	"github.com/google/fscrypt/security"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/util"
 )
 
@@ -300,7 +300,7 @@ func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
 	}
 
 	if checkKeyring {
-		_, err = security.UserKeyringID(targetUser, true)
+		_, err = keyring.UserKeyringID(targetUser, true)
 	}
 	return targetUser, err
 }

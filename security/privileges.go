@@ -19,9 +19,7 @@
 
 // Package security manages:
 //  - Cache clearing (cache.go)
-//  - Keyring Operations (keyring.go)
 //  - Privilege manipulation (privileges.go)
-//  - Maintaining the link between the root and user keyrings.
 package security
 
 // Use the libc versions of setreuid, setregid, and setgroups instead of the
@@ -142,7 +140,8 @@ func SetProcessPrivileges(privs *Privileges) error {
 	return nil
 }
 
-func setUids(ruid, euid, suid int) error {
+// SetUids sets the process's real, effective, and saved UIDs.
+func SetUids(ruid, euid, suid int) error {
 	log.Printf("Setting ruid=%d euid=%d suid=%d", ruid, euid, suid)
 	// We elevate all the privs before setting them. This prevents issues
 	// with (ruid=1000,euid=1000,suid=0), where just a single call to
@@ -156,7 +155,8 @@ func setUids(ruid, euid, suid int) error {
 	return nil
 }
 
-func getUids() (int, int, int) {
+// GetUids gets the process's real, effective, and saved UIDs.
+func GetUids() (int, int, int) {
 	var ruid, euid, suid C.uid_t
 	C.getresuid(&ruid, &euid, &suid)
 	return int(ruid), int(euid), int(suid)

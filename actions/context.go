@@ -37,6 +37,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
 )
@@ -143,6 +144,13 @@ func (ctx *Context) getService() string {
 		}
 	}
 	return unix.FSCRYPT_KEY_DESC_PREFIX
+}
+
+func (ctx *Context) getKeyringOptions() *keyring.Options {
+	return &keyring.Options{
+		User:    ctx.TargetUser,
+		Service: ctx.getService(),
+	}
 }
 
 // getProtectorOption returns the ProtectorOption for the protector on the
