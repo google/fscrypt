@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os/user"
-	"sync"
+	"runtime"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
@@ -48,6 +48,9 @@ var (
 // description. The key ID is returned if we can find the key. An error is
 // returned if the key does not exist.
 func FindKey(description string, targetUser *user.User) (int, error) {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
+
 	keyringID, err := UserKeyringID(targetUser, false)
 	if err != nil {
 		return 0, err
@@ -64,6 +67,9 @@ func FindKey(description string, targetUser *user.User) (int, error) {
 // RemoveKey tries to remove a policy key from the kernel keyring with the
 // provided description. An error is returned if the key does not exist.
 func RemoveKey(description string, targetUser *user.User) error {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
+
 	keyID, err := FindKey(description, targetUser)
 	if err != nil {
 		return err
@@ -82,6 +88,9 @@ func RemoveKey(description string, targetUser *user.User) error {
 // InsertKey puts the provided data into the kernel keyring with the provided
 // description.
 func InsertKey(data []byte, description string, targetUser *user.User) error {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
+
 	keyringID, err := UserKeyringID(targetUser, true)
 	if err != nil {
 		return err
@@ -96,17 +105,15 @@ func InsertKey(data []byte, description string, targetUser *user.User) error {
 	return nil
 }
 
-var (
-	keyringIDCache = make(map[int]int)
-	cacheLock      sync.Mutex
-)
-
 // UserKeyringID returns the key id of the target user's user keyring. We also
-// ensure that the keyring will be accessible by linking it into the process
+// ensure that the keyring will be accessible by linking it into the thread
 // keyring and linking it into the root user keyring (permissions allowing). If
 // checkSession is true, an error is returned if a normal user requests their
 // user keyring, but it is not in the current session keyring.
 func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
+
 	uid := util.AtoiOrPanic(targetUser.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
 	if err != nil {
@@ -138,16 +145,10 @@ func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
 }
 
 func userKeyringIDLookup(uid int) (keyringID int, err error) {
-	cacheLock.Lock()
-	defer cacheLock.Unlock()
-	var ok bool
-	if keyringID, ok = keyringIDCache[uid]; ok {
-		return
-	}
 
 	// Our goals here are to:
 	//    - Find the user keyring (for the provided uid)
-	//    - Link it into the current process keyring (so we can use it)
+	//    - Link it into the current thread keyring (so we can use it)
 	//    - Make no permanent changes to the process privileges
 	// Complicating this are the facts that:
 	//    - The value of KEY_SPEC_USER_KEYRING is determined by the ruid
@@ -176,12 +177,16 @@ func userKeyringIDLookup(uid int) (keyringID int, err error) {
 	}
 
 	// We still want to use this keyring after our privileges are reset. So
-	// we link it into the process keyring, preventing a loss of access.
-	if err = keyringLink(keyringID, unix.KEY_SPEC_PROCESS_KEYRING); err != nil {
+	// we link it into the thread keyring, preventing a loss of access.
+	//
+	// We must be under LockOSThread() for this to work reliably.  Note that
+	// we can't just use the process keyring, since it doesn't work reliably
+	// in Go programs, due to the Go runtime creating threads before the
+	// program starts and has a chance to create the process keyring.
+	if err = keyringLink(keyringID, unix.KEY_SPEC_THREAD_KEYRING); err != nil {
 		return 0, err
 	}
 
-	keyringIDCache[uid] = keyringID
 	return keyringID, nil
 }
 
