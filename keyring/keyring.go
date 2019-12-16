@@ -100,9 +100,13 @@ func AddEncryptionKey(key *crypto.Key, descriptor string, options *Options) erro
 // RemoveEncryptionKey removes an encryption policy key from a kernel keyring.
 // It uses either the filesystem keyring for the target Mount or the user
 // keyring for the target User.
-func RemoveEncryptionKey(descriptor string, options *Options) error {
+func RemoveEncryptionKey(descriptor string, options *Options, allUsers bool) error {
 	if shouldUseFsKeyring(descriptor, options) {
-		return fsRemoveEncryptionKey(descriptor, options.Mount, options.User)
+		user := options.User
+		if allUsers {
+			user = nil
+		}
+		return fsRemoveEncryptionKey(descriptor, options.Mount, user)
 	}
 	return userRemoveKey(options.Service+descriptor, options.User)
 }

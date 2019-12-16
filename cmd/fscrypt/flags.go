@@ -116,7 +116,7 @@ var (
 	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
 		forceFlag, legacyFlag, skipUnlockFlag, timeTargetFlag,
 		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
-		unlockWithFlag, policyFlag}
+		unlockWithFlag, policyFlag, allUsersFlag}
 	// universalFlags contains flags that should be on every command
 	universalFlags = []cli.Flag{verboseFlag, quietFlag, helpFlag}
 )
@@ -169,6 +169,14 @@ var (
 			policies. This flag, if actually needed, requires root
 			privileges.`,
 		Default: true,
+	}
+	allUsersFlag = &boolFlag{
+		Name: "all-users",
+		Usage: `Lock the directory no matter which user(s) have unlocked
+			it. Requires root privileges. This flag is only
+			necessary if the directory was unlocked by a user
+			different from the one you're locking it as. This flag
+			is only implemented for v2 encryption policies.`,
 	}
 )
 

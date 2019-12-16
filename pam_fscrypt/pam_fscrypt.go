@@ -266,7 +266,7 @@ func lockLoginPolicies(handle *pam.Handle) error {
 		if err := beginProvisioningOp(handle, policy); err != nil {
 			return err
 		}
-		deprovisionErr := policy.Deprovision()
+		deprovisionErr := policy.Deprovision(false)
 		if err := endProvisioningOp(handle, policy); err != nil {
 			return err
 		}

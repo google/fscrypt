@@ -103,7 +103,8 @@ func getErrorSuggestions(err error) string {
 			re-running 'fscrypt lock'.`
 	case keyring.ErrKeyAddedByOtherUsers:
 		return `Directory couldn't be fully locked because other user(s)
-			have unlocked it.`
+			have unlocked it. If you want to force the directory to
+			be locked, use 'sudo fscrypt lock --all-users DIR'.`
 	case keyring.ErrSessionUserKeying:
 		return `This is usually the result of a bad PAM configuration.
 			Either correct the problem in your PAM stack, enable

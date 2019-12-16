@@ -228,16 +228,23 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		return err
 	}
 
-	savedPrivs, err := dropPrivsIfNeeded(user, &arg.Key_spec)
-	if err != nil {
-		return err
+	ioc := unix.FS_IOC_REMOVE_ENCRYPTION_KEY
+	iocName := "FS_IOC_REMOVE_ENCRYPTION_KEY"
+	var savedPrivs *savedPrivs
+	if user == nil {
+		ioc = unix.FS_IOC_REMOVE_ENCRYPTION_KEY_ALL_USERS
+		iocName = "FS_IOC_REMOVE_ENCRYPTION_KEY_ALL_USERS"
+	} else {
+		savedPrivs, err = dropPrivsIfNeeded(user, &arg.Key_spec)
+		if err != nil {
+			return err
+		}
 	}
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(),
-		unix.FS_IOC_REMOVE_ENCRYPTION_KEY, uintptr(unsafe.Pointer(&arg)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(), uintptr(ioc), uintptr(unsafe.Pointer(&arg)))
 	restorePrivs(savedPrivs)
 
-	log.Printf("FS_IOC_REMOVE_ENCRYPTION_KEY(%q, %s) = %v, removal_status_flags=0x%x",
-		mount.Path, descriptor, errno, arg.Removal_status_flags)
+	log.Printf("%s(%q, %s) = %v, removal_status_flags=0x%x",
+		iocName, mount.Path, descriptor, errno, arg.Removal_status_flags)
 	switch errno {
 	case 0:
 		switch {
@@ -251,9 +258,11 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		// ENOKEY means either the key is completely missing or that the
 		// current user doesn't have a claim to it.  Distinguish between
 		// these two cases by getting the key status.
-		status, _ := fsGetEncryptionKeyStatus(descriptor, mount, user)
-		if status == KeyPresentButOnlyOtherUsers {
-			return ErrKeyAddedByOtherUsers
+		if user != nil {
+			status, _ := fsGetEncryptionKeyStatus(descriptor, mount, user)
+			if status == KeyPresentButOnlyOtherUsers {
+				return ErrKeyAddedByOtherUsers
+			}
 		}
 		return ErrKeyNotPresent
 	default:

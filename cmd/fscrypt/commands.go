@@ -232,7 +232,7 @@ func encryptPath(path string) (err error) {
 	defer func() {
 		policy.Lock()
 		if err != nil {
-			policy.Deprovision()
+			policy.Deprovision(false)
 			policy.Revert()
 		}
 	}()
@@ -248,7 +248,7 @@ func encryptPath(path string) (err error) {
 			return
 		}
 		if skipUnlockFlag.Value {
-			defer policy.Deprovision()
+			defer policy.Deprovision(false)
 		}
 	}
 	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
@@ -426,7 +426,7 @@ var Lock = cli.Command{
 		recoverable by an attacker who compromises system memory. To be
 		fully safe, you must reboot with a power cycle.`,
 		directoryArg, shortDisplay(dropCachesFlag)),
-	Flags:  []cli.Flag{dropCachesFlag, userFlag},
+	Flags:  []cli.Flag{dropCachesFlag, userFlag, allUsersFlag},
 	Action: lockAction,
 }
 
@@ -465,7 +465,7 @@ func lockAction(c *cli.Context) error {
 		return newExitError(c, ErrDropCachesPerm)
 	}
 
-	if err = policy.Deprovision(); err != nil {
+	if err = policy.Deprovision(allUsersFlag.Value); err != nil {
 		return newExitError(c, err)
 	}
 

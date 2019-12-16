@@ -56,7 +56,7 @@ func PurgeAllPolicies(ctx *Context) error {
 	}
 
 	for _, policyDescriptor := range policies {
-		err = keyring.RemoveEncryptionKey(policyDescriptor, ctx.getKeyringOptions())
+		err = keyring.RemoveEncryptionKey(policyDescriptor, ctx.getKeyringOptions(), false)
 		switch errors.Cause(err) {
 		case nil, keyring.ErrKeyNotPresent:
 			// We don't care if the key has already been removed
@@ -416,9 +416,9 @@ func (policy *Policy) Provision() error {
 // Deprovision removes the Policy key from the kernel keyring. This prevents
 // reading and writing to the directory --- unless the target keyring is a user
 // keyring, in which case caches must be dropped too.
-func (policy *Policy) Deprovision() error {
+func (policy *Policy) Deprovision(allUsers bool) error {
 	return keyring.RemoveEncryptionKey(policy.Descriptor(),
-		policy.Context.getKeyringOptions())
+		policy.Context.getKeyringOptions(), allUsers)
 }
 
 // NeedsUserKeyring returns true if Provision and Deprovision for this policy
