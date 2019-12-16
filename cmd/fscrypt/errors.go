@@ -101,6 +101,9 @@ func getErrorSuggestions(err error) string {
 			still open. These files remain accessible. Try killing
 			any processes using files in the directory, then
 			re-running 'fscrypt lock'.`
+	case keyring.ErrKeyAddedByOtherUsers:
+		return `Directory couldn't be fully locked because other user(s)
+			have unlocked it.`
 	case keyring.ErrSessionUserKeying:
 		return `This is usually the result of a bad PAM configuration.
 			Either correct the problem in your PAM stack, enable
@@ -145,7 +148,10 @@ func getErrorSuggestions(err error) string {
 	case ErrFsKeyringPerm:
 		return `Either this command should be run as root, or you should
 			set '"use_fs_keyring_for_v1_policies": false' in
-			/etc/fscrypt.conf.`
+			/etc/fscrypt.conf, or you should re-create your
+			encrypted directories using v2 encryption policies
+			rather than v1 (this requires setting '"policy_version":
+			"2"' in the "options" section of /etc/fscrypt.conf).`
 	case ErrSpecifyUser:
 		return fmt.Sprintf(`When running this command as root, you
 			usually still want to provision/remove keys for a normal

@@ -162,10 +162,12 @@ var (
 	}
 	dropCachesFlag = &boolFlag{
 		Name: "drop-caches",
-		Usage: `After purging the keys from the keyring, drop the
-			associated caches for the purge to take effect. Without
-			this flag, cached encrypted files may still have their
-			plaintext visible. Requires root privileges.`,
+		Usage: `After removing the key(s) from the keyring, drop the
+			kernel's filesystem caches if needed. Without this flag,
+			files encrypted with v1 encryption policies may still be
+			accessible. This flag is not needed for v2 encryption
+			policies. This flag, if actually needed, requires root
+			privileges.`,
 		Default: true,
 	}
 )

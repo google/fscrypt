@@ -62,7 +62,9 @@ type Context struct {
 	// the filesystem keyring are provisioned.
 	Mount *filesystem.Mount
 	// TargetUser is the user for whom protectors are created, and to whose
-	// keyring policies using the user keyring are provisioned.
+	// keyring policies using the user keyring are provisioned.  It's also
+	// the user for whom the keys are claimed in the filesystem keyring when
+	// v2 policies are provisioned.
 	TargetUser *user.User
 }
 

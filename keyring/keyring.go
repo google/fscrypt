@@ -22,15 +22,18 @@
 // keyring.go, and they delegate to either user_keyring.go or fs_keyring.go,
 // depending on whether a user keyring or a filesystem keyring is being used.
 //
+// v2 encryption policies always use the filesystem keyring.
 // v1 policies use the user keyring by default, but can be configured to use the
 // filesystem keyring instead (requires root and kernel v5.4+).
 package keyring
 
 import (
+	"encoding/hex"
 	"os/user"
 	"strconv"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
@@ -40,14 +43,15 @@ import (
 
 // Keyring error values
 var (
-	ErrKeyAdd            = util.SystemError("could not add key to the keyring")
-	ErrKeyRemove         = util.SystemError("could not remove key from the keyring")
-	ErrKeyNotPresent     = errors.New("key not present or already removed")
-	ErrKeyFilesOpen      = errors.New("some files using the key are still open")
-	ErrKeySearch         = errors.New("could not find key with descriptor")
-	ErrSessionUserKeying = errors.New("user keyring not linked into session keyring")
-	ErrAccessUserKeyring = errors.New("could not access user keyring")
-	ErrLinkUserKeyring   = util.SystemError("could not link user keyring into root keyring")
+	ErrKeyAdd               = util.SystemError("could not add key to the keyring")
+	ErrKeyRemove            = util.SystemError("could not remove key from the keyring")
+	ErrKeyNotPresent        = errors.New("key not present or already removed")
+	ErrKeyFilesOpen         = errors.New("some files using the key are still open")
+	ErrKeyAddedByOtherUsers = errors.New("other users have added the key too")
+	ErrKeySearch            = errors.New("could not find key with descriptor")
+	ErrSessionUserKeying    = errors.New("user keyring not linked into session keyring")
+	ErrAccessUserKeyring    = errors.New("could not access user keyring")
+	ErrLinkUserKeyring      = util.SystemError("could not link user keyring into root keyring")
 )
 
 // Options are the options which specify *which* keyring the key should be
@@ -69,9 +73,15 @@ type Options struct {
 }
 
 func shouldUseFsKeyring(descriptor string, options *Options) bool {
-	// Use the filesystem keyring if use_fs_keyring_for_v1_policies is set
-	// in /etc/fscrypt.conf and the kernel supports it.
-	return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount)
+	// For v1 encryption policy keys, use the filesystem keyring if
+	// use_fs_keyring_for_v1_policies is set in /etc/fscrypt.conf and the
+	// kernel supports it.
+	if len(descriptor) == hex.EncodedLen(unix.FSCRYPT_KEY_DESCRIPTOR_SIZE) {
+		return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount)
+	}
+	// For v2 encryption policy keys, always use the filesystem keyring; the
+	// kernel doesn't support any other way.
+	return true
 }
 
 // AddEncryptionKey adds an encryption policy key to a kernel keyring.  It uses
@@ -106,6 +116,7 @@ const (
 	KeyAbsent
 	KeyAbsentButFilesBusy
 	KeyPresent
+	KeyPresentButOnlyOtherUsers
 )
 
 func (status KeyStatus) String() string {
@@ -118,6 +129,8 @@ func (status KeyStatus) String() string {
 		return "AbsentButFilesBusy"
 	case KeyPresent:
 		return "Present"
+	case KeyPresentButOnlyOtherUsers:
+		return "PresentButOnlyOtherUsers"
 	default:
 		return strconv.Itoa(int(status))
 	}

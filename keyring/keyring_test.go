@@ -19,6 +19,8 @@
 package keyring
 
 import (
+	"os/user"
+	"strconv"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -50,6 +52,7 @@ var (
 	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
 	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
 	fakeV1Descriptor        = "0123456789abcdef"
+	fakeV2Descriptor, _     = crypto.ComputeKeyDescriptor(fakeValidPolicyKey, 2)
 )
 
 func assertKeyStatus(t *testing.T, descriptor string, options *Options,
@@ -77,8 +80,8 @@ func getTestMount(t *testing.T) *filesystem.Mount {
 	return mount
 }
 
-// getTestMountV2 is like getTestMount, but it also checks that the filesystem
-// keyring is supported.
+// getTestMountV2 is like getTestMount, but it also checks that the
+// filesystem keyring and v2 encryption policies are supported.
 func getTestMountV2(t *testing.T) *filesystem.Mount {
 	mount := getTestMount(t)
 	if !isFsKeyringSupported(mount) {
@@ -93,9 +96,42 @@ func requireRoot(t *testing.T) {
 	}
 }
 
+// getNonRootUsers checks for root permission, then returns the users for uids
+// 1000...1000+count-1.  If this fails, the test is skipped.
+func getNonRootUsers(t *testing.T, count int) []*user.User {
+	requireRoot(t)
+	users := make([]*user.User, count)
+	for i := 0; i < count; i++ {
+		uid := 1000 + i
+		user, err := user.LookupId(strconv.Itoa(uid))
+		if err != nil {
+			t.Skip(err)
+		}
+		users[i] = user
+	}
+	return users
+}
+
+func getOptionsForFsKeyringUsers(t *testing.T, numNonRootUsers int) (rootOptions *Options, userOptions []*Options) {
+	mount := getTestMountV2(t)
+	nonRootUsers := getNonRootUsers(t, numNonRootUsers)
+	rootOptions = &Options{
+		Mount: mount,
+		User:  testUser,
+	}
+	userOptions = make([]*Options, numNonRootUsers)
+	for i := 0; i < numNonRootUsers; i++ {
+		userOptions[i] = &Options{
+			Mount: mount,
+			User:  nonRootUsers[i],
+		}
+	}
+	return
+}
+
 // testAddAndRemoveKey does the common tests for adding+removing keys that are
-// run in multiple configurations (v1 policies with user keyring and v1 policies
-// with fs keyring).
+// run in multiple configurations (v1 policies with user keyring, v1 policies
+// with fs keyring, and v2 policies with fs keyring).
 func testAddAndRemoveKey(t *testing.T, descriptor string, options *Options) {
 
 	// Basic add, get status, and remove
@@ -166,4 +202,123 @@ func TestFsKeyringV1PolicyKey(t *testing.T) {
 		UseFsKeyringForV1Policies: true,
 	}
 	testAddAndRemoveKey(t, fakeV1Descriptor, options)
+}
+
+func TestV2PolicyKey(t *testing.T) {
+	mount := getTestMountV2(t)
+	options := &Options{
+		Mount: mount,
+		User:  testUser,
+	}
+	testAddAndRemoveKey(t, fakeV2Descriptor, options)
+}
+
+func TestV2PolicyKeyCannotBeRemovedByAnotherUser(t *testing.T) {
+	rootOptions, userOptions := getOptionsForFsKeyringUsers(t, 2)
+	user1Options := userOptions[0]
+	user2Options := userOptions[1]
+
+	// Add key as non-root user.
+	if err := AddEncryptionKey(fakeValidPolicyKey, fakeV2Descriptor, user1Options); err != nil {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyPresentButOnlyOtherUsers)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyPresentButOnlyOtherUsers)
+
+	// Key shouldn't be removable by another user, even root.
+	err := RemoveEncryptionKey(fakeV2Descriptor, user2Options)
+	if err != ErrKeyAddedByOtherUsers {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyPresentButOnlyOtherUsers)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyPresentButOnlyOtherUsers)
+	err = RemoveEncryptionKey(fakeV2Descriptor, rootOptions)
+	if err != ErrKeyAddedByOtherUsers {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyPresentButOnlyOtherUsers)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyPresentButOnlyOtherUsers)
+
+	if err := RemoveEncryptionKey(fakeV2Descriptor, user1Options); err != nil {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyAbsent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyAbsent)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyAbsent)
+}
+
+func TestV2PolicyKeyMultipleUsers(t *testing.T) {
+	rootOptions, userOptions := getOptionsForFsKeyringUsers(t, 2)
+	user1Options := userOptions[0]
+	user2Options := userOptions[1]
+
+	// Add key as two non-root users.
+	if err := AddEncryptionKey(fakeValidPolicyKey, fakeV2Descriptor, user1Options); err != nil {
+		t.Error(err)
+	}
+	if err := AddEncryptionKey(fakeValidPolicyKey, fakeV2Descriptor, user2Options); err != nil {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyPresentButOnlyOtherUsers)
+
+	// Remove key as one user.
+	err := RemoveEncryptionKey(fakeV2Descriptor, user1Options)
+	if err != ErrKeyAddedByOtherUsers {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyPresentButOnlyOtherUsers)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyPresent)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyPresentButOnlyOtherUsers)
+
+	// Remove key as the other user.
+	err = RemoveEncryptionKey(fakeV2Descriptor, user2Options)
+	if err != nil {
+		t.Error(err)
+	}
+	assertKeyStatus(t, fakeV2Descriptor, user1Options, KeyAbsent)
+	assertKeyStatus(t, fakeV2Descriptor, user2Options, KeyAbsent)
+	assertKeyStatus(t, fakeV2Descriptor, rootOptions, KeyAbsent)
+}
+
+func TestV2PolicyKeyWrongDescriptor(t *testing.T) {
+	mount := getTestMountV2(t)
+	options := &Options{
+		Mount: mount,
+		User:  testUser,
+	}
+	// one wrong but valid hex, and one not valid hex
+	wrongV2Descriptors := []string{"abcdabcdabcdabcdabcdabcdabcdabcd", "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"}
+
+	for _, desc := range wrongV2Descriptors {
+		if err := AddEncryptionKey(fakeValidPolicyKey, desc, options); err == nil {
+			RemoveEncryptionKey(desc, options)
+			t.Error("For v2 policy keys, AddEncryptionKey should fail if the descriptor is wrong")
+		}
+	}
+}
+
+func TestV2PolicyKeyBadMount(t *testing.T) {
+	options := &Options{
+		Mount: &filesystem.Mount{Path: "/NONEXISTENT_MOUNT"},
+		User:  testUser,
+	}
+	if err := AddEncryptionKey(fakeValidPolicyKey, fakeV2Descriptor, options); err == nil {
+		RemoveEncryptionKey(fakeV2Descriptor, options)
+		t.Error("AddEncryptionKey should have failed with bad mount!")
+	}
+	if err := RemoveEncryptionKey(fakeV2Descriptor, options); err == nil {
+		t.Error("RemoveEncryptionKey should have failed with bad mount!")
+	}
+	status, err := GetEncryptionKeyStatus(fakeV2Descriptor, options)
+	if err == nil {
+		t.Error("GetEncryptionKeyStatus should have failed with bad mount!")
+	}
+	if status != KeyStatusUnknown {
+		t.Error("GetEncryptionKeyStatus should have returned unknown status!")
+	}
 }

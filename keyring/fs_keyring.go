@@ -37,6 +37,8 @@ import (
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/security"
+	"github.com/google/fscrypt/util"
 )
 
 var (
@@ -99,11 +101,71 @@ func buildKeySpecifier(spec *unix.FscryptKeySpecifier, descriptor string) error 
 	switch len(descriptorBytes) {
 	case unix.FSCRYPT_KEY_DESCRIPTOR_SIZE:
 		spec.Type = unix.FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR
+	case unix.FSCRYPT_KEY_IDENTIFIER_SIZE:
+		spec.Type = unix.FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER
 	default:
 		return errors.Errorf("key descriptor %q has unknown length", descriptor)
 	}
 	copy(spec.U[:], descriptorBytes)
 	return nil
+}
+
+type savedPrivs struct {
+	ruid, euid, suid int
+}
+
+// dropPrivsIfNeeded drops privileges (UIDs only) to the given user if we're
+// working with a v2 policy key, and if the user is different from the user the
+// process is currently running as.
+//
+// This is needed to change the effective UID so that FS_IOC_ADD_ENCRYPTION_KEY
+// and FS_IOC_REMOVE_ENCRYPTION_KEY will add/remove a claim to the key for the
+// intended user, and so that FS_IOC_GET_ENCRYPTION_KEY_STATUS will return the
+// correct status flags for the user.
+func dropPrivsIfNeeded(user *user.User, spec *unix.FscryptKeySpecifier) (*savedPrivs, error) {
+	if spec.Type == unix.FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR {
+		// v1 policy keys don't have any concept of user claims.
+		return nil, nil
+	}
+	targetUID := util.AtoiOrPanic(user.Uid)
+	ruid, euid, suid := security.GetUids()
+	if euid == targetUID {
+		return nil, nil
+	}
+	if err := security.SetUids(targetUID, targetUID, euid); err != nil {
+		return nil, err
+	}
+	return &savedPrivs{ruid, euid, suid}, nil
+}
+
+// restorePrivs restores root privileges if needed.
+func restorePrivs(privs *savedPrivs) error {
+	if privs != nil {
+		return security.SetUids(privs.ruid, privs.euid, privs.suid)
+	}
+	return nil
+}
+
+// validateKeyDescriptor validates that the correct key descriptor was provided.
+// This isn't really necessary; this is just an extra sanity check.
+func validateKeyDescriptor(spec *unix.FscryptKeySpecifier, descriptor string) (string, error) {
+	if spec.Type != unix.FSCRYPT_KEY_SPEC_TYPE_IDENTIFIER {
+		// v1 policy key: the descriptor is chosen arbitrarily by
+		// userspace, so there's nothing to validate.
+		return descriptor, nil
+	}
+	// v2 policy key.  The descriptor ("identifier" in the kernel UAPI) is
+	// calculated as a cryptographic hash of the key itself.  The kernel
+	// ignores the provided value, and calculates and returns it itself.  So
+	// verify that the returned value is as expected.  If it's not, the key
+	// doesn't actually match the encryption policy we thought it was for.
+	actual := hex.EncodeToString(spec.U[:unix.FSCRYPT_KEY_IDENTIFIER_SIZE])
+	if descriptor == actual {
+		return descriptor, nil
+	}
+	return actual,
+		errors.Errorf("provided and actual key descriptors differ (%q != %q)",
+			descriptor, actual)
 }
 
 // fsAddEncryptionKey adds the specified encryption key to the specified filesystem.
@@ -131,11 +193,21 @@ func fsAddEncryptionKey(key *crypto.Key, descriptor string,
 	arg.Raw_size = uint32(key.Len())
 	C.memcpy(raw, key.UnsafePtr(), C.size_t(key.Len()))
 
+	savedPrivs, err := dropPrivsIfNeeded(user, &arg.Key_spec)
+	if err != nil {
+		return err
+	}
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(),
 		unix.FS_IOC_ADD_ENCRYPTION_KEY, uintptr(argKey.UnsafePtr()))
+	restorePrivs(savedPrivs)
+
 	log.Printf("FS_IOC_ADD_ENCRYPTION_KEY(%q, %s, <raw>) = %v", mount.Path, descriptor, errno)
 	if errno != 0 {
 		return errors.Wrap(ErrKeyAdd, errno.Error())
+	}
+	if descriptor, err = validateKeyDescriptor(&arg.Key_spec, descriptor); err != nil {
+		fsRemoveEncryptionKey(descriptor, mount, user)
+		return err
 	}
 	return nil
 }
@@ -156,17 +228,33 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		return err
 	}
 
+	savedPrivs, err := dropPrivsIfNeeded(user, &arg.Key_spec)
+	if err != nil {
+		return err
+	}
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(),
 		unix.FS_IOC_REMOVE_ENCRYPTION_KEY, uintptr(unsafe.Pointer(&arg)))
+	restorePrivs(savedPrivs)
+
 	log.Printf("FS_IOC_REMOVE_ENCRYPTION_KEY(%q, %s) = %v, removal_status_flags=0x%x",
 		mount.Path, descriptor, errno, arg.Removal_status_flags)
 	switch errno {
 	case 0:
-		if arg.Removal_status_flags&unix.FSCRYPT_KEY_REMOVAL_STATUS_FLAG_FILES_BUSY != 0 {
+		switch {
+		case arg.Removal_status_flags&unix.FSCRYPT_KEY_REMOVAL_STATUS_FLAG_OTHER_USERS != 0:
+			return ErrKeyAddedByOtherUsers
+		case arg.Removal_status_flags&unix.FSCRYPT_KEY_REMOVAL_STATUS_FLAG_FILES_BUSY != 0:
 			return ErrKeyFilesOpen
 		}
 		return nil
 	case unix.ENOKEY:
+		// ENOKEY means either the key is completely missing or that the
+		// current user doesn't have a claim to it.  Distinguish between
+		// these two cases by getting the key status.
+		status, _ := fsGetEncryptionKeyStatus(descriptor, mount, user)
+		if status == KeyPresentButOnlyOtherUsers {
+			return ErrKeyAddedByOtherUsers
+		}
 		return ErrKeyNotPresent
 	default:
 		return errors.Wrap(ErrKeyRemove, errno.Error())
@@ -190,8 +278,14 @@ func fsGetEncryptionKeyStatus(descriptor string, mount *filesystem.Mount,
 		return KeyStatusUnknown, err
 	}
 
+	savedPrivs, err := dropPrivsIfNeeded(user, &arg.Key_spec)
+	if err != nil {
+		return KeyStatusUnknown, err
+	}
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(),
 		unix.FS_IOC_GET_ENCRYPTION_KEY_STATUS, uintptr(unsafe.Pointer(&arg)))
+	restorePrivs(savedPrivs)
+
 	log.Printf("FS_IOC_GET_ENCRYPTION_KEY_STATUS(%q, %s) = %v, status=%d, status_flags=0x%x",
 		mount.Path, descriptor, errno, arg.Status, arg.Status_flags)
 	if errno != 0 {
@@ -201,6 +295,10 @@ func fsGetEncryptionKeyStatus(descriptor string, mount *filesystem.Mount,
 	case unix.FSCRYPT_KEY_STATUS_ABSENT:
 		return KeyAbsent, nil
 	case unix.FSCRYPT_KEY_STATUS_PRESENT:
+		if arg.Key_spec.Type != unix.FSCRYPT_KEY_SPEC_TYPE_DESCRIPTOR &&
+			(arg.Status_flags&unix.FSCRYPT_KEY_STATUS_FLAG_ADDED_BY_SELF) == 0 {
+			return KeyPresentButOnlyOtherUsers, nil
+		}
 		return KeyPresent, nil
 	case unix.FSCRYPT_KEY_STATUS_INCOMPLETELY_REMOVED:
 		return KeyAbsentButFilesBusy, nil

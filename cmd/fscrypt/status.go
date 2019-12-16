@@ -68,7 +68,7 @@ func yesNoString(b bool) string {
 
 func policyUnlockedStatus(policy *actions.Policy) string {
 	switch policy.GetProvisioningStatus() {
-	case keyring.KeyPresent:
+	case keyring.KeyPresent, keyring.KeyPresentButOnlyOtherUsers:
 		return "Yes"
 	case keyring.KeyAbsent:
 		return "No"

@@ -279,8 +279,9 @@ after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
 `lock_policies` option locks the directories protected with the user's login
 passphrase when the last session ends. The `drop_caches` option tells fscrypt to
 clear the filesystem caches when the last session closes, ensuring all the
-locked data is inaccessible. All the types also support the `debug` option which
-prints additional debug information to the syslog.
+locked data is inaccessible; this only needed for v1 encryption policies.
+All the types also support the `debug` option which prints additional
+debug information to the syslog.
 
 ## Note about stability
 
@@ -368,7 +369,8 @@ Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-# Lock the directory.
+# Lock the directory.  'sudo' and the '--user' argument are only
+# required if the directory uses a v1 encryption policy.
 >>>>> sudo fscrypt lock /mnt/disk/dir1 --user=$USER
 Encrypted data removed from filesystem cache.
 "/mnt/disk/dir1" is now locked.

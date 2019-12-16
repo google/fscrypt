@@ -63,6 +63,9 @@ func PurgeAllPolicies(ctx *Context) error {
 		case keyring.ErrKeyFilesOpen:
 			log.Printf("Key for policy %s couldn't be fully removed because some files are still in-use",
 				policyDescriptor)
+		case keyring.ErrKeyAddedByOtherUsers:
+			log.Printf("Key for policy %s couldn't be fully removed because other user(s) have added it too",
+				policyDescriptor)
 		default:
 			return err
 		}
@@ -198,6 +201,11 @@ func (policy *Policy) Descriptor() string {
 // Options returns the encryption options of this policy.
 func (policy *Policy) Options() *metadata.EncryptionOptions {
 	return policy.data.Options
+}
+
+// Version returns the version of this policy.
+func (policy *Policy) Version() int64 {
+	return policy.data.Options.PolicyVersion
 }
 
 // Destroy removes a policy from the filesystem. The internal key should still
@@ -382,14 +390,15 @@ func (policy *Policy) GetProvisioningStatus() keyring.KeyStatus {
 	return status
 }
 
-// IsProvisioned returns a boolean indicating if the policy has its key in the
-// keyring, meaning files and directories using this policy are accessible.
-func (policy *Policy) IsProvisioned() bool {
+// IsProvisionedByTargetUser returns true if the policy's key is present in the
+// target kernel keyring, but not if that keyring is a filesystem keyring and
+// the key only been added by users other than Context.TargetUser.
+func (policy *Policy) IsProvisionedByTargetUser() bool {
 	return policy.GetProvisioningStatus() == keyring.KeyPresent
 }
 
 // IsFullyDeprovisioned returns true if the policy has been fully deprovisioned,
-// including all files protected by it having been closed.
+// including by all users and with all files protected by it having been closed.
 func (policy *Policy) IsFullyDeprovisioned() bool {
 	return policy.GetProvisioningStatus() == keyring.KeyAbsent
 }
@@ -415,13 +424,19 @@ func (policy *Policy) Deprovision() error {
 // NeedsUserKeyring returns true if Provision and Deprovision for this policy
 // will use a user keyring, not a filesystem keyring.
 func (policy *Policy) NeedsUserKeyring() bool {
-	return !policy.Context.Config.GetUseFsKeyringForV1Policies()
+	return policy.Version() == 1 && !policy.Context.Config.GetUseFsKeyringForV1Policies()
 }
 
 // NeedsRootToProvision returns true if Provision and Deprovision will require
 // root for this policy in the current configuration.
 func (policy *Policy) NeedsRootToProvision() bool {
-	return policy.Context.Config.GetUseFsKeyringForV1Policies()
+	return policy.Version() == 1 && policy.Context.Config.GetUseFsKeyringForV1Policies()
+}
+
+// CanBeAppliedWithoutProvisioning returns true if this process can apply this
+// policy to a directory without first calling Provision.
+func (policy *Policy) CanBeAppliedWithoutProvisioning() bool {
+	return policy.Version() == 1 || util.IsUserRoot()
 }
 
 // commitData writes the Policy's current data to the filesystem.

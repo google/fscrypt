@@ -139,6 +139,18 @@ func encryptAction(c *cli.Context) error {
 // of the key for the given encryption policy (if policy != nil) or for the
 // current default encryption policy (if policy == nil).
 func validateKeyringPrereqs(ctx *actions.Context, policy *actions.Policy) error {
+	var policyVersion int64
+	if policy == nil {
+		policyVersion = ctx.Config.Options.PolicyVersion
+	} else {
+		policyVersion = policy.Version()
+	}
+	// If it's a v2 policy, we're good to go, since non-root users can
+	// add/remove v2 policy keys directly to/from the filesystem, where they
+	// are usable by the filesystem on behalf of any process.
+	if policyVersion != 1 {
+		return nil
+	}
 	if ctx.Config.GetUseFsKeyringForV1Policies() {
 		// We'll be using the filesystem keyring, but it's a v1
 		// encryption policy so root is required.
@@ -225,13 +237,18 @@ func encryptPath(path string) (err error) {
 		}
 	}()
 
-	// Unlock() first, so if the Unlock() fails the directory isn't changed.
-	if !skipUnlockFlag.Value {
+	// Unlock() and Provision() first, so if that if these fail the
+	// directory isn't changed, and also because v2 policies can't be
+	// applied while deprovisioned unless the process is running as root.
+	if !skipUnlockFlag.Value || !policy.CanBeAppliedWithoutProvisioning() {
 		if err = policy.Unlock(optionFn, existingKeyFn); err != nil {
 			return
 		}
 		if err = policy.Provision(); err != nil {
 			return
+		}
+		if skipUnlockFlag.Value {
+			defer policy.Deprovision()
 		}
 	}
 	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
@@ -352,8 +369,9 @@ func unlockAction(c *cli.Context) error {
 		return newExitError(c, err)
 	}
 	// Check if directory is already unlocked
-	if policy.IsProvisioned() {
-		log.Printf("policy %s is already provisioned", policy.Descriptor())
+	if policy.IsProvisionedByTargetUser() {
+		log.Printf("policy %s is already provisioned by %v",
+			policy.Descriptor(), ctx.TargetUser.Username)
 		return newExitError(c, errors.Wrapf(ErrPolicyUnlocked, path))
 	}
 
@@ -395,8 +413,13 @@ var Lock = cli.Command{
 		For this to be effective, all files in the directory must first
 		be closed.
 
-		The %s=true option may be needed to properly lock the directory.
-		Root is required for this.
+		If the directory uses a v1 encryption policy, then the %s=true
+		option may be needed to properly lock it. Root is required for
+		this.
+
+		If the directory uses a v2 encryption policy, then a non-root
+		user can lock it, but only if it's the same user who unlocked it
+		originally and if no other users have unlocked it too.
 
 		WARNING: even after the key has been removed, decrypted data may
 		still be present in freed memory, where it may still be

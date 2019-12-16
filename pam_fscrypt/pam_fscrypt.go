@@ -176,8 +176,9 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 
 	// We don't stop provisioning polices on error, we try all of them.
 	for _, policy := range policies {
-		if policy.IsProvisioned() {
-			log.Printf("policy %s already provisioned", policy.Descriptor())
+		if policy.IsProvisionedByTargetUser() {
+			log.Printf("policy %s already provisioned by %v",
+				policy.Descriptor(), handle.PamUser.Username)
 			continue
 		}
 		if err := policy.UnlockWithProtector(protector); err != nil {
@@ -197,7 +198,8 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 			log.Printf("provisioning policy %s: %s", policy.Descriptor(), provisionErr)
 			continue
 		}
-		log.Printf("policy %s provisioned", policy.Descriptor())
+		log.Printf("policy %s provisioned by %v", policy.Descriptor(),
+			handle.PamUser.Username)
 	}
 	return nil
 }
@@ -256,8 +258,9 @@ func lockLoginPolicies(handle *pam.Handle) error {
 
 	// We will try to deprovision all of the policies.
 	for _, policy := range policies {
-		if !policy.IsProvisioned() {
-			log.Printf("policy %s not provisioned", policy.Descriptor())
+		if !policy.IsProvisionedByTargetUser() {
+			log.Printf("policy %s not provisioned by %v",
+				policy.Descriptor(), handle.PamUser.Username)
 			continue
 		}
 		if err := beginProvisioningOp(handle, policy); err != nil {
@@ -271,7 +274,7 @@ func lockLoginPolicies(handle *pam.Handle) error {
 			log.Printf("deprovisioning policy %s: %s", policy.Descriptor(), deprovisionErr)
 			continue
 		}
-		log.Printf("policy %s deprovisioned", policy.Descriptor())
+		log.Printf("policy %s deprovisioned by %v", policy.Descriptor(), handle.PamUser.Username)
 	}
 	return nil
 }
