@@ -44,8 +44,8 @@ var (
 )
 
 // PurgeAllPolicies removes all policy keys on the filesystem from the kernel
-// keyring. In order for this removal to have an effect, the filesystem should
-// also be unmounted.
+// keyring. In order for this to fully take effect, the filesystem may also need
+// to be unmounted or caches dropped.
 func PurgeAllPolicies(ctx *Context) error {
 	if err := ctx.checkContext(); err != nil {
 		return err
@@ -60,6 +60,9 @@ func PurgeAllPolicies(ctx *Context) error {
 		switch errors.Cause(err) {
 		case nil, keyring.ErrKeyNotPresent:
 			// We don't care if the key has already been removed
+		case keyring.ErrKeyFilesOpen:
+			log.Printf("Key for policy %s couldn't be fully removed because some files are still in-use",
+				policyDescriptor)
 		default:
 			return err
 		}
@@ -379,6 +382,12 @@ func (policy *Policy) IsProvisioned() bool {
 	return policy.GetProvisioningStatus() == keyring.KeyPresent
 }
 
+// IsFullyDeprovisioned returns true if the policy has been fully deprovisioned,
+// including all files protected by it having been closed.
+func (policy *Policy) IsFullyDeprovisioned() bool {
+	return policy.GetProvisioningStatus() == keyring.KeyAbsent
+}
+
 // Provision inserts the Policy key into the kernel keyring. This allows reading
 // and writing of files encrypted with this directory. Requires unlocked Policy.
 func (policy *Policy) Provision() error {
@@ -390,7 +399,8 @@ func (policy *Policy) Provision() error {
 }
 
 // Deprovision removes the Policy key from the kernel keyring. This prevents
-// reading and writing to the directory once the caches are cleared.
+// reading and writing to the directory --- unless the target keyring is a user
+// keyring, in which case caches must be dropped too.
 func (policy *Policy) Deprovision() error {
 	return keyring.RemoveEncryptionKey(policy.Descriptor(),
 		policy.Context.getKeyringOptions())

@@ -58,10 +58,11 @@ type Context struct {
 	// modified after being loaded to customise parameters.
 	Config *metadata.Config
 	// Mount is the filesystem relative to which all Protectors and Policies
-	// are added, edited, removed, and applied.
+	// are added, edited, removed, and applied, and to which policies using
+	// the filesystem keyring are provisioned.
 	Mount *filesystem.Mount
-	// TargetUser is the user for which protectors are created and to whose
-	// keyring policies are provisioned.
+	// TargetUser is the user for whom protectors are created, and to whose
+	// keyring policies using the user keyring are provisioned.
 	TargetUser *user.User
 }
 
@@ -148,8 +149,10 @@ func (ctx *Context) getService() string {
 
 func (ctx *Context) getKeyringOptions() *keyring.Options {
 	return &keyring.Options{
-		User:    ctx.TargetUser,
-		Service: ctx.getService(),
+		Mount:                     ctx.Mount,
+		User:                      ctx.TargetUser,
+		Service:                   ctx.getService(),
+		UseFsKeyringForV1Policies: ctx.Config.GetUseFsKeyringForV1Policies(),
 	}
 }
 

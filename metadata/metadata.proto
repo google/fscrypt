@@ -97,4 +97,5 @@ message Config {
   HashingCosts hash_costs = 2;
   string compatibility = 3;
   EncryptionOptions options = 4;
+  bool use_fs_keyring_for_v1_policies = 5;
 }

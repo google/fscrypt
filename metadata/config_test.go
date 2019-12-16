@@ -49,7 +49,8 @@ var testConfigString = `{
 		"padding": "32",
 		"contents": "AES_256_XTS",
 		"filenames": "AES_256_CTS"
-	}
+	},
+	"use_fs_keyring_for_v1_policies": false
 }
 `
 

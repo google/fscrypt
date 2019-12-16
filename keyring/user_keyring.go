@@ -1,5 +1,6 @@
 /*
- * user_keyring.go - Add/remove encryption policy keys to/from user keyrings
+ * user_keyring.go - Add/remove encryption policy keys to/from user keyrings.
+ * This is the deprecated mechanism; see fs_keyring.go for the new mechanism.
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
