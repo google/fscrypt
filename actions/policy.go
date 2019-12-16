@@ -412,6 +412,12 @@ func (policy *Policy) NeedsUserKeyring() bool {
 	return !policy.Context.Config.GetUseFsKeyringForV1Policies()
 }
 
+// NeedsRootToProvision returns true if Provision and Deprovision will require
+// root for this policy in the current configuration.
+func (policy *Policy) NeedsRootToProvision() bool {
+	return policy.Context.Config.GetUseFsKeyringForV1Policies()
+}
+
 // commitData writes the Policy's current data to the filesystem.
 func (policy *Policy) commitData() error {
 	return policy.Context.Mount.AddPolicy(policy.data)

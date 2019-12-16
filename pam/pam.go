@@ -34,7 +34,6 @@ import (
 	"os/user"
 	"unsafe"
 
-	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/security"
 )
 
@@ -128,26 +127,31 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, nil
 }
 
-// StartAsPamUser sets the effective privileges to that of the PAM user, and
-// configures the PAM user's keyrings to be properly linked.
+// StartAsPamUser sets the effective privileges to that of the PAM user.
 func (h *Handle) StartAsPamUser() error {
-	if _, err := keyring.UserKeyringID(h.PamUser, true); err != nil {
-		log.Printf("Setting up keyrings in PAM: %v", err)
-	}
 	userPrivs, err := security.UserPrivileges(h.PamUser)
 	if err != nil {
 		return err
 	}
-	if h.origPrivs, err = security.ProcessPrivileges(); err != nil {
+	origPrivs, err := security.ProcessPrivileges()
+	if err != nil {
 		return err
 	}
-	return security.SetProcessPrivileges(userPrivs)
+	if err = security.SetProcessPrivileges(userPrivs); err != nil {
+		return err
+	}
+	h.origPrivs = origPrivs
+	return nil
 }
 
 // StopAsPamUser restores the original privileges that were running the
 // PAM module (this is usually root).
 func (h *Handle) StopAsPamUser() error {
+	if h.origPrivs == nil {
+		return nil
+	}
 	err := security.SetProcessPrivileges(h.origPrivs)
+	h.origPrivs = nil
 	if err != nil {
 		log.Print(err)
 	}
