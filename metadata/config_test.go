@@ -48,7 +48,8 @@ var testConfigString = `{
 	"options": {
 		"padding": "32",
 		"contents": "AES_256_XTS",
-		"filenames": "AES_256_CTS"
+		"filenames": "AES_256_CTS",
+		"policy_version": "1"
 	},
 	"use_fs_keyring_for_v1_policies": false
 }
@@ -76,5 +77,43 @@ func TestRead(t *testing.T) {
 	t.Logf("decoded config:\n%s", cfg)
 	if !proto.Equal(cfg, testConfig) {
 		t.Errorf("did not match: %s", testConfig)
+	}
+}
+
+// Makes sure we can parse a legacy config file that doesn't have the fields
+// that were added later.
+func TestOptionalFields(t *testing.T) {
+	contents := `{
+		"source": "custom_passphrase",
+		"hash_costs": {
+			"time": "10",
+			"memory": "4096",
+			"parallelism": "8"
+		},
+		"compatibility": "",
+		"options": {
+			"padding": "32",
+			"contents": "AES_256_XTS",
+			"filenames": "AES_256_CTS"
+		}
+	}
+	`
+	buf := bytes.NewBufferString(contents)
+	cfg, err := ReadConfig(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.GetUseFsKeyringForV1Policies() {
+		t.Error("use_fs_keyring_for_v1_policies should be false, but was true")
+	}
+	if cfg.Options.PolicyVersion != 0 {
+		t.Errorf("policy version should be 0, but was %d", cfg.Options.PolicyVersion)
+	}
+	if err = cfg.CheckValidity(); err != nil {
+		t.Error(err)
+	}
+	// CheckValidity() should change an unset policy version to 1.
+	if cfg.Options.PolicyVersion != 1 {
+		t.Errorf("policy version should be 1 now, but was %d", cfg.Options.PolicyVersion)
 	}
 }

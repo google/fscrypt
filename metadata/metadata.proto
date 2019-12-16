@@ -77,6 +77,8 @@ message EncryptionOptions {
 
   Mode contents = 2;
   Mode filenames = 3;
+
+  int64 policy_version = 4;
 }
 
 message WrappedPolicyKey {

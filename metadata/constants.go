@@ -27,8 +27,12 @@ import (
 
 // Lengths for our keys, buffers, and strings used in fscrypt.
 const (
-	// DescriptorLen is the length of all Protector and Policy descriptors.
-	DescriptorLen = 2 * unix.FSCRYPT_KEY_DESCRIPTOR_SIZE
+	// Length of policy descriptor (in hex chars) for v1 encryption policies
+	PolicyDescriptorLenV1 = 2 * unix.FSCRYPT_KEY_DESCRIPTOR_SIZE
+	// Length of protector descriptor (in hex chars)
+	ProtectorDescriptorLen = PolicyDescriptorLenV1
+	// Length of policy descriptor (in hex chars) for v2 encryption policies
+	PolicyDescriptorLenV2 = 2 * unix.FSCRYPT_KEY_IDENTIFIER_SIZE
 	// We always use 256-bit keys internally (compared to 512-bit policy keys).
 	InternalKeyLen = 32
 	IVLen          = 16
@@ -40,11 +44,13 @@ const (
 )
 
 var (
-	// DefaultOptions use the supported encryption modes and max padding.
+	// DefaultOptions use the supported encryption modes, max padding, and
+	// policy version 1.
 	DefaultOptions = &EncryptionOptions{
-		Padding:   32,
-		Contents:  EncryptionOptions_AES_256_XTS,
-		Filenames: EncryptionOptions_AES_256_CTS,
+		Padding:       32,
+		Contents:      EncryptionOptions_AES_256_XTS,
+		Filenames:     EncryptionOptions_AES_256_CTS,
+		PolicyVersion: 1,
 	}
 	// DefaultSource is the source we use if none is specified.
 	DefaultSource = SourceType_custom_passphrase

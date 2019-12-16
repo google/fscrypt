@@ -464,6 +464,33 @@ func TestUnwrapWrongData(t *testing.T) {
 	}
 }
 
+func TestComputeKeyDescriptorV1(t *testing.T) {
+	descriptor, err := ComputeKeyDescriptor(fakeValidPolicyKey, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != "8290608a029c5aae" {
+		t.Errorf("wrong v1 descriptor: %s", descriptor)
+	}
+}
+
+func TestComputeKeyDescriptorV2(t *testing.T) {
+	descriptor, err := ComputeKeyDescriptor(fakeValidPolicyKey, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != "2139f52bf8386ee99845818ac7e91c4a" {
+		t.Errorf("wrong v2 descriptor: %s", descriptor)
+	}
+}
+
+func TestComputeKeyDescriptorBadVersion(t *testing.T) {
+	_, err := ComputeKeyDescriptor(fakeValidPolicyKey, 0)
+	if err == nil {
+		t.Error("computing key descriptor with bad version should fail")
+	}
+}
+
 // Run our test cases for passphrase hashing
 func TestPassphraseHashing(t *testing.T) {
 	for i, testCase := range hashTestCases {

@@ -95,11 +95,17 @@ func CreatePolicy(ctx *Context, protector *Protector) (*Policy, error) {
 		return nil, err
 	}
 
+	keyDescriptor, err := crypto.ComputeKeyDescriptor(key, ctx.Config.Options.PolicyVersion)
+	if err != nil {
+		key.Wipe()
+		return nil, err
+	}
+
 	policy := &Policy{
 		Context: ctx,
 		data: &metadata.PolicyData{
 			Options:       ctx.Config.Options,
-			KeyDescriptor: crypto.ComputeDescriptor(key),
+			KeyDescriptor: keyDescriptor,
 		},
 		key:     key,
 		created: true,

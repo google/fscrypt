@@ -133,6 +133,10 @@ func getConfig() (*metadata.Config, error) {
 		config.Options.Filenames = metadata.DefaultOptions.Filenames
 		log.Printf("Falling back to filenames mode of %q", config.Options.Filenames)
 	}
+	if config.Options.PolicyVersion == 0 {
+		config.Options.PolicyVersion = metadata.DefaultOptions.PolicyVersion
+		log.Printf("Falling back to policy version of %d", config.Options.PolicyVersion)
+	}
 
 	if err := config.CheckValidity(); err != nil {
 		return nil, errors.Wrap(ErrBadConfigFile, err.Error())

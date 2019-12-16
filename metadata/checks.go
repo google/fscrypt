@@ -119,7 +119,7 @@ func (p *ProtectorData) CheckValidity() error {
 	if err := p.WrappedKey.CheckValidity(); err != nil {
 		return errors.Wrap(err, "wrapped protector key")
 	}
-	if err := util.CheckValidLength(DescriptorLen, len(p.ProtectorDescriptor)); err != nil {
+	if err := util.CheckValidLength(ProtectorDescriptorLen, len(p.ProtectorDescriptor)); err != nil {
 		return errors.Wrap(err, "protector descriptor")
 
 	}
@@ -138,7 +138,17 @@ func (e *EncryptionOptions) CheckValidity() error {
 	if err := e.Contents.CheckValidity(); err != nil {
 		return errors.Wrap(err, "contents encryption mode")
 	}
-	return errors.Wrap(e.Filenames.CheckValidity(), "filenames encryption mode")
+	if err := e.Filenames.CheckValidity(); err != nil {
+		return errors.Wrap(err, "filenames encryption mode")
+	}
+	// If PolicyVersion is unset, treat it as 1.
+	if e.PolicyVersion == 0 {
+		e.PolicyVersion = 1
+	}
+	if e.PolicyVersion != 1 && e.PolicyVersion != 2 {
+		return errors.Errorf("policy version of %d is invalid", e.PolicyVersion)
+	}
+	return nil
 }
 
 // CheckValidity ensures the fields are valid and have the correct lengths.
@@ -152,7 +162,7 @@ func (w *WrappedPolicyKey) CheckValidity() error {
 	if err := util.CheckValidLength(PolicyKeyLen, len(w.WrappedKey.EncryptedKey)); err != nil {
 		return errors.Wrap(err, "encrypted key")
 	}
-	err := util.CheckValidLength(DescriptorLen, len(w.ProtectorDescriptor))
+	err := util.CheckValidLength(ProtectorDescriptorLen, len(w.ProtectorDescriptor))
 	return errors.Wrap(err, "wrapping protector descriptor")
 }
 
@@ -167,11 +177,26 @@ func (p *PolicyData) CheckValidity() error {
 			return errors.Wrapf(err, "policy key slot %d", i)
 		}
 	}
-	if err := util.CheckValidLength(DescriptorLen, len(p.KeyDescriptor)); err != nil {
+
+	if err := p.Options.CheckValidity(); err != nil {
+		return errors.Wrap(err, "policy options")
+	}
+
+	var expectedLen int
+	switch p.Options.PolicyVersion {
+	case 1:
+		expectedLen = PolicyDescriptorLenV1
+	case 2:
+		expectedLen = PolicyDescriptorLenV2
+	default:
+		return errors.Errorf("policy version of %d is invalid", p.Options.PolicyVersion)
+	}
+
+	if err := util.CheckValidLength(expectedLen, len(p.KeyDescriptor)); err != nil {
 		return errors.Wrap(err, "policy key descriptor")
 	}
 
-	return errors.Wrap(p.Options.CheckValidity(), "policy options")
+	return nil
 }
 
 // CheckValidity ensures the Config has all the necessary info for its Source.

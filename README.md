@@ -361,7 +361,7 @@ POLICY            UNLOCKED  PROTECTORS
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -376,7 +376,7 @@ Encrypted data removed from filesystem cache.
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -397,7 +397,7 @@ Enter custom passphrase for protector "Super Secret":
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -433,7 +433,7 @@ Enter login passphrase for joerichey:
 "/mnt/disk/dir2" is encrypted with fscrypt.
 
 Policy:   fe1c92009abc1cff
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -469,7 +469,7 @@ PROTECTOR         LINKED  DESCRIPTION
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -565,7 +565,7 @@ fe1c92009abc1cff  No        6891f0a901f0065e
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -581,7 +581,7 @@ Protector 2c75f519b9c9959d now protecting policy 16382f282d7b29ee.
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 2 protectors:
