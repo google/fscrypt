@@ -33,7 +33,6 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
-	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/util"
 )
 
@@ -283,24 +282,10 @@ func getPolicyFromFlag(flagValue string, targetUser *user.User) (*actions.Policy
 }
 
 // parseUserFlag returns the user specified by userFlag or the current effective
-// user if the flag value is missing. If the effective user is root, however, a
-// user must specified in the flag. If checkKeyring is true, we also make sure
-// there are no problems accessing the user keyring.
-func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
+// user if the flag value is missing.
+func parseUserFlag() (targetUser *user.User, err error) {
 	if userFlag.Value != "" {
-		targetUser, err = user.Lookup(userFlag.Value)
-	} else {
-		if util.IsUserRoot() {
-			return nil, ErrSpecifyUser
-		}
-		targetUser, err = util.EffectiveUser()
+		return user.Lookup(userFlag.Value)
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	if checkKeyring {
-		_, err = keyring.UserKeyringID(targetUser, true)
-	}
-	return targetUser, err
+	return util.EffectiveUser()
 }

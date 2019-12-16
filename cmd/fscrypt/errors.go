@@ -63,6 +63,7 @@ var (
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
+	ErrFsKeyringPerm      = errors.New("root is required to add/remove v1 encryption policy keys to/from filesystem")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
@@ -141,6 +142,10 @@ func getErrorSuggestions(err error) string {
 			properly clear the inode cache, or it should be run with
 			%s=false (this may leave encrypted files and directories
 			in an accessible state).`, shortDisplay(dropCachesFlag))
+	case ErrFsKeyringPerm:
+		return `Either this command should be run as root, or you should
+			set '"use_fs_keyring_for_v1_policies": false' in
+			/etc/fscrypt.conf.`
 	case ErrSpecifyUser:
 		return fmt.Sprintf(`When running this command as root, you
 			usually still want to provision/remove keys for a normal

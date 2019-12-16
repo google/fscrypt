@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
@@ -134,11 +135,35 @@ func encryptAction(c *cli.Context) error {
 	return nil
 }
 
+// validateKeyringPrereqs ensures we're ready to add, remove, or get the status
+// of the key for the given encryption policy (if policy != nil) or for the
+// current default encryption policy (if policy == nil).
+func validateKeyringPrereqs(ctx *actions.Context, policy *actions.Policy) error {
+	if ctx.Config.GetUseFsKeyringForV1Policies() {
+		// We'll be using the filesystem keyring, but it's a v1
+		// encryption policy so root is required.
+		if !util.IsUserRoot() {
+			return ErrFsKeyringPerm
+		}
+		return nil
+	}
+	// We'll be using the target user's user keyring, so make sure a user
+	// was explicitly specified if the command is being run as root, and
+	// make sure that user's keyring is accessible.
+	if userFlag.Value == "" && util.IsUserRoot() {
+		return ErrSpecifyUser
+	}
+	if _, err := keyring.UserKeyringID(ctx.TargetUser, true); err != nil {
+		return err
+	}
+	return nil
+}
+
 // encryptPath sets up encryption on path and provisions the policy to the
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
 // metadata creation is reverted, and the directory is unmodified.
 func encryptPath(path string) (err error) {
-	targetUser, err := parseUserFlag(!skipUnlockFlag.Value)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return
 	}
@@ -154,9 +179,23 @@ func encryptPath(path string) (err error) {
 	if policyFlag.Value != "" {
 		log.Printf("getting policy for %q", path)
 
-		policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser)
+		if policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser); err != nil {
+			return
+		}
+
+		if !skipUnlockFlag.Value {
+			if err = validateKeyringPrereqs(ctx, policy); err != nil {
+				return
+			}
+		}
 	} else {
 		log.Printf("creating policy for %q", path)
+
+		if !skipUnlockFlag.Value {
+			if err = validateKeyringPrereqs(ctx, nil); err != nil {
+				return
+			}
+		}
 
 		protector, created, protErr := selectOrCreateProtector(ctx)
 		// Successfully created protector should be reverted on failure.
@@ -173,12 +212,11 @@ func encryptPath(path string) (err error) {
 		if err = protector.Unlock(existingKeyFn); err != nil {
 			return
 		}
-		policy, err = actions.CreatePolicy(ctx, protector)
+		if policy, err = actions.CreatePolicy(ctx, protector); err != nil {
+			return
+		}
 	}
 	// Successfully created policy should be reverted on failure.
-	if err != nil {
-		return
-	}
 	defer func() {
 		policy.Lock()
 		if err != nil {
@@ -293,7 +331,7 @@ func unlockAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	targetUser, err := parseUserFlag(true)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -307,6 +345,10 @@ func unlockAction(c *cli.Context) error {
 	// Ensure path is encrypted and filesystem is using fscrypt.
 	policy, err := actions.GetPolicyFromPath(ctx, path)
 	if err != nil {
+		return newExitError(c, err)
+	}
+	// Ensure the keyring is ready.
+	if err = validateKeyringPrereqs(ctx, policy); err != nil {
 		return newExitError(c, err)
 	}
 	// Check if directory is already unlocked
@@ -370,7 +412,7 @@ func lockAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	targetUser, err := parseUserFlag(true)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -384,6 +426,10 @@ func lockAction(c *cli.Context) error {
 	// Ensure path is encrypted and filesystem is using fscrypt.
 	policy, err := actions.GetPolicyFromPath(ctx, path)
 	if err != nil {
+		return newExitError(c, err)
+	}
+	// Ensure the keyring is ready.
+	if err = validateKeyringPrereqs(ctx, policy); err != nil {
 		return newExitError(c, err)
 	}
 	// Check if directory is already locked
@@ -459,13 +505,16 @@ func purgeAction(c *cli.Context) error {
 		}
 	}
 
-	targetUser, err := parseUserFlag(true)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
 	mountpoint := c.Args().Get(0)
 	ctx, err := actions.NewContextFromMountpoint(mountpoint, targetUser)
 	if err != nil {
+		return newExitError(c, err)
+	}
+	if err = validateKeyringPrereqs(ctx, nil); err != nil {
 		return newExitError(c, err)
 	}
 
@@ -604,7 +653,7 @@ func createProtectorAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	targetUser, err := parseUserFlag(false)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
