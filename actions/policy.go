@@ -406,6 +406,12 @@ func (policy *Policy) Deprovision() error {
 		policy.Context.getKeyringOptions())
 }
 
+// NeedsUserKeyring returns true if Provision and Deprovision for this policy
+// will use a user keyring, not a filesystem keyring.
+func (policy *Policy) NeedsUserKeyring() bool {
+	return !policy.Context.Config.GetUseFsKeyringForV1Policies()
+}
+
 // commitData writes the Policy's current data to the filesystem.
 func (policy *Policy) commitData() error {
 	return policy.Context.Mount.AddPolicy(policy.data)

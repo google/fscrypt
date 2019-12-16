@@ -91,7 +91,8 @@ Concretely, fscrypt contains the following functionality:
 *   `fscrypt setup MOUNTPOINT` - Gets a filesystem ready for use with fscrypt
 *   `fscrypt encrypt DIRECTORY` - Encrypts an empty directory
 *   `fscrypt unlock DIRECTORY` - Unlocks an encrypted directory
-*   `fscrypt purge MOUNTPOINT` - Removes keys for a filesystem before unmounting
+*   `fscrypt lock DIRECTORY` - Locks an encrypted directory
+*   `fscrypt purge MOUNTPOINT` - Locks all encrypted directories on a filesystem
 *   `fscrypt status [PATH]` - Gets detailed info about filesystems or paths
 *   `fscrypt metadata` - Manages policies or protectors directly
 
@@ -367,12 +368,10 @@ Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-# Purging a filesystem locks all the files.
->>>>> sudo fscrypt purge /mnt/disk --user=$USER
-WARNING: Encrypted data on this filesystem will be inaccessible until unlocked again!!
-Purge all policy keys from "/mnt/disk" and drop global inode cache? [y/N] y
-Policies purged for "/mnt/disk".
-
+# Lock the directory.
+>>>>> sudo fscrypt lock /mnt/disk/dir1 --user=$USER
+Encrypted data removed from filesystem cache.
+"/mnt/disk/dir1" is now locked.
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
@@ -410,7 +409,7 @@ Hello World
 
 #### Quiet Version
 ```bash
->>>>> sudo fscrypt purge /mnt/disk --user=$USER --quiet --force
+>>>>> sudo fscrypt lock /mnt/disk/dir1 --quiet --user=$USER
 >>>>> echo "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
 ```
 

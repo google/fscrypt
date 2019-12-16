@@ -56,6 +56,7 @@ var (
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
 	ErrMustBeRoot         = errors.New("this command must be run as root")
 	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
+	ErrPolicyLocked       = errors.New("this file or directory is already locked")
 	ErrBadOwners          = errors.New("you do not own this directory")
 	ErrNotEmptyDir        = errors.New("not an empty directory")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
@@ -94,6 +95,11 @@ func getErrorSuggestions(err error) string {
 			needs to be enabled for this filesystem. See the
 			documentation on how to enable encryption on ext4
 			systems (and the risks of doing so).`
+	case keyring.ErrKeyFilesOpen:
+		return `Directory was incompletely locked because some files are
+			still open. These files remain accessible. Try killing
+			any processes using files in the directory, then
+			re-running 'fscrypt lock'.`
 	case keyring.ErrSessionUserKeying:
 		return `This is usually the result of a bad PAM configuration.
 			Either correct the problem in your PAM stack, enable

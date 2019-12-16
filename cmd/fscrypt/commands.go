@@ -281,8 +281,8 @@ var Unlock = cli.Command{
 		appropriate key into the keyring. This requires unlocking one of
 		the protectors protecting this directory (either by selecting a
 		protector or specifying one with %s). This directory will be
-		locked again upon reboot, or after running "fscrypt purge" and
-		unmounting the corresponding filesystem.`, directoryArg,
+		locked again upon reboot, or after running "fscrypt lock" or
+		"fscrypt purge".`, directoryArg,
 		shortDisplay(unlockWithFlag)),
 	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag, userFlag},
 	Action: unlockAction,
@@ -325,6 +325,88 @@ func unlockAction(c *cli.Context) error {
 	}
 
 	fmt.Fprintf(c.App.Writer, "%q is now unlocked and ready for use.\n", path)
+	return nil
+}
+
+func dropCachesIfRequested(c *cli.Context, ctx *actions.Context) error {
+	if dropCachesFlag.Value {
+		if err := security.DropFilesystemCache(); err != nil {
+			return err
+		}
+		fmt.Fprintf(c.App.Writer, "Encrypted data removed from filesystem cache.\n")
+	} else {
+		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	}
+	return nil
+}
+
+// Lock takes an encrypted directory and locks it, undoing Unlock.
+var Lock = cli.Command{
+	Name:      "lock",
+	ArgsUsage: directoryArg,
+	Usage:     "lock an encrypted directory",
+	Description: fmt.Sprintf(`This command takes %s, an encrypted directory
+		which has been unlocked by fscrypt, and locks the directory by
+		removing the encryption key from the kernel. I.e., it undoes the
+		effect of 'fscrypt unlock'.
+
+		For this to be effective, all files in the directory must first
+		be closed.
+
+		The %s=true option may be needed to properly lock the directory.
+		Root is required for this.
+
+		WARNING: even after the key has been removed, decrypted data may
+		still be present in freed memory, where it may still be
+		recoverable by an attacker who compromises system memory. To be
+		fully safe, you must reboot with a power cycle.`,
+		directoryArg, shortDisplay(dropCachesFlag)),
+	Flags:  []cli.Flag{dropCachesFlag, userFlag},
+	Action: lockAction,
+}
+
+func lockAction(c *cli.Context) error {
+	if c.NArg() != 1 {
+		return expectedArgsErr(c, 1, false)
+	}
+
+	targetUser, err := parseUserFlag(true)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	path := c.Args().Get(0)
+	ctx, err := actions.NewContextFromPath(path, targetUser)
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	log.Printf("performing sanity checks")
+	// Ensure path is encrypted and filesystem is using fscrypt.
+	policy, err := actions.GetPolicyFromPath(ctx, path)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	// Check if directory is already locked
+	if policy.IsFullyDeprovisioned() {
+		log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
+		return newExitError(c, errors.Wrapf(ErrPolicyLocked, path))
+	}
+	// Check for permission to drop caches, if it will be needed.
+	if policy.NeedsUserKeyring() && dropCachesFlag.Value && !util.IsUserRoot() {
+		return newExitError(c, ErrDropCachesPerm)
+	}
+
+	if err = policy.Deprovision(); err != nil {
+		return newExitError(c, err)
+	}
+
+	if policy.NeedsUserKeyring() {
+		if err = dropCachesIfRequested(c, ctx); err != nil {
+			return newExitError(c, err)
+		}
+	}
+
+	fmt.Fprintf(c.App.Writer, "%q is now locked.\n", path)
 	return nil
 }
 
@@ -401,13 +483,8 @@ func purgeAction(c *cli.Context) error {
 	}
 	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
 
-	if dropCachesFlag.Value {
-		if err = security.DropFilesystemCache(); err != nil {
-			return newExitError(c, err)
-		}
-		fmt.Fprintf(c.App.Writer, "Encrypted data removed from filesystem cache.\n")
-	} else {
-		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	if err = dropCachesIfRequested(c, ctx); err != nil {
+		return newExitError(c, err)
 	}
 	return nil
 }
