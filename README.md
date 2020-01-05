@@ -171,6 +171,71 @@ Be careful when using encryption on removable media, since filesystems with the
 `encrypt` feature cannot be mounted on systems with kernel versions older than
 the minimums listed above -- even to access unencrypted files!
 
+If you configure fscrypt to use non-default features, other kernel
+prerequisites may be needed too.  See [Configuration
+file](#configuration-file).
+
+### Configuration file
+
+Running `sudo fscrypt setup` will create the configuration file
+`/etc/fscrypt.conf` if it doesn't already exist.  It's a JSON file
+that looks like the following:
+
+```
+{
+	"source": "custom_passphrase",
+	"hash_costs": {
+		"time": "52",
+		"memory": "131072",
+		"parallelism": "32"
+	},
+	"compatibility": "legacy",
+	"options": {
+		"padding": "32",
+		"contents": "AES_256_XTS",
+		"filenames": "AES_256_CTS"
+	}
+}
+```
+
+The fields are:
+
+* "source" is the default source for new protectors.  The choices are
+  "pam\_passphrase", "custom\_passphrase", and "raw\_key".
+
+* "hash\_costs" describes how difficult the passphrase hashing is.
+  By default, `fscrypt setup` calibrates the hashing to use all CPUs
+  and take about 1 second.  The `--time` option to `fscrypt setup` can
+  be used to customize this time when creating the configuration file.
+
+* "compatibility" can be "legacy" to support kernels older than v4.8,
+  or the empty string to only support kernels v4.8 and later.
+
+* "options" are the encryption options to use for new encrypted
+  directories:
+
+    * "padding" is the number of bytes by which filenames are padded
+      before being encrypted.  The choices are "32", "16", "8", and
+      "4".  "32" is recommended.
+
+    * "contents" is the algorithm used to encrypt file contents.  The
+      choices are "AES_256_XTS", "AES_128_CBC", and "Adiantum".
+      Normally, "AES_256_XTS" is recommended.
+
+    * "filenames" is the algorithm used to encrypt file names.  The
+      choices are "AES_256_CTS", "AES_128_CTS", and "Adiantum".
+      Normally, "AES_256_CTS" is recommended.
+
+      To use algorithms other than "AES_256_XTS" for contents and
+      "AES_256_CTS" for filenames, the needed algorithm(s) may need to
+      be enabled in the Linux kernel's cryptography API.  For example,
+      to use Adiantum, `CONFIG_CRYPTO_ADIANTUM` must be set.  Also,
+      not all combinations of algorithms are allowed; for example,
+      "Adiantum" for contents can only be paired with "Adiantum" for
+      filenames.  See the [kernel
+      documentation](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html#encryption-modes-and-usage)
+      for more details about the supported algorithms.
+
 ### Setting up the PAM module
 
 Note that to make use of the installed PAM module, your
