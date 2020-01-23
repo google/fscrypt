@@ -32,13 +32,6 @@ package security
 // between OS-level threads while it's running.
 //
 // See also: https://github.com/golang/go/issues/1435
-//
-// Also we need to wrap the libc functions in our own C functions rather than
-// calling them directly because in the glibc headers (but not necessarily in
-// the headers for other C libraries that may be used on Linux) they are
-// declared to take __uid_t and __gid_t arguments rather than uid_t and gid_t.
-// And while these are typedef'ed to the same underlying type, before Go 1.10,
-// cgo maps them to different Go types.
 
 /*
 #define _GNU_SOURCE    // for getresuid and setresuid
