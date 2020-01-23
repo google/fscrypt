@@ -319,9 +319,8 @@ func getMountFromLink(link string) (*Mount, error) {
 	}
 	mnt, ok := mountsByDevice[deviceNumber]
 	if !ok {
-		devicePath, _ := canonicalizePath(searchPath)
 		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q (%v)",
-			devicePath, deviceNumber)
+			getDeviceName(deviceNumber), deviceNumber)
 	}
 	if mnt == nil {
 		return nil, filesystemRootDirNotVisibleError(deviceNumber)
