@@ -168,6 +168,11 @@ enabled in the on-disk filesystem superblock:
   must have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
   `CONFIG_UBIFS_FS_ENCRYPTION=y` (for older kernels).
 
+To check whether the needed option is enabled in your kernel, run:
+```shell
+zgrep -h ENCRYPTION /proc/config.gz /boot/config-$(uname -r) | sort | uniq
+```
+
 Be careful when using encryption on removable media, since filesystems with the
 `encrypt` feature cannot be mounted on systems with kernel versions older than
 the minimums listed above -- even to access unencrypted files!
