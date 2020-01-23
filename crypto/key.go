@@ -195,6 +195,16 @@ func (key *Key) UnsafeToCString() unsafe.Pointer {
 	return data
 }
 
+// Clone creates a key as a copy of another one.
+func (key *Key) Clone() (*Key, error) {
+	newKey, err := NewBlankKey(key.Len())
+	if err != nil {
+		return nil, err
+	}
+	copy(newKey.data, key.data)
+	return newKey, nil
+}
+
 // NewKeyFromCString creates of a copy of some C string's data in a key. Note
 // that the original C string is not modified at all, so steps must be taken to
 // ensure that this original copy is secured.

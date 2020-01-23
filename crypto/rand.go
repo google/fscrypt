@@ -49,6 +49,38 @@ func NewRandomKey(length int) (*Key, error) {
 	return NewFixedLengthKeyFromReader(randReader{}, length)
 }
 
+// NewRandomPassphrase creates a random passphrase of the specified length
+// containing random alphabetic characters.
+func NewRandomPassphrase(length int) (*Key, error) {
+	chars := []byte("abcdefghijklmnopqrstuvwxyz")
+	passphrase, err := NewBlankKey(length)
+	if err != nil {
+		return nil, err
+	}
+	for i := 0; i < length; {
+		// Get some random bytes.
+		raw, err := NewRandomKey((length - i) * 2)
+		if err != nil {
+			return nil, err
+		}
+		// Translate the random bytes into random characters.
+		for _, b := range raw.data {
+			if int(b) >= 256-(256%len(chars)) {
+				// Avoid bias towards the first characters in the list.
+				continue
+			}
+			c := chars[int(b)%len(chars)]
+			passphrase.data[i] = c
+			i++
+			if i == length {
+				break
+			}
+		}
+		raw.Wipe()
+	}
+	return passphrase, nil
+}
+
 // randReader just calls into Getrandom, so no internal data is needed.
 type randReader struct{}
 
