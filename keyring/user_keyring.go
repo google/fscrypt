@@ -1,5 +1,6 @@
 /*
- * keyring.go - Handles inserting/removing into user keyrings.
+ * user_keyring.go - Add/remove encryption policy keys to/from user keyrings.
+ * This is the deprecated mechanism; see fs_keyring.go for the new mechanism.
  *
  * Copyright 2017 Google Inc.
  * Author: Joe Richey (joerichey@google.com)
@@ -17,37 +18,85 @@
  * the License.
  */
 
-package security
+package keyring
 
 import (
-	"fmt"
-	"log"
 	"os/user"
 	"runtime"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
+	"fmt"
+	"log"
+
+	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
 // KeyType is always logon as required by filesystem encryption.
 const KeyType = "logon"
 
-// Keyring related error values
-var (
-	ErrKeySearch         = errors.New("could not find key with descriptor")
-	ErrKeyRemove         = util.SystemError("could not remove key from the keyring")
-	ErrKeyInsert         = util.SystemError("could not insert key into the keyring")
-	ErrSessionUserKeying = errors.New("user keyring not linked into session keyring")
-	ErrAccessUserKeyring = errors.New("could not access user keyring")
-	ErrLinkUserKeyring   = util.SystemError("could not link user keyring into root keyring")
-)
+// userAddKey puts the provided policy key into the user keyring for the
+// specified user with the provided description, and type logon.
+func userAddKey(key *crypto.Key, description string, targetUser *user.User) error {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
 
-// FindKey tries to locate a key in the kernel keyring with the provided
+	// Create our payload (containing an FscryptKey)
+	payload, err := crypto.NewBlankKey(int(unsafe.Sizeof(unix.FscryptKey{})))
+	if err != nil {
+		return err
+	}
+	defer payload.Wipe()
+
+	// Cast the payload to an FscryptKey so we can initialize the fields.
+	fscryptKey := (*unix.FscryptKey)(payload.UnsafePtr())
+	// Mode is ignored by the kernel
+	fscryptKey.Mode = 0
+	fscryptKey.Size = uint32(key.Len())
+	copy(fscryptKey.Raw[:], key.Data())
+
+	keyringID, err := UserKeyringID(targetUser, true)
+	if err != nil {
+		return err
+	}
+	keyID, err := unix.AddKey(KeyType, description, payload.Data(), keyringID)
+	log.Printf("KeyctlAddKey(%s, %s, <data>, %d) = %d, %v",
+		KeyType, description, keyringID, keyID, err)
+	if err != nil {
+		return errors.Wrap(ErrKeyAdd, err.Error())
+	}
+	return nil
+}
+
+// userRemoveKey tries to remove a policy key from the user keyring with the
+// provided description. An error is returned if the key does not exist.
+func userRemoveKey(description string, targetUser *user.User) error {
+	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	defer runtime.UnlockOSThread()
+
+	keyID, err := userFindKey(description, targetUser)
+	if err != nil {
+		return ErrKeyNotPresent
+	}
+
+	// We use KEYCTL_INVALIDATE instead of KEYCTL_REVOKE because
+	// invalidating a key immediately removes it.
+	_, err = unix.KeyctlInt(unix.KEYCTL_INVALIDATE, keyID, 0, 0, 0)
+	log.Printf("KeyctlInvalidate(%d) = %v", keyID, err)
+	if err != nil {
+		return errors.Wrap(ErrKeyRemove, err.Error())
+	}
+	return nil
+}
+
+// userFindKey tries to locate a key in the user keyring with the provided
 // description. The key ID is returned if we can find the key. An error is
 // returned if the key does not exist.
-func FindKey(description string, targetUser *user.User) (int, error) {
+func userFindKey(description string, targetUser *user.User) (int, error) {
 	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
 	defer runtime.UnlockOSThread()
 
@@ -62,47 +111,6 @@ func FindKey(description string, targetUser *user.User) (int, error) {
 		return 0, errors.Wrap(ErrKeySearch, err.Error())
 	}
 	return keyID, err
-}
-
-// RemoveKey tries to remove a policy key from the kernel keyring with the
-// provided description. An error is returned if the key does not exist.
-func RemoveKey(description string, targetUser *user.User) error {
-	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
-	defer runtime.UnlockOSThread()
-
-	keyID, err := FindKey(description, targetUser)
-	if err != nil {
-		return err
-	}
-
-	// We use KEYCTL_INVALIDATE instead of KEYCTL_REVOKE because
-	// invalidating a key immediately removes it.
-	_, err = unix.KeyctlInt(unix.KEYCTL_INVALIDATE, keyID, 0, 0, 0)
-	log.Printf("KeyctlInvalidate(%d) = %v", keyID, err)
-	if err != nil {
-		return errors.Wrap(ErrKeyRemove, err.Error())
-	}
-	return nil
-}
-
-// InsertKey puts the provided data into the kernel keyring with the provided
-// description.
-func InsertKey(data []byte, description string, targetUser *user.User) error {
-	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
-	defer runtime.UnlockOSThread()
-
-	keyringID, err := UserKeyringID(targetUser, true)
-	if err != nil {
-		return err
-	}
-
-	keyID, err := unix.AddKey(KeyType, description, data, keyringID)
-	log.Printf("KeyctlAddKey(%s, %s, <data>, %d) = %d, %v",
-		KeyType, description, keyringID, keyID, err)
-	if err != nil {
-		return errors.Wrap(ErrKeyInsert, err.Error())
-	}
-	return nil
 }
 
 // UserKeyringID returns the key id of the target user's user keyring. We also
@@ -155,13 +163,13 @@ func userKeyringIDLookup(uid int) (keyringID int, err error) {
 	//    - Keyring linking permissions use the euid
 	// So we have to change both the ruid and euid to make this work,
 	// setting the suid to 0 so that we can later switch back.
-	ruid, euid, suid := getUids()
+	ruid, euid, suid := security.GetUids()
 	if ruid != uid || euid != uid {
-		if err = setUids(uid, uid, 0); err != nil {
+		if err = security.SetUids(uid, uid, 0); err != nil {
 			return
 		}
 		defer func() {
-			resetErr := setUids(ruid, euid, suid)
+			resetErr := security.SetUids(ruid, euid, suid)
 			if resetErr != nil {
 				err = resetErr
 			}

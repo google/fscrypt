@@ -33,7 +33,6 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
-	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -117,7 +116,7 @@ var (
 	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
 		forceFlag, legacyFlag, skipUnlockFlag, timeTargetFlag,
 		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
-		unlockWithFlag, policyFlag}
+		unlockWithFlag, policyFlag, allUsersFlag}
 	// universalFlags contains flags that should be on every command
 	universalFlags = []cli.Flag{verboseFlag, quietFlag, helpFlag}
 )
@@ -163,11 +162,21 @@ var (
 	}
 	dropCachesFlag = &boolFlag{
 		Name: "drop-caches",
-		Usage: `After purging the keys from the keyring, drop the
-			associated caches for the purge to take effect. Without
-			this flag, cached encrypted files may still have their
-			plaintext visible. Requires root privileges.`,
+		Usage: `After removing the key(s) from the keyring, drop the
+			kernel's filesystem caches if needed. Without this flag,
+			files encrypted with v1 encryption policies may still be
+			accessible. This flag is not needed for v2 encryption
+			policies. This flag, if actually needed, requires root
+			privileges.`,
 		Default: true,
+	}
+	allUsersFlag = &boolFlag{
+		Name: "all-users",
+		Usage: `Lock the directory no matter which user(s) have unlocked
+			it. Requires root privileges. This flag is only
+			necessary if the directory was unlocked by a user
+			different from the one you're locking it as. This flag
+			is only implemented for v2 encryption policies.`,
 	}
 )
 
@@ -283,24 +292,10 @@ func getPolicyFromFlag(flagValue string, targetUser *user.User) (*actions.Policy
 }
 
 // parseUserFlag returns the user specified by userFlag or the current effective
-// user if the flag value is missing. If the effective user is root, however, a
-// user must specified in the flag. If checkKeyring is true, we also make sure
-// there are no problems accessing the user keyring.
-func parseUserFlag(checkKeyring bool) (targetUser *user.User, err error) {
+// user if the flag value is missing.
+func parseUserFlag() (targetUser *user.User, err error) {
 	if userFlag.Value != "" {
-		targetUser, err = user.Lookup(userFlag.Value)
-	} else {
-		if util.IsUserRoot() {
-			return nil, ErrSpecifyUser
-		}
-		targetUser, err = util.EffectiveUser()
+		return user.Lookup(userFlag.Value)
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	if checkKeyring {
-		_, err = security.UserKeyringID(targetUser, true)
-	}
-	return targetUser, err
+	return util.EffectiveUser()
 }

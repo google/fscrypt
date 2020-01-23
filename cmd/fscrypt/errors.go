@@ -34,8 +34,8 @@ import (
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -56,12 +56,14 @@ var (
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
 	ErrMustBeRoot         = errors.New("this command must be run as root")
 	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
+	ErrPolicyLocked       = errors.New("this file or directory is already locked")
 	ErrBadOwners          = errors.New("you do not own this directory")
 	ErrNotEmptyDir        = errors.New("not an empty directory")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
+	ErrFsKeyringPerm      = errors.New("root is required to add/remove v1 encryption policy keys to/from filesystem")
 )
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
@@ -94,11 +96,20 @@ func getErrorSuggestions(err error) string {
 			needs to be enabled for this filesystem. See the
 			documentation on how to enable encryption on ext4
 			systems (and the risks of doing so).`
-	case security.ErrSessionUserKeying:
+	case keyring.ErrKeyFilesOpen:
+		return `Directory was incompletely locked because some files are
+			still open. These files remain accessible. Try killing
+			any processes using files in the directory, then
+			re-running 'fscrypt lock'.`
+	case keyring.ErrKeyAddedByOtherUsers:
+		return `Directory couldn't be fully locked because other user(s)
+			have unlocked it. If you want to force the directory to
+			be locked, use 'sudo fscrypt lock --all-users DIR'.`
+	case keyring.ErrSessionUserKeying:
 		return `This is usually the result of a bad PAM configuration.
 			Either correct the problem in your PAM stack, enable
 			pam_keyinit.so, or run "keyctl link @u @s".`
-	case security.ErrAccessUserKeyring:
+	case keyring.ErrAccessUserKeyring:
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
 			shortDisplay(userFlag))
@@ -135,6 +146,13 @@ func getErrorSuggestions(err error) string {
 			properly clear the inode cache, or it should be run with
 			%s=false (this may leave encrypted files and directories
 			in an accessible state).`, shortDisplay(dropCachesFlag))
+	case ErrFsKeyringPerm:
+		return `Either this command should be run as root, or you should
+			set '"use_fs_keyring_for_v1_policies": false' in
+			/etc/fscrypt.conf, or you should re-create your
+			encrypted directories using v2 encryption policies
+			rather than v1 (this requires setting '"policy_version":
+			"2"' in the "options" section of /etc/fscrypt.conf).`
 	case ErrSpecifyUser:
 		return fmt.Sprintf(`When running this command as root, you
 			usually still want to provision/remove keys for a normal

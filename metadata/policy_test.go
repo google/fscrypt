@@ -26,15 +26,28 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/proto"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/util"
 )
 
-const goodDescriptor = "0123456789abcdef"
+const goodV1Descriptor = "0123456789abcdef"
 
-var goodPolicy = &PolicyData{
-	KeyDescriptor: goodDescriptor,
+var goodV1Policy = &PolicyData{
+	KeyDescriptor: goodV1Descriptor,
 	Options:       DefaultOptions,
+}
+
+var goodV2EncryptionOptions = &EncryptionOptions{
+	Padding:       32,
+	Contents:      EncryptionOptions_AES_256_XTS,
+	Filenames:     EncryptionOptions_AES_256_CTS,
+	PolicyVersion: 2,
+}
+
+var goodV2Policy = &PolicyData{
+	KeyDescriptor: "0123456789abcdef0123456789abcdef",
+	Options:       goodV2EncryptionOptions,
 }
 
 // Creates a temporary directory for testing.
@@ -83,7 +96,7 @@ func TestSetPolicyEmptyDirectory(t *testing.T) {
 	}
 	defer os.RemoveAll(directory)
 
-	if err = SetPolicy(directory, goodPolicy); err != nil {
+	if err = SetPolicy(directory, goodV1Policy); err != nil {
 		t.Error(err)
 	}
 }
@@ -96,7 +109,7 @@ func TestSetPolicyNonemptyDirectory(t *testing.T) {
 	}
 	defer os.RemoveAll(directory)
 
-	if err = SetPolicy(directory, goodPolicy); err == nil {
+	if err = SetPolicy(directory, goodV1Policy); err == nil {
 		t.Error("should have failed to set policy on a nonempty directory")
 	}
 }
@@ -109,7 +122,7 @@ func TestSetPolicyFile(t *testing.T) {
 	}
 	defer os.RemoveAll(directory)
 
-	if err = SetPolicy(file, goodPolicy); err == nil {
+	if err = SetPolicy(file, goodV1Policy); err == nil {
 		t.Error("should have failed to set policy on a file")
 	}
 }
@@ -141,15 +154,15 @@ func TestGetPolicyEmptyDirectory(t *testing.T) {
 	defer os.RemoveAll(directory)
 
 	var actualPolicy *PolicyData
-	if err = SetPolicy(directory, goodPolicy); err != nil {
+	if err = SetPolicy(directory, goodV1Policy); err != nil {
 		t.Fatal(err)
 	}
 	if actualPolicy, err = GetPolicy(directory); err != nil {
 		t.Fatal(err)
 	}
 
-	if !proto.Equal(actualPolicy, goodPolicy) {
-		t.Errorf("policy %+v does not equal expected policy %+v", actualPolicy, goodPolicy)
+	if !proto.Equal(actualPolicy, goodV1Policy) {
+		t.Errorf("policy %+v does not equal expected policy %+v", actualPolicy, goodV1Policy)
 	}
 }
 
@@ -163,5 +176,37 @@ func TestGetPolicyUnencrypted(t *testing.T) {
 
 	if _, err = GetPolicy(directory); err == nil {
 		t.Error("should have failed to set policy on a file")
+	}
+}
+
+func requireV2PolicySupport(t *testing.T, directory string) {
+	file, err := os.Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY_EX, nil)
+	if err == ErrEncryptionNotSupported {
+		t.Skip("No support for v2 encryption policies, skipping test")
+	}
+}
+
+// Tests that a non-root user cannot set a v2 encryption policy unless the key
+// has been added.
+func TestSetV2PolicyNoKey(t *testing.T) {
+	if util.IsUserRoot() {
+		t.Skip("This test cannot be run as root")
+	}
+	directory, err := createTestDirectory(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(directory)
+	requireV2PolicySupport(t, directory)
+
+	err = SetPolicy(directory, goodV2Policy)
+	if err == nil {
+		t.Error("shouldn't have been able to set v2 policy without key added")
 	}
 }

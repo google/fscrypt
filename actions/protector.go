@@ -140,7 +140,11 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 	if protector.key, err = crypto.NewRandomKey(metadata.InternalKeyLen); err != nil {
 		return nil, err
 	}
-	protector.data.ProtectorDescriptor = crypto.ComputeDescriptor(protector.key)
+	protector.data.ProtectorDescriptor, err = crypto.ComputeKeyDescriptor(protector.key, 1)
+	if err != nil {
+		protector.Lock()
+		return nil, err
+	}
 
 	if err = protector.Rewrap(keyFn); err != nil {
 		protector.Lock()

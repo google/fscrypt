@@ -37,6 +37,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"
 )
@@ -57,10 +58,13 @@ type Context struct {
 	// modified after being loaded to customise parameters.
 	Config *metadata.Config
 	// Mount is the filesystem relative to which all Protectors and Policies
-	// are added, edited, removed, and applied.
+	// are added, edited, removed, and applied, and to which policies using
+	// the filesystem keyring are provisioned.
 	Mount *filesystem.Mount
-	// TargetUser is the user for which protectors are created and to whose
-	// keyring policies are provisioned.
+	// TargetUser is the user for whom protectors are created, and to whose
+	// keyring policies using the user keyring are provisioned.  It's also
+	// the user for whom the keys are claimed in the filesystem keyring when
+	// v2 policies are provisioned.
 	TargetUser *user.User
 }
 
@@ -143,6 +147,15 @@ func (ctx *Context) getService() string {
 		}
 	}
 	return unix.FSCRYPT_KEY_DESC_PREFIX
+}
+
+func (ctx *Context) getKeyringOptions() *keyring.Options {
+	return &keyring.Options{
+		Mount:                     ctx.Mount,
+		User:                      ctx.TargetUser,
+		Service:                   ctx.getService(),
+		UseFsKeyringForV1Policies: ctx.Config.GetUseFsKeyringForV1Policies(),
+	}
 }
 
 // getProtectorOption returns the ProtectorOption for the protector on the

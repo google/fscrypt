@@ -77,6 +77,8 @@ message EncryptionOptions {
 
   Mode contents = 2;
   Mode filenames = 3;
+
+  int64 policy_version = 4;
 }
 
 message WrappedPolicyKey {
@@ -97,4 +99,5 @@ message Config {
   HashingCosts hash_costs = 2;
   string compatibility = 3;
   EncryptionOptions options = 4;
+  bool use_fs_keyring_for_v1_policies = 5;
 }

@@ -36,6 +36,7 @@ import (
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/pam"
 	"github.com/google/fscrypt/security"
 )
@@ -81,6 +82,43 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 	return errors.Wrap(err, "could not set AUTHTOK data")
 }
 
+func beginProvisioningOp(handle *pam.Handle, policy *actions.Policy) error {
+	if policy.NeedsRootToProvision() {
+		return handle.StopAsPamUser()
+	}
+	return nil
+}
+
+func endProvisioningOp(handle *pam.Handle, policy *actions.Policy) error {
+	if policy.NeedsRootToProvision() {
+		return handle.StartAsPamUser()
+	}
+	return nil
+}
+
+// Set up the PAM user's keyring if needed by any encryption policies.
+func setupUserKeyringIfNeeded(handle *pam.Handle, policies []*actions.Policy) error {
+	needed := false
+	for _, policy := range policies {
+		if policy.NeedsUserKeyring() {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return nil
+	}
+	err := handle.StopAsPamUser()
+	if err != nil {
+		return err
+	}
+	_, err = keyring.UserKeyringID(handle.PamUser, true)
+	if err != nil {
+		log.Printf("Setting up keyrings in PAM: %v", err)
+	}
+	return handle.StartAsPamUser()
+}
+
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	// We will always clear the AUTHTOK data
@@ -105,6 +143,10 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	if len(policies) == 0 {
 		log.Print("no policies to unlock")
 		return nil
+	}
+
+	if err = setupUserKeyringIfNeeded(handle, policies); err != nil {
+		return errors.Wrapf(err, "setting up user keyring")
 	}
 
 	log.Printf("unlocking %d policies protected with AUTHTOK", len(policies))
@@ -134,8 +176,9 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 
 	// We don't stop provisioning polices on error, we try all of them.
 	for _, policy := range policies {
-		if policy.IsProvisioned() {
-			log.Printf("policy %s already provisioned", policy.Descriptor())
+		if policy.IsProvisionedByTargetUser() {
+			log.Printf("policy %s already provisioned by %v",
+				policy.Descriptor(), handle.PamUser.Username)
 			continue
 		}
 		if err := policy.UnlockWithProtector(protector); err != nil {
@@ -144,11 +187,19 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 		}
 		defer policy.Lock()
 
-		if err := policy.Provision(); err != nil {
-			log.Printf("provisioning policy %s: %s", policy.Descriptor(), err)
+		if err := beginProvisioningOp(handle, policy); err != nil {
+			return err
+		}
+		provisionErr := policy.Provision()
+		if err := endProvisioningOp(handle, policy); err != nil {
+			return err
+		}
+		if provisionErr != nil {
+			log.Printf("provisioning policy %s: %s", policy.Descriptor(), provisionErr)
 			continue
 		}
-		log.Printf("policy %s provisioned", policy.Descriptor())
+		log.Printf("policy %s provisioned by %v", policy.Descriptor(),
+			handle.PamUser.Username)
 	}
 	return nil
 }
@@ -163,7 +214,8 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	}
 
 	var errLock, errCache error
-	// Don't automatically drop privileges, we may need them to drop caches.
+	// Don't automatically drop privileges, since we may need them to
+	// deprovision policies or to drop caches.
 	if args[lockFlag] {
 		log.Print("locking polices protected with login protector")
 		errLock = lockLoginPolicies(handle)
@@ -200,17 +252,29 @@ func lockLoginPolicies(handle *pam.Handle) error {
 		return nil
 	}
 
+	if err = setupUserKeyringIfNeeded(handle, policies); err != nil {
+		return errors.Wrapf(err, "setting up user keyring")
+	}
+
 	// We will try to deprovision all of the policies.
 	for _, policy := range policies {
-		if !policy.IsProvisioned() {
-			log.Printf("policy %s not provisioned", policy.Descriptor())
+		if !policy.IsProvisionedByTargetUser() {
+			log.Printf("policy %s not provisioned by %v",
+				policy.Descriptor(), handle.PamUser.Username)
 			continue
 		}
-		if err := policy.Deprovision(); err != nil {
-			log.Printf("deprovisioning policy %s: %s", policy.Descriptor(), err)
+		if err := beginProvisioningOp(handle, policy); err != nil {
+			return err
+		}
+		deprovisionErr := policy.Deprovision(false)
+		if err := endProvisioningOp(handle, policy); err != nil {
+			return err
+		}
+		if deprovisionErr != nil {
+			log.Printf("deprovisioning policy %s: %s", policy.Descriptor(), deprovisionErr)
 			continue
 		}
-		log.Printf("policy %s deprovisioned", policy.Descriptor())
+		log.Printf("policy %s deprovisioned by %v", policy.Descriptor(), handle.PamUser.Username)
 	}
 	return nil
 }

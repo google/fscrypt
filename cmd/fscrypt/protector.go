@@ -26,6 +26,7 @@ import (
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // createProtector makes a new protector on either ctx.Mount or if the requested
@@ -36,6 +37,11 @@ func createProtectorFromContext(ctx *actions.Context) (*actions.Protector, error
 		return nil, err
 	}
 	log.Printf("using source: %s", ctx.Config.Source.String())
+
+	if ctx.Config.Source == metadata.SourceType_pam_passphrase &&
+		userFlag.Value == "" && util.IsUserRoot() {
+		return nil, ErrSpecifyUser
+	}
 
 	name, err := promptForName(ctx)
 	if err != nil {

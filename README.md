@@ -91,7 +91,8 @@ Concretely, fscrypt contains the following functionality:
 *   `fscrypt setup MOUNTPOINT` - Gets a filesystem ready for use with fscrypt
 *   `fscrypt encrypt DIRECTORY` - Encrypts an empty directory
 *   `fscrypt unlock DIRECTORY` - Unlocks an encrypted directory
-*   `fscrypt purge MOUNTPOINT` - Removes keys for a filesystem before unmounting
+*   `fscrypt lock DIRECTORY` - Locks an encrypted directory
+*   `fscrypt purge MOUNTPOINT` - Locks all encrypted directories on a filesystem
 *   `fscrypt status [PATH]` - Gets detailed info about filesystems or paths
 *   `fscrypt metadata` - Manages policies or protectors directly
 
@@ -193,8 +194,10 @@ that looks like the following:
 	"options": {
 		"padding": "32",
 		"contents": "AES_256_XTS",
-		"filenames": "AES_256_CTS"
-	}
+		"filenames": "AES_256_CTS",
+		"policy_version": "1"
+	},
+	"use_fs_keyring_for_v1_policies": false
 }
 ```
 
@@ -235,6 +238,25 @@ The fields are:
       filenames.  See the [kernel
       documentation](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html#encryption-modes-and-usage)
       for more details about the supported algorithms.
+
+    * "policy\_version" is the version of encryption policy to use.
+      The choices are "1" and "2".  Directories created with policy
+      version "2" are only usable on kernel v5.4 or later, but are
+      preferable to version "1" if you don't mind this restriction.
+
+* "use\_fs\_keyring\_for\_v1\_policies" specifies whether to add keys
+  for v1 encryption policies to the filesystem keyring, rather than to
+  user keyrings.  This can solve [issues with processes being unable
+  to access encrypted files](#cant-log-in-with-ssh-even-when-users-encrypted-home-directory-is-unlocked).
+  However, it requires kernel v5.4 or later, and it makes unlocking
+  and locking encrypted directories require root.
+
+  The purpose of this setting is to allow people to take advantage of
+  some of the improvements in Linux v5.4 on encrypted directories that
+  are also compatible with older kernels.  If you don't need
+  compatibility with older kernels, it's better to not use this
+  setting and instead (re-)create your encrypted directories with
+  `"policy_version": "2"`.
 
 ### Setting up the PAM module
 
@@ -278,8 +300,9 @@ after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
 `lock_policies` option locks the directories protected with the user's login
 passphrase when the last session ends. The `drop_caches` option tells fscrypt to
 clear the filesystem caches when the last session closes, ensuring all the
-locked data is inaccessible. All the types also support the `debug` option which
-prints additional debug information to the syslog.
+locked data is inaccessible; this only needed for v1 encryption policies.
+All the types also support the `debug` option which prints additional
+debug information to the syslog.
 
 ## Note about stability
 
@@ -360,24 +383,23 @@ POLICY            UNLOCKED  PROTECTORS
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-# Purging a filesystem locks all the files.
->>>>> sudo fscrypt purge /mnt/disk --user=$USER
-WARNING: Encrypted data on this filesystem will be inaccessible until unlocked again!!
-Purge all policy keys from "/mnt/disk" and drop global inode cache? [y/N] y
-Policies purged for "/mnt/disk".
-
+# Lock the directory.  'sudo' and the '--user' argument are only
+# required if the directory uses a v1 encryption policy.
+>>>>> sudo fscrypt lock /mnt/disk/dir1 --user=$USER
+Encrypted data removed from filesystem cache.
+"/mnt/disk/dir1" is now locked.
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -398,7 +420,7 @@ Enter custom passphrase for protector "Super Secret":
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -410,7 +432,7 @@ Hello World
 
 #### Quiet Version
 ```bash
->>>>> sudo fscrypt purge /mnt/disk --user=$USER --quiet --force
+>>>>> sudo fscrypt lock /mnt/disk/dir1 --quiet --user=$USER
 >>>>> echo "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
 ```
 
@@ -434,7 +456,7 @@ Enter login passphrase for joerichey:
 "/mnt/disk/dir2" is encrypted with fscrypt.
 
 Policy:   fe1c92009abc1cff
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -470,7 +492,7 @@ PROTECTOR         LINKED  DESCRIPTION
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -566,7 +588,7 @@ fe1c92009abc1cff  No        6891f0a901f0065e
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -582,7 +604,7 @@ Protector 2c75f519b9c9959d now protecting policy 16382f282d7b29ee.
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
 Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 2 protectors:
@@ -714,6 +736,37 @@ shred -u file
 
 However, `shred` isn't guaranteed to be effective on all filesystems and storage
 devices.
+
+#### Can't log in with ssh even when user's encrypted home directory is unlocked
+
+This is caused by a limitation in the original design of Linux
+filesystem encryption which made it difficult to ensure that all
+processes can access unlocked encrypted files.  This issue can also
+manifest in other ways such as Docker containers being unable to
+access encrypted files, or NetworkManager being unable to access
+certificates if they are located in an encrypted directory.
+
+If you are using kernel v5.4 or later, you can fix this by setting the
+following in `/etc/fscrypt.conf`:
+
+    "use_fs_keyring_for_v1_policies": true
+
+However, this makes manually unlocking and locking encrypted
+directories start to require root.  (The PAM module will still work.)
+E.g., you'll need to run `sudo fscrypt unlock`, not `fscrypt unlock`.
+
+Alternatively, you can upgrade your encrypted directories to use v2
+encryption policies by setting the following in the "options" section
+of `/etc/fscrypt.conf`:
+
+    "policy_version": "2"
+
+... and then for each of your encrypted directories, using `fscrypt
+encrypt` to encrypt a new empty directory, copying your files into it,
+and replacing the original directory with it.  This will fix the key
+access problems, while also keeping `fscrypt unlock` and `fscrypt
+lock` usable by non-root users.  This is the recommended solution if
+you don't need to access your files on kernels older than v5.4.
 
 ## Legal
 

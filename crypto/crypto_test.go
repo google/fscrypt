@@ -30,11 +30,7 @@ import (
 	"os"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
-	"github.com/google/fscrypt/util"
 )
 
 // Reader that always returns the same byte
@@ -53,16 +49,11 @@ func makeKey(b byte, n int) (*Key, error) {
 }
 
 var (
-	fakeValidDescriptor = "0123456789abcdef"
-	fakeSalt            = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
-	fakePassword        = []byte("password")
-	defaultService      = unix.FSCRYPT_KEY_DESC_PREFIX
+	fakeSalt     = bytes.Repeat([]byte{'a'}, metadata.SaltLen)
+	fakePassword = []byte("password")
 
-	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
-	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
-	fakeWrappingKey, _      = makeKey(17, metadata.InternalKeyLen)
-
-	testUser, _ = util.EffectiveUser()
+	fakeValidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen)
+	fakeWrappingKey, _    = makeKey(17, metadata.InternalKeyLen)
 )
 
 // As the passphrase hashing function clears the passphrase, we need to make
@@ -239,43 +230,6 @@ func TestKeyLargeResize(t *testing.T) {
 		if b != 1 {
 			t.Fatalf("Byte %d contained invalid data %q", i, b)
 		}
-	}
-}
-
-// Adds and removes a key with various services.
-func TestAddRemoveKeys(t *testing.T) {
-	for _, service := range []string{defaultService, "ext4:", "f2fs:"} {
-		validDescription := service + fakeValidDescriptor
-		if err := InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser); err != nil {
-			t.Error(err)
-		}
-		if err := security.RemoveKey(validDescription, testUser); err != nil {
-			t.Error(err)
-		}
-	}
-}
-
-// Adds a key twice (both should succeed)
-func TestAddTwice(t *testing.T) {
-	validDescription := defaultService + fakeValidDescriptor
-	InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser)
-	if InsertPolicyKey(fakeValidPolicyKey, validDescription, testUser) != nil {
-		t.Error("InsertPolicyKey should not fail if key already exists")
-	}
-	security.RemoveKey(validDescription, testUser)
-}
-
-// Makes sure a key fails with bad policy or service
-func TestBadAddKeys(t *testing.T) {
-	validDescription := defaultService + fakeValidDescriptor
-	if InsertPolicyKey(fakeInvalidPolicyKey, validDescription, testUser) == nil {
-		security.RemoveKey(validDescription, testUser)
-		t.Error("InsertPolicyKey should fail with bad policy key")
-	}
-	invalidDescription := "ext4" + fakeValidDescriptor
-	if InsertPolicyKey(fakeValidPolicyKey, invalidDescription, testUser) == nil {
-		security.RemoveKey(invalidDescription, testUser)
-		t.Error("InsertPolicyKey should fail with bad service")
 	}
 }
 
@@ -507,6 +461,33 @@ func TestUnwrapWrongData(t *testing.T) {
 	}
 	if testFailWithTweak(fakeWrappingKey, data, data.Hmac) == nil {
 		t.Error("changing HMAC should make unwrap fail")
+	}
+}
+
+func TestComputeKeyDescriptorV1(t *testing.T) {
+	descriptor, err := ComputeKeyDescriptor(fakeValidPolicyKey, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != "8290608a029c5aae" {
+		t.Errorf("wrong v1 descriptor: %s", descriptor)
+	}
+}
+
+func TestComputeKeyDescriptorV2(t *testing.T) {
+	descriptor, err := ComputeKeyDescriptor(fakeValidPolicyKey, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if descriptor != "2139f52bf8386ee99845818ac7e91c4a" {
+		t.Errorf("wrong v2 descriptor: %s", descriptor)
+	}
+}
+
+func TestComputeKeyDescriptorBadVersion(t *testing.T) {
+	_, err := ComputeKeyDescriptor(fakeValidPolicyKey, 0)
+	if err == nil {
+		t.Error("computing key descriptor with bad version should fail")
 	}
 }
 

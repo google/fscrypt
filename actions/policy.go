@@ -28,8 +28,8 @@ import (
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
-	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
 
@@ -44,8 +44,8 @@ var (
 )
 
 // PurgeAllPolicies removes all policy keys on the filesystem from the kernel
-// keyring. In order for this removal to have an effect, the filesystem should
-// also be unmounted.
+// keyring. In order for this to fully take effect, the filesystem may also need
+// to be unmounted or caches dropped.
 func PurgeAllPolicies(ctx *Context) error {
 	if err := ctx.checkContext(); err != nil {
 		return err
@@ -56,12 +56,16 @@ func PurgeAllPolicies(ctx *Context) error {
 	}
 
 	for _, policyDescriptor := range policies {
-		service := ctx.getService()
-		err = security.RemoveKey(service+policyDescriptor, ctx.TargetUser)
-
+		err = keyring.RemoveEncryptionKey(policyDescriptor, ctx.getKeyringOptions(), false)
 		switch errors.Cause(err) {
-		case nil, security.ErrKeySearch:
+		case nil, keyring.ErrKeyNotPresent:
 			// We don't care if the key has already been removed
+		case keyring.ErrKeyFilesOpen:
+			log.Printf("Key for policy %s couldn't be fully removed because some files are still in-use",
+				policyDescriptor)
+		case keyring.ErrKeyAddedByOtherUsers:
+			log.Printf("Key for policy %s couldn't be fully removed because other user(s) have added it too",
+				policyDescriptor)
 		default:
 			return err
 		}
@@ -94,11 +98,17 @@ func CreatePolicy(ctx *Context, protector *Protector) (*Policy, error) {
 		return nil, err
 	}
 
+	keyDescriptor, err := crypto.ComputeKeyDescriptor(key, ctx.Config.Options.PolicyVersion)
+	if err != nil {
+		key.Wipe()
+		return nil, err
+	}
+
 	policy := &Policy{
 		Context: ctx,
 		data: &metadata.PolicyData{
 			Options:       ctx.Config.Options,
-			KeyDescriptor: crypto.ComputeDescriptor(key),
+			KeyDescriptor: keyDescriptor,
 		},
 		key:     key,
 		created: true,
@@ -188,15 +198,14 @@ func (policy *Policy) Descriptor() string {
 	return policy.data.KeyDescriptor
 }
 
-// Description returns the description that will be used when the key for this
-// Policy is inserted into the keyring
-func (policy *Policy) Description() string {
-	return policy.Context.getService() + policy.Descriptor()
-}
-
 // Options returns the encryption options of this policy.
 func (policy *Policy) Options() *metadata.EncryptionOptions {
 	return policy.data.Options
+}
+
+// Version returns the version of this policy.
+func (policy *Policy) Version() int64 {
+	return policy.data.Options.PolicyVersion
 }
 
 // Destroy removes a policy from the filesystem. The internal key should still
@@ -374,11 +383,24 @@ func (policy *Policy) Apply(path string) error {
 	return metadata.SetPolicy(path, policy.data)
 }
 
-// IsProvisioned returns a boolean indicating if the policy has its key in the
-// keyring, meaning files and directories using this policy are accessible.
-func (policy *Policy) IsProvisioned() bool {
-	_, err := security.FindKey(policy.Description(), policy.Context.TargetUser)
-	return err == nil
+// GetProvisioningStatus returns the status of this policy's key in the keyring.
+func (policy *Policy) GetProvisioningStatus() keyring.KeyStatus {
+	status, _ := keyring.GetEncryptionKeyStatus(policy.Descriptor(),
+		policy.Context.getKeyringOptions())
+	return status
+}
+
+// IsProvisionedByTargetUser returns true if the policy's key is present in the
+// target kernel keyring, but not if that keyring is a filesystem keyring and
+// the key only been added by users other than Context.TargetUser.
+func (policy *Policy) IsProvisionedByTargetUser() bool {
+	return policy.GetProvisioningStatus() == keyring.KeyPresent
+}
+
+// IsFullyDeprovisioned returns true if the policy has been fully deprovisioned,
+// including by all users and with all files protected by it having been closed.
+func (policy *Policy) IsFullyDeprovisioned() bool {
+	return policy.GetProvisioningStatus() == keyring.KeyAbsent
 }
 
 // Provision inserts the Policy key into the kernel keyring. This allows reading
@@ -387,13 +409,34 @@ func (policy *Policy) Provision() error {
 	if policy.key == nil {
 		return ErrLocked
 	}
-	return crypto.InsertPolicyKey(policy.key, policy.Description(), policy.Context.TargetUser)
+	return keyring.AddEncryptionKey(policy.key, policy.Descriptor(),
+		policy.Context.getKeyringOptions())
 }
 
 // Deprovision removes the Policy key from the kernel keyring. This prevents
-// reading and writing to the directory once the caches are cleared.
-func (policy *Policy) Deprovision() error {
-	return security.RemoveKey(policy.Description(), policy.Context.TargetUser)
+// reading and writing to the directory --- unless the target keyring is a user
+// keyring, in which case caches must be dropped too.
+func (policy *Policy) Deprovision(allUsers bool) error {
+	return keyring.RemoveEncryptionKey(policy.Descriptor(),
+		policy.Context.getKeyringOptions(), allUsers)
+}
+
+// NeedsUserKeyring returns true if Provision and Deprovision for this policy
+// will use a user keyring, not a filesystem keyring.
+func (policy *Policy) NeedsUserKeyring() bool {
+	return policy.Version() == 1 && !policy.Context.Config.GetUseFsKeyringForV1Policies()
+}
+
+// NeedsRootToProvision returns true if Provision and Deprovision will require
+// root for this policy in the current configuration.
+func (policy *Policy) NeedsRootToProvision() bool {
+	return policy.Version() == 1 && policy.Context.Config.GetUseFsKeyringForV1Policies()
+}
+
+// CanBeAppliedWithoutProvisioning returns true if this process can apply this
+// policy to a directory without first calling Provision.
+func (policy *Policy) CanBeAppliedWithoutProvisioning() bool {
+	return policy.Version() == 1 || util.IsUserRoot()
 }
 
 // commitData writes the Policy's current data to the filesystem.

@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
 )
 
@@ -63,6 +64,19 @@ func yesNoString(b bool) string {
 		return "Yes"
 	}
 	return "No"
+}
+
+func policyUnlockedStatus(policy *actions.Policy) string {
+	switch policy.GetProvisioningStatus() {
+	case keyring.KeyPresent, keyring.KeyPresentButOnlyOtherUsers:
+		return "Yes"
+	case keyring.KeyAbsent:
+		return "No"
+	case keyring.KeyAbsentButFilesBusy:
+		return "Partially (incompletely locked)"
+	default:
+		return "Unknown"
+	}
 }
 
 // writeGlobalStatus prints all the filesystems that use (or could use) fscrypt.
@@ -160,7 +174,7 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 			continue
 		}
 
-		fmt.Fprintf(t, "%s\t%s\t%s\n", descriptor, yesNoString(policy.IsProvisioned()),
+		fmt.Fprintf(t, "%s\t%s\t%s\n", descriptor, policyUnlockedStatus(policy),
 			strings.Join(policy.ProtectorDescriptors(), ", "))
 	}
 	return t.Flush()
@@ -180,7 +194,7 @@ func writePathStatus(w io.Writer, path string) error {
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Policy:   %s\n", policy.Descriptor())
 	fmt.Fprintf(w, "Options:  %s\n", policy.Options())
-	fmt.Fprintf(w, "Unlocked: %s\n", yesNoString(policy.IsProvisioned()))
+	fmt.Fprintf(w, "Unlocked: %s\n", policyUnlockedStatus(policy))
 	fmt.Fprintln(w)
 
 	options := policy.ProtectorOptions()

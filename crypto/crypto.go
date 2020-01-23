@@ -28,7 +28,7 @@
 //		- key stretching (SHA256-based HKDF)
 //		- key wrapping/unwrapping (Encrypt then MAC)
 //		- passphrase-based key derivation (Argon2id)
-//		- descriptor computation (double SHA512)
+//		- key descriptor computation (double SHA512, or HKDF-SHA512)
 package crypto
 
 import (
@@ -38,6 +38,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"io"
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/argon2"
@@ -167,7 +168,7 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 		return nil, ErrBadAuth
 	}
 
-	secretKey, err := newBlankKey(len(data.EncryptedKey))
+	secretKey, err := NewBlankKey(len(data.EncryptedKey))
 	if err != nil {
 		return nil, err
 	}
@@ -176,14 +177,40 @@ func Unwrap(wrappingKey *Key, data *metadata.WrappedKeyData) (*Key, error) {
 	return secretKey, nil
 }
 
-// ComputeDescriptor computes the descriptor for a given cryptographic key. In
-// keeping with the process used in e4crypt, this uses the initial bytes
-// (formatted as hexadecimal) of the double application of SHA512 on the key.
-func ComputeDescriptor(key *Key) string {
+func computeKeyDescriptorV1(key *Key) string {
 	h1 := sha512.Sum512(key.data)
 	h2 := sha512.Sum512(h1[:])
-	length := hex.DecodedLen(metadata.DescriptorLen)
+	length := hex.DecodedLen(metadata.PolicyDescriptorLenV1)
 	return hex.EncodeToString(h2[:length])
+}
+
+func computeKeyDescriptorV2(key *Key) (string, error) {
+	// This algorithm is specified by the kernel.  It uses unsalted
+	// HKDF-SHA512, where the application-information string is the prefix
+	// "fscrypt\0" followed by the HKDF_CONTEXT_KEY_IDENTIFIER byte.
+	hkdf := hkdf.New(sha512.New, key.data, nil, []byte("fscrypt\x00\x01"))
+	h := make([]byte, hex.DecodedLen(metadata.PolicyDescriptorLenV2))
+	if _, err := io.ReadFull(hkdf, h); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h), nil
+}
+
+// ComputeKeyDescriptor computes the descriptor for a given cryptographic key.
+// If policyVersion=1, it uses the first 8 bytes of the double application of
+// SHA512 on the key. Use this for protectors and v1 policy keys.
+// If policyVersion=2, it uses HKDF-SHA512 to compute a key identifier that's
+// compatible with the kernel's key identifiers for v2 policy keys.
+// In both cases, the resulting bytes are formatted as hex.
+func ComputeKeyDescriptor(key *Key, policyVersion int64) (string, error) {
+	switch policyVersion {
+	case 1:
+		return computeKeyDescriptorV1(key), nil
+	case 2:
+		return computeKeyDescriptorV2(key)
+	default:
+		return "", errors.Errorf("policy version of %d is invalid", policyVersion)
+	}
 }
 
 // PassphraseHash uses Argon2id to produce a Key given the passphrase, salt, and
@@ -196,7 +223,7 @@ func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) 
 	p := uint8(costs.Parallelism)
 	key := argon2.IDKey(passphrase.data, salt, t, m, p, metadata.InternalKeyLen)
 
-	hash, err := newBlankKey(metadata.InternalKeyLen)
+	hash, err := NewBlankKey(metadata.InternalKeyLen)
 	if err != nil {
 		return nil, err
 	}

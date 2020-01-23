@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
+	"github.com/google/fscrypt/keyring"
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
@@ -134,11 +135,47 @@ func encryptAction(c *cli.Context) error {
 	return nil
 }
 
+// validateKeyringPrereqs ensures we're ready to add, remove, or get the status
+// of the key for the given encryption policy (if policy != nil) or for the
+// current default encryption policy (if policy == nil).
+func validateKeyringPrereqs(ctx *actions.Context, policy *actions.Policy) error {
+	var policyVersion int64
+	if policy == nil {
+		policyVersion = ctx.Config.Options.PolicyVersion
+	} else {
+		policyVersion = policy.Version()
+	}
+	// If it's a v2 policy, we're good to go, since non-root users can
+	// add/remove v2 policy keys directly to/from the filesystem, where they
+	// are usable by the filesystem on behalf of any process.
+	if policyVersion != 1 {
+		return nil
+	}
+	if ctx.Config.GetUseFsKeyringForV1Policies() {
+		// We'll be using the filesystem keyring, but it's a v1
+		// encryption policy so root is required.
+		if !util.IsUserRoot() {
+			return ErrFsKeyringPerm
+		}
+		return nil
+	}
+	// We'll be using the target user's user keyring, so make sure a user
+	// was explicitly specified if the command is being run as root, and
+	// make sure that user's keyring is accessible.
+	if userFlag.Value == "" && util.IsUserRoot() {
+		return ErrSpecifyUser
+	}
+	if _, err := keyring.UserKeyringID(ctx.TargetUser, true); err != nil {
+		return err
+	}
+	return nil
+}
+
 // encryptPath sets up encryption on path and provisions the policy to the
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
 // metadata creation is reverted, and the directory is unmodified.
 func encryptPath(path string) (err error) {
-	targetUser, err := parseUserFlag(!skipUnlockFlag.Value)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return
 	}
@@ -154,9 +191,23 @@ func encryptPath(path string) (err error) {
 	if policyFlag.Value != "" {
 		log.Printf("getting policy for %q", path)
 
-		policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser)
+		if policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser); err != nil {
+			return
+		}
+
+		if !skipUnlockFlag.Value {
+			if err = validateKeyringPrereqs(ctx, policy); err != nil {
+				return
+			}
+		}
 	} else {
 		log.Printf("creating policy for %q", path)
+
+		if !skipUnlockFlag.Value {
+			if err = validateKeyringPrereqs(ctx, nil); err != nil {
+				return
+			}
+		}
 
 		protector, created, protErr := selectOrCreateProtector(ctx)
 		// Successfully created protector should be reverted on failure.
@@ -173,27 +224,31 @@ func encryptPath(path string) (err error) {
 		if err = protector.Unlock(existingKeyFn); err != nil {
 			return
 		}
-		policy, err = actions.CreatePolicy(ctx, protector)
+		if policy, err = actions.CreatePolicy(ctx, protector); err != nil {
+			return
+		}
 	}
 	// Successfully created policy should be reverted on failure.
-	if err != nil {
-		return
-	}
 	defer func() {
 		policy.Lock()
 		if err != nil {
-			policy.Deprovision()
+			policy.Deprovision(false)
 			policy.Revert()
 		}
 	}()
 
-	// Unlock() first, so if the Unlock() fails the directory isn't changed.
-	if !skipUnlockFlag.Value {
+	// Unlock() and Provision() first, so if that if these fail the
+	// directory isn't changed, and also because v2 policies can't be
+	// applied while deprovisioned unless the process is running as root.
+	if !skipUnlockFlag.Value || !policy.CanBeAppliedWithoutProvisioning() {
 		if err = policy.Unlock(optionFn, existingKeyFn); err != nil {
 			return
 		}
 		if err = policy.Provision(); err != nil {
 			return
+		}
+		if skipUnlockFlag.Value {
+			defer policy.Deprovision(false)
 		}
 	}
 	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
@@ -281,8 +336,8 @@ var Unlock = cli.Command{
 		appropriate key into the keyring. This requires unlocking one of
 		the protectors protecting this directory (either by selecting a
 		protector or specifying one with %s). This directory will be
-		locked again upon reboot, or after running "fscrypt purge" and
-		unmounting the corresponding filesystem.`, directoryArg,
+		locked again upon reboot, or after running "fscrypt lock" or
+		"fscrypt purge".`, directoryArg,
 		shortDisplay(unlockWithFlag)),
 	Flags:  []cli.Flag{unlockWithFlag, keyFileFlag, userFlag},
 	Action: unlockAction,
@@ -293,7 +348,7 @@ func unlockAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	targetUser, err := parseUserFlag(true)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
@@ -309,9 +364,14 @@ func unlockAction(c *cli.Context) error {
 	if err != nil {
 		return newExitError(c, err)
 	}
+	// Ensure the keyring is ready.
+	if err = validateKeyringPrereqs(ctx, policy); err != nil {
+		return newExitError(c, err)
+	}
 	// Check if directory is already unlocked
-	if policy.IsProvisioned() {
-		log.Printf("policy %s is already provisioned", policy.Descriptor())
+	if policy.IsProvisionedByTargetUser() {
+		log.Printf("policy %s is already provisioned by %v",
+			policy.Descriptor(), ctx.TargetUser.Username)
 		return newExitError(c, errors.Wrapf(ErrPolicyUnlocked, path))
 	}
 
@@ -325,6 +385,97 @@ func unlockAction(c *cli.Context) error {
 	}
 
 	fmt.Fprintf(c.App.Writer, "%q is now unlocked and ready for use.\n", path)
+	return nil
+}
+
+func dropCachesIfRequested(c *cli.Context, ctx *actions.Context) error {
+	if dropCachesFlag.Value {
+		if err := security.DropFilesystemCache(); err != nil {
+			return err
+		}
+		fmt.Fprintf(c.App.Writer, "Encrypted data removed from filesystem cache.\n")
+	} else {
+		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	}
+	return nil
+}
+
+// Lock takes an encrypted directory and locks it, undoing Unlock.
+var Lock = cli.Command{
+	Name:      "lock",
+	ArgsUsage: directoryArg,
+	Usage:     "lock an encrypted directory",
+	Description: fmt.Sprintf(`This command takes %s, an encrypted directory
+		which has been unlocked by fscrypt, and locks the directory by
+		removing the encryption key from the kernel. I.e., it undoes the
+		effect of 'fscrypt unlock'.
+
+		For this to be effective, all files in the directory must first
+		be closed.
+
+		If the directory uses a v1 encryption policy, then the %s=true
+		option may be needed to properly lock it. Root is required for
+		this.
+
+		If the directory uses a v2 encryption policy, then a non-root
+		user can lock it, but only if it's the same user who unlocked it
+		originally and if no other users have unlocked it too.
+
+		WARNING: even after the key has been removed, decrypted data may
+		still be present in freed memory, where it may still be
+		recoverable by an attacker who compromises system memory. To be
+		fully safe, you must reboot with a power cycle.`,
+		directoryArg, shortDisplay(dropCachesFlag)),
+	Flags:  []cli.Flag{dropCachesFlag, userFlag, allUsersFlag},
+	Action: lockAction,
+}
+
+func lockAction(c *cli.Context) error {
+	if c.NArg() != 1 {
+		return expectedArgsErr(c, 1, false)
+	}
+
+	targetUser, err := parseUserFlag()
+	if err != nil {
+		return newExitError(c, err)
+	}
+	path := c.Args().Get(0)
+	ctx, err := actions.NewContextFromPath(path, targetUser)
+	if err != nil {
+		return newExitError(c, err)
+	}
+
+	log.Printf("performing sanity checks")
+	// Ensure path is encrypted and filesystem is using fscrypt.
+	policy, err := actions.GetPolicyFromPath(ctx, path)
+	if err != nil {
+		return newExitError(c, err)
+	}
+	// Ensure the keyring is ready.
+	if err = validateKeyringPrereqs(ctx, policy); err != nil {
+		return newExitError(c, err)
+	}
+	// Check if directory is already locked
+	if policy.IsFullyDeprovisioned() {
+		log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
+		return newExitError(c, errors.Wrapf(ErrPolicyLocked, path))
+	}
+	// Check for permission to drop caches, if it will be needed.
+	if policy.NeedsUserKeyring() && dropCachesFlag.Value && !util.IsUserRoot() {
+		return newExitError(c, ErrDropCachesPerm)
+	}
+
+	if err = policy.Deprovision(allUsersFlag.Value); err != nil {
+		return newExitError(c, err)
+	}
+
+	if policy.NeedsUserKeyring() {
+		if err = dropCachesIfRequested(c, ctx); err != nil {
+			return newExitError(c, err)
+		}
+	}
+
+	fmt.Fprintf(c.App.Writer, "%q is now locked.\n", path)
 	return nil
 }
 
@@ -377,13 +528,16 @@ func purgeAction(c *cli.Context) error {
 		}
 	}
 
-	targetUser, err := parseUserFlag(true)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
 	mountpoint := c.Args().Get(0)
 	ctx, err := actions.NewContextFromMountpoint(mountpoint, targetUser)
 	if err != nil {
+		return newExitError(c, err)
+	}
+	if err = validateKeyringPrereqs(ctx, nil); err != nil {
 		return newExitError(c, err)
 	}
 
@@ -401,13 +555,8 @@ func purgeAction(c *cli.Context) error {
 	}
 	fmt.Fprintf(c.App.Writer, "Policies purged for %q.\n", ctx.Mount.Path)
 
-	if dropCachesFlag.Value {
-		if err = security.DropFilesystemCache(); err != nil {
-			return newExitError(c, err)
-		}
-		fmt.Fprintf(c.App.Writer, "Encrypted data removed from filesystem cache.\n")
-	} else {
-		fmt.Fprintf(c.App.Writer, "Filesystem %q should now be unmounted.\n", ctx.Mount.Path)
+	if err = dropCachesIfRequested(c, ctx); err != nil {
+		return newExitError(c, err)
 	}
 	return nil
 }
@@ -527,7 +676,7 @@ func createProtectorAction(c *cli.Context) error {
 		return expectedArgsErr(c, 1, false)
 	}
 
-	targetUser, err := parseUserFlag(false)
+	targetUser, err := parseUserFlag()
 	if err != nil {
 		return newExitError(c, err)
 	}
