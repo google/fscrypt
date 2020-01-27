@@ -169,12 +169,12 @@ func getErrorSuggestions(err error) string {
 }
 
 // newExitError creates a new error for a given context and normal error. The
-// returned error prepends the name of the relevant command and will make
-// fscrypt return a non-zero exit value.
+// returned error prepends an error tag and the name of the relevant command,
+// and it will make fscrypt return a non-zero exit value.
 func newExitError(c *cli.Context, err error) error {
-	// Prepend the full name and append suggestions (if any)
-	fullNamePrefix := getFullName(c) + ": "
-	message := fullNamePrefix + wrapText(err.Error(), utf8.RuneCountInString(fullNamePrefix))
+	// Prepend the error tag and full name, and append suggestions (if any)
+	prefix := "[ERROR] " + getFullName(c) + ": "
+	message := prefix + wrapText(err.Error(), utf8.RuneCountInString(prefix))
 
 	if suggestion := getErrorSuggestions(err); suggestion != "" {
 		message += "\n\n" + wrapText(suggestion, 0)
