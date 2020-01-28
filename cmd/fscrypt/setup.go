@@ -35,7 +35,7 @@ func createGlobalConfig(w io.Writer, path string) error {
 		return ErrMustBeRoot
 	}
 
-	// Ask to create or replace the config file
+	// If the config file already exists, ask to replace it
 	_, err := os.Stat(path)
 	switch {
 	case err == nil:
@@ -44,7 +44,7 @@ func createGlobalConfig(w io.Writer, path string) error {
 			err = os.Remove(path)
 		}
 	case os.IsNotExist(err):
-		err = askConfirmation(fmt.Sprintf("Create %q?", path), true, "")
+		err = nil
 	}
 	if err != nil {
 		return err

@@ -339,7 +339,6 @@ MOUNTPOINT  DEVICE     FILESYSTEM  ENCRYPTION   FSCRYPT
 
 # Create the global configuration file. Nothing else necessarily needs root.
 >>>>> sudo fscrypt setup
-Create "/etc/fscrypt.conf"? [Y/n] y
 Customizing passphrase hashing difficulty for this system...
 Created global config file at "/etc/fscrypt.conf".
 Metadata directories created at "/.fscrypt".
