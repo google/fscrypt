@@ -26,7 +26,18 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/metadata"
 )
+
+// modifiedContextWithSource returns a copy of ctx with the protector source
+// replaced by source.
+func modifiedContextWithSource(ctx *Context, source metadata.SourceType) *Context {
+	modifiedConfig := *ctx.Config
+	modifiedConfig.Source = source
+	modifiedCtx := *ctx
+	modifiedCtx.Config = &modifiedConfig
+	return &modifiedCtx
+}
 
 // AddRecoveryPassphrase randomly generates a recovery passphrase and adds it as
 // a custom_passphrase protector for the given Policy.
@@ -49,6 +60,7 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 		return passphrase.Clone()
 	}
 	var recoveryProtector *Protector
+	customCtx := modifiedContextWithSource(policy.Context, metadata.SourceType_custom_passphrase)
 	seq := 1
 	for {
 		// Automatically generate a name for the recovery protector.
@@ -56,7 +68,7 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 		if seq != 1 {
 			name += " (" + strconv.Itoa(seq) + ")"
 		}
-		recoveryProtector, err = CreateProtector(policy.Context, name, getPassphraseFn)
+		recoveryProtector, err = CreateProtector(customCtx, name, getPassphraseFn)
 		if err == nil {
 			break
 		}
