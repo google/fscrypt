@@ -315,7 +315,7 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 	// to it on the policy's filesystem.
 	if policy.Context.Mount != protector.Context.Mount {
 		log.Printf("policy on %s\n protector on %s\n", policy.Context.Mount, protector.Context.Mount)
-		err := policy.Context.Mount.AddLinkedProtector(
+		_, err := policy.Context.Mount.AddLinkedProtector(
 			protector.Descriptor(), protector.Context.Mount)
 		if err != nil {
 			return err

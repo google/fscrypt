@@ -351,8 +351,18 @@ func TestLinkedProtector(t *testing.T) {
 	}
 
 	// Add the link to the second filesystem
-	if err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt); err != nil {
+	var isNewLink bool
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt); err != nil {
 		t.Fatal(err)
+	}
+	if !isNewLink {
+		t.Fatal("Link was not new")
+	}
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt); err != nil {
+		t.Fatal(err)
+	}
+	if isNewLink {
+		t.Fatal("Link was new")
 	}
 
 	// Get the protector though the second system
