@@ -105,7 +105,7 @@ var Encrypt = cli.Command{
 		immediately be used.`, directoryArg, shortDisplay(policyFlag),
 		shortDisplay(protectorFlag), mountpointArg),
 	Flags: []cli.Flag{policyFlag, unlockWithFlag, protectorFlag, sourceFlag,
-		userFlag, nameFlag, keyFileFlag, skipUnlockFlag},
+		userFlag, nameFlag, keyFileFlag, skipUnlockFlag, noRecoveryFlag},
 	Action: encryptAction,
 }
 
@@ -239,13 +239,16 @@ func encryptPath(path string) (err error) {
 			}
 		}()
 
-		// Automatically generate a recovery passphrase if the protector
-		// is on a different filesystem from the policy.  In practice,
-		// this happens for login passphrase-protected directories that
+		// Ask to generate a recovery passphrase if the protector is on
+		// a different filesystem from the policy.  In practice, this
+		// happens for login passphrase-protected directories that
 		// aren't on the root filesystem, since login protectors are
 		// always stored on the root filesystem.
-		if ctx.Mount != protector.Context.Mount {
-			fmt.Printf("Generating recovery passphrase because protector is on a different filesystem.\n")
+		var needRecovery bool
+		if ctx.Mount != protector.Context.Mount && !noRecoveryFlag.Value {
+			needRecovery, err = askQuestion("Protector is on a different filesystem! Generate a recovery passphrase (recommended)?", true)
+		}
+		if needRecovery {
 			var recoveryProtector *actions.Protector
 			if recoveryPassphrase, recoveryProtector, err = actions.AddRecoveryPassphrase(
 				policy, filepath.Base(path)); err != nil {
