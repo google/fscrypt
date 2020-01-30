@@ -116,7 +116,7 @@ var (
 	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
 		forceFlag, legacyFlag, skipUnlockFlag, timeTargetFlag,
 		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
-		unlockWithFlag, policyFlag, allUsersFlag}
+		unlockWithFlag, policyFlag, allUsersFlag, noRecoveryFlag}
 	// universalFlags contains flags that should be on every command
 	universalFlags = []cli.Flag{verboseFlag, quietFlag, helpFlag}
 )
@@ -177,6 +177,10 @@ var (
 			necessary if the directory was unlocked by a user
 			different from the one you're locking it as. This flag
 			is only implemented for v2 encryption policies.`,
+	}
+	noRecoveryFlag = &boolFlag{
+		Name:  "no-recovery",
+		Usage: `Don't ask to generate a recovery passphrase.`,
 	}
 )
 
