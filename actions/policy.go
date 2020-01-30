@@ -79,10 +79,11 @@ func PurgeAllPolicies(ctx *Context) error {
 // allow encrypted files to be accessed). As with the key struct, a Policy
 // should be wiped after use.
 type Policy struct {
-	Context *Context
-	data    *metadata.PolicyData
-	key     *crypto.Key
-	created bool
+	Context             *Context
+	data                *metadata.PolicyData
+	key                 *crypto.Key
+	created             bool
+	newLinkedProtectors []string
 }
 
 // CreatePolicy creates a Policy protected by given Protector and stores the
@@ -208,9 +209,13 @@ func (policy *Policy) Version() int64 {
 	return policy.data.Options.PolicyVersion
 }
 
-// Destroy removes a policy from the filesystem. The internal key should still
-// be wiped with Lock().
+// Destroy removes a policy from the filesystem. It also removes any new
+// protector links that were created for the policy. This does *not* wipe the
+// policy's internal key from memory; use Lock() to do that.
 func (policy *Policy) Destroy() error {
+	for _, protectorDescriptor := range policy.newLinkedProtectors {
+		policy.Context.Mount.RemoveProtector(protectorDescriptor)
+	}
 	return policy.Context.Mount.RemovePolicy(policy.Descriptor())
 }
 
@@ -315,10 +320,14 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 	// to it on the policy's filesystem.
 	if policy.Context.Mount != protector.Context.Mount {
 		log.Printf("policy on %s\n protector on %s\n", policy.Context.Mount, protector.Context.Mount)
-		err := policy.Context.Mount.AddLinkedProtector(
+		isNewLink, err := policy.Context.Mount.AddLinkedProtector(
 			protector.Descriptor(), protector.Context.Mount)
 		if err != nil {
 			return err
+		}
+		if isNewLink {
+			policy.newLinkedProtectors = append(policy.newLinkedProtectors,
+				protector.Descriptor())
 		}
 	} else {
 		log.Printf("policy and protector both on %q", policy.Context.Mount)

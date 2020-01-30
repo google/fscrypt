@@ -393,24 +393,43 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 }
 
 // AddLinkedProtector adds a link in this filesystem to the protector metadata
-// in the dest filesystem.
-func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) error {
+// in the dest filesystem, if one doesn't already exist.  On success, the return
+// value is a nil error and a bool that is true iff the link is newly created.
+func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error) {
 	if err := m.CheckSetup(); err != nil {
-		return err
+		return false, err
 	}
 	// Check that the link is good (descriptor exists, filesystem has UUID).
 	if _, err := dest.GetRegularProtector(descriptor); err != nil {
-		return err
+		return false, err
+	}
+
+	linkPath := m.linkedProtectorPath(descriptor)
+
+	// Check whether the link already exists.
+	existingLink, err := ioutil.ReadFile(linkPath)
+	if err == nil {
+		existingLinkedMnt, err := getMountFromLink(string(existingLink))
+		if err != nil {
+			return false, err
+		}
+		if existingLinkedMnt != dest {
+			return false, errors.Wrapf(ErrFollowLink, "link %q points to %q, but expected %q",
+				linkPath, existingLinkedMnt.Path, dest.Path)
+		}
+		return false, nil
+	}
+	if !os.IsNotExist(err) {
+		return false, err
 	}
 
 	// Right now, we only make links using UUIDs.
-	link, err := makeLink(dest, "UUID")
+	var newLink string
+	newLink, err = makeLink(dest, "UUID")
 	if err != nil {
-		return dest.err(err)
+		return false, dest.err(err)
 	}
-
-	path := m.linkedProtectorPath(descriptor)
-	return m.err(m.writeDataAtomic(path, []byte(link)))
+	return true, m.err(m.writeDataAtomic(linkPath, []byte(newLink)))
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will

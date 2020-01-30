@@ -78,6 +78,7 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 		seq++
 	}
 	if err := policy.AddProtector(recoveryProtector); err != nil {
+		recoveryProtector.Revert()
 		return nil, nil, err
 	}
 	return passphrase, recoveryProtector, nil

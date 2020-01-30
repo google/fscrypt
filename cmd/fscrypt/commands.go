@@ -197,6 +197,7 @@ func encryptPath(path string) (err error) {
 		if policy, err = getPolicyFromFlag(policyFlag.Value, ctx.TargetUser); err != nil {
 			return
 		}
+		defer policy.Lock()
 
 		if !skipUnlockFlag.Value {
 			if err = validateKeyringPrereqs(ctx, policy); err != nil {
@@ -213,12 +214,12 @@ func encryptPath(path string) (err error) {
 		}
 
 		protector, created, protErr := selectOrCreateProtector(ctx)
-		// Successfully created protector should be reverted on failure.
 		if protErr != nil {
 			return protErr
 		}
 		defer func() {
 			protector.Lock()
+			// Successfully created protector should be reverted on failure.
 			if err != nil && created {
 				protector.Revert()
 			}
@@ -230,6 +231,14 @@ func encryptPath(path string) (err error) {
 		if policy, err = actions.CreatePolicy(ctx, protector); err != nil {
 			return
 		}
+		defer func() {
+			policy.Lock()
+			// Successfully created policy should be reverted on failure.
+			if err != nil {
+				policy.Revert()
+			}
+		}()
+
 		// Automatically generate a recovery passphrase if the protector
 		// is on a different filesystem from the policy.  In practice,
 		// this happens for login passphrase-protected directories that
@@ -237,21 +246,21 @@ func encryptPath(path string) (err error) {
 		// always stored on the root filesystem.
 		if ctx.Mount != protector.Context.Mount {
 			fmt.Printf("Generating recovery passphrase because protector is on a different filesystem.\n")
-			if recoveryPassphrase, _, err = actions.AddRecoveryPassphrase(
+			var recoveryProtector *actions.Protector
+			if recoveryPassphrase, recoveryProtector, err = actions.AddRecoveryPassphrase(
 				policy, filepath.Base(path)); err != nil {
 				return
 			}
-			defer recoveryPassphrase.Wipe()
+			defer func() {
+				recoveryPassphrase.Wipe()
+				recoveryProtector.Lock()
+				// Successfully created protector should be reverted on failure.
+				if err != nil {
+					recoveryProtector.Revert()
+				}
+			}()
 		}
 	}
-	// Successfully created policy should be reverted on failure.
-	defer func() {
-		policy.Lock()
-		if err != nil {
-			policy.Deprovision(false)
-			policy.Revert()
-		}
-	}()
 
 	// Unlock() and Provision() first, so if that if these fail the
 	// directory isn't changed, and also because v2 policies can't be
@@ -263,9 +272,11 @@ func encryptPath(path string) (err error) {
 		if err = policy.Provision(); err != nil {
 			return
 		}
-		if skipUnlockFlag.Value {
-			defer policy.Deprovision(false)
-		}
+		defer func() {
+			if err != nil || skipUnlockFlag.Value {
+				policy.Deprovision(false)
+			}
+		}()
 	}
 	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
 		// EACCES at this point indicates ownership issues.
