@@ -67,7 +67,7 @@ jobs:
       deploy:
         - provider: releases
           api_key:
-            secure: aq1sQacqogyjSaf8WJxorVEnXXe1TRz2gl6eoTDuMZVD7fyBV2cgyKgSX3kVt4DZlBTQWlagQQqEluOp6brSQVt2AzLLGPVtUN286M6dN8tSSenn3qDRS5UYyUIhg8KvtqOD6ItFlibCA+7t5B+j4KCCgAKBkDSORJoS180hUbsC6lOx/F/yhjMUTBq96NloIrk7N33JdOjQfeRKiEXZcbRsntzwJlmUjdGLxjIDI409Dx/oDh2rqXz/sJ98ljXebKa28ObyQW9f2UsIBGyFBOnUMK47neJqve/pjGWp1p8pyIGM9rsy+kAQ9htRARcYbBTwTavOCXRehMS+muqttI66G69teHkNfo/dSp52esmNi0p7SQJOydHFJ3gy9alYH4MHGCHnrRdcKnGPyAk3KcsCMxFehPx3pHMShrxh+x9tQz87G1FZlNpyiZiq5fHtb7IDV8l+0XaJKrNhCDvrBwNh8w7iQsAXapmk2Hn8UGTAWbKxCL1l4afB5LA6IGNISmEMuylhnaFZU2WvFzdO7iKY43TePaZJbmMtvovkOVuOWEqxgrkLMXsYrgx0bSV2UCVXJG3XEeJtQluwQgeEYeH6d9VR/chcQ4Qii99IzwbFk2iAk3RN3N94JWT+ubRhJUISOvZ8Z9OMSUBi517mxNgE1HxYa5AadiMQlKVUbDE=
+            secure: BOmjKf9vIb9QwlhDTK09St+Wc9AfMBMBsUnCrjVCvvWwZoYWNIigXheTc5ZqgokqWcDEr3NbytOfKxc5RFxlTMaQoyyC/nABuLxpGocjEkHFQqrYGKfH1swRmvlQndjJr660hqCggPHIw1B2oXE/PD9wLmyno2J70Vp6slTjSbHq1WFHEwtSf6Vm6SMetIWY5Mv/fNIPXJ781Wmx2b1PhWA7HOPoIcMXRwew5aBY7vMIS6P2cDt11Of2kTdWKPpf6SLE6bETgsvJZDpWxb7WWJ0/6NUXtT7q3wkhfgqr3fFZazjInMaWT8VVadiV+gPRyELBYSDsGW8zkBe4NEO45eMOtF3z/1SpYhSFIfK0hGFp0Tt7U4x+dYNBLBZdcd6ZBQug+UYkHPBszmbhyTR9xv6+d4+8ZINsRhoCTXuYuyljuiukUegara8OS5kauAZadUbLeniUEqXal6GjbT//Gq/NidAlXE0U7G69aAlTC2l9PXUdvO1iOFGhkw2aGX5JEoFkRG+mCxqMRIRqDp6qYrvjgELbYabmRrk8zJ/+4ImNkyYoByvcKWP+ULoZlE/8iirZBSV+/z5BAXXaHkg4tmrY/rSejvuSeO122w3roAHPYFZeqhdLDrR0+HrVXtirLK03jU0SM1IOArB4oCOuGuPJndlt7lfVG2Toqvr9ScQ=
           file:
             - bin/fscrypt
             - bin/pam_fscrypt.so
