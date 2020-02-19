@@ -24,7 +24,8 @@ PAM_NAME := pam_$(NAME)
 #
 # BIN: The locaton where binaries will be built.    Default: ./bin
 # INSTALL: The tool used to install binaries.       Default: sudo install
-# DESTDIR: The location for the fscrypt binary.     Default: /usr/local/bin
+# DESTDIR: Prefix for all install paths             Default: ""
+# BINDIR: The location for the fscrypt binary.      Default: /usr/local/bin
 # PAM_MODULE_DIR: The location for pam_fscrypt.so.  Default: /lib/security
 #
 # MOUNT: The filesystem where our tests are run.    Default: /mnt/fscrypt_mount
@@ -148,11 +149,11 @@ coverage.out: $(BIN)/gocovmerge $(COVERAGE_FILES)
 install: install-bin install-pam
 
 PREFIX := /usr/local
-DESTDIR := $(PREFIX)/bin
+BINDIR := $(PREFIX)/bin
 
 install-bin: $(BIN)/$(NAME)
-	install -d $(DESTDIR)
-	install $< $(DESTDIR)
+	install -d $(DESTDIR)/$(BINDIR)
+	install $< $(DESTDIR)/$(BINDIR)
 
 PAM_MODULE_DIR := $(PREFIX)/lib/security
 PAM_INSTALL_PATH := $(PAM_MODULE_DIR)/$(PAM_NAME).so
@@ -160,15 +161,15 @@ PAM_CONFIG := $(BIN)/config
 PAM_CONFIG_DIR := $(PREFIX)/share/pam-configs
 
 install-pam: $(PAM_MODULE)
-	install -d $(PAM_MODULE_DIR)
-	install $(PAM_MODULE) $(PAM_MODULE_DIR)
+	install -d $(DESTDIR)/$(PAM_MODULE_DIR)
+	install $(PAM_MODULE) $(DESTDIR)/$(PAM_MODULE_DIR)
 
 	m4 --define=PAM_INSTALL_PATH=$(PAM_INSTALL_PATH) < $(PAM_NAME)/config > $(PAM_CONFIG)
-	install -d $(PAM_CONFIG_DIR)
-	install $(PAM_CONFIG) $(PAM_CONFIG_DIR)/$(NAME)
+	install -d $(DESTDIR)/$(PAM_CONFIG_DIR)
+	install $(PAM_CONFIG) $(DESTDIR)/$(PAM_CONFIG_DIR)/$(NAME)
 
 uninstall:
-	rm -f $(DESTDIR)/$(NAME) $(PAM_INSTALL_PATH) $(PAM_CONFIG_DIR)/$(NAME)
+	rm -f $(DESTDIR)/$(BINDIR)/$(NAME) $(DESTDIR)/$(PAM_INSTALL_PATH) $(DESTDIR)/$(PAM_CONFIG_DIR)/$(NAME)
 
 #### Tool Building Commands ####
 TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
