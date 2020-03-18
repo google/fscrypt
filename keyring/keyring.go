@@ -75,11 +75,11 @@ func shouldUseFsKeyring(descriptor string, options *Options) (bool, error) {
 	// use_fs_keyring_for_v1_policies is set in /etc/fscrypt.conf and the
 	// kernel supports it.
 	if len(descriptor) == hex.EncodedLen(unix.FSCRYPT_KEY_DESCRIPTOR_SIZE) {
-		return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount), nil
+		return options.UseFsKeyringForV1Policies && IsFsKeyringSupported(options.Mount), nil
 	}
 	// For v2 encryption policy keys, always use the filesystem keyring; the
 	// kernel doesn't support any other way.
-	if !isFsKeyringSupported(options.Mount) {
+	if !IsFsKeyringSupported(options.Mount) {
 		return true, ErrV2PoliciesUnsupported
 	}
 	return true, nil

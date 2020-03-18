@@ -81,7 +81,7 @@ func getTestMount(t *testing.T) *filesystem.Mount {
 // filesystem keyring and v2 encryption policies are supported.
 func getTestMountV2(t *testing.T) *filesystem.Mount {
 	mount := getTestMount(t)
-	if !isFsKeyringSupported(mount) {
+	if !IsFsKeyringSupported(mount) {
 		t.Skip("No support for fs keyring, skipping test.")
 	}
 	return mount

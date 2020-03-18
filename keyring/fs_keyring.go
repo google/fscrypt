@@ -79,10 +79,10 @@ func checkForFsKeyringSupport(mount *filesystem.Mount) bool {
 	return true
 }
 
-// isFsKeyringSupported returns true if the kernel supports the ioctls to
+// IsFsKeyringSupported returns true if the kernel supports the ioctls to
 // add/remove fscrypt keys directly to/from the filesystem.  For support to be
 // detected, the given Mount must be for a filesystem that supports fscrypt.
-func isFsKeyringSupported(mount *filesystem.Mount) bool {
+func IsFsKeyringSupported(mount *filesystem.Mount) bool {
 	fsKeyringSupportedLock.Lock()
 	defer fsKeyringSupportedLock.Unlock()
 	if !fsKeyringSupportedKnown {

@@ -20,6 +20,8 @@ package filesystem
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -50,5 +52,30 @@ func TestDeviceNumber(t *testing.T) {
 	num2, err = newDeviceNumberFromString("foo")
 	if num2 != 0 || err == nil {
 		t.Error("Should have failed to parse invalid device number")
+	}
+}
+
+func TestHaveReadAccessTo(t *testing.T) {
+	file, err := ioutil.TempFile("", "fscrypt_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	defer os.Remove(file.Name())
+
+	testCases := map[os.FileMode]bool{
+		0444: true,
+		0400: true,
+		0000: false,
+		0040: false, // user bits take priority in Linux
+		0004: false, // user bits take priority in Linux
+	}
+	for mode, readable := range testCases {
+		if err := os.Chmod(file.Name(), mode); err != nil {
+			t.Error(err)
+		}
+		if HaveReadAccessTo(file.Name()) != readable {
+			t.Errorf("Expected readable=%v on mode=0%03o", readable, mode)
+		}
 	}
 }
