@@ -43,15 +43,16 @@ import (
 
 // Keyring error values
 var (
-	ErrKeyAdd               = util.SystemError("could not add key to the keyring")
-	ErrKeyRemove            = util.SystemError("could not remove key from the keyring")
-	ErrKeyNotPresent        = errors.New("key not present or already removed")
-	ErrKeyFilesOpen         = errors.New("some files using the key are still open")
-	ErrKeyAddedByOtherUsers = errors.New("other users have added the key too")
-	ErrKeySearch            = errors.New("could not find key with descriptor")
-	ErrSessionUserKeying    = errors.New("user keyring not linked into session keyring")
-	ErrAccessUserKeyring    = errors.New("could not access user keyring")
-	ErrLinkUserKeyring      = util.SystemError("could not link user keyring into root keyring")
+	ErrKeyAdd                = util.SystemError("could not add key to the keyring")
+	ErrKeyRemove             = util.SystemError("could not remove key from the keyring")
+	ErrKeyNotPresent         = errors.New("key not present or already removed")
+	ErrKeyFilesOpen          = errors.New("some files using the key are still open")
+	ErrKeyAddedByOtherUsers  = errors.New("other users have added the key too")
+	ErrKeySearch             = errors.New("could not find key with descriptor")
+	ErrSessionUserKeying     = errors.New("user keyring not linked into session keyring")
+	ErrAccessUserKeyring     = errors.New("could not access user keyring")
+	ErrLinkUserKeyring       = util.SystemError("could not link user keyring into root keyring")
+	ErrV2PoliciesUnsupported = errors.New("kernel is too old to support v2 encryption policies")
 )
 
 // Options are the options which specify *which* keyring the key should be
@@ -69,16 +70,19 @@ type Options struct {
 	UseFsKeyringForV1Policies bool
 }
 
-func shouldUseFsKeyring(descriptor string, options *Options) bool {
+func shouldUseFsKeyring(descriptor string, options *Options) (bool, error) {
 	// For v1 encryption policy keys, use the filesystem keyring if
 	// use_fs_keyring_for_v1_policies is set in /etc/fscrypt.conf and the
 	// kernel supports it.
 	if len(descriptor) == hex.EncodedLen(unix.FSCRYPT_KEY_DESCRIPTOR_SIZE) {
-		return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount)
+		return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount), nil
 	}
 	// For v2 encryption policy keys, always use the filesystem keyring; the
 	// kernel doesn't support any other way.
-	return true
+	if !isFsKeyringSupported(options.Mount) {
+		return true, ErrV2PoliciesUnsupported
+	}
+	return true, nil
 }
 
 // buildKeyDescription builds the description for an fscrypt key of type
@@ -101,7 +105,11 @@ func AddEncryptionKey(key *crypto.Key, descriptor string, options *Options) erro
 	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
 		return errors.Wrap(err, "policy key")
 	}
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return err
+	}
+	if useFsKeyring {
 		return fsAddEncryptionKey(key, descriptor, options.Mount, options.User)
 	}
 	return userAddKey(key, buildKeyDescription(options, descriptor), options.User)
@@ -111,7 +119,11 @@ func AddEncryptionKey(key *crypto.Key, descriptor string, options *Options) erro
 // It uses either the filesystem keyring for the target Mount or the user
 // keyring for the target User.
 func RemoveEncryptionKey(descriptor string, options *Options, allUsers bool) error {
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return err
+	}
+	if useFsKeyring {
 		user := options.User
 		if allUsers {
 			user = nil
@@ -154,10 +166,14 @@ func (status KeyStatus) String() string {
 // kernel keyring.  It uses either the filesystem keyring for the target Mount
 // or the user keyring for the target User.
 func GetEncryptionKeyStatus(descriptor string, options *Options) (KeyStatus, error) {
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return KeyStatusUnknown, err
+	}
+	if useFsKeyring {
 		return fsGetEncryptionKeyStatus(descriptor, options.Mount, options.User)
 	}
-	_, err := userFindKey(buildKeyDescription(options, descriptor), options.User)
+	_, err = userFindKey(buildKeyDescription(options, descriptor), options.User)
 	if err != nil {
 		return KeyAbsent, nil
 	}

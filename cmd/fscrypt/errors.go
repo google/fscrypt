@@ -113,6 +113,10 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
 			shortDisplay(userFlag))
+	case keyring.ErrV2PoliciesUnsupported:
+		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
+		version 5.4 and later. Either use a newer kernel, or change
+		policy_version to 1 in %s.`, actions.ConfigFileLocation)
 	case actions.ErrBadConfigFile:
 		return `Run "sudo fscrypt setup" to recreate the file.`
 	case actions.ErrNoConfigFile:
