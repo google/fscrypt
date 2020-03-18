@@ -50,8 +50,22 @@ func createGlobalConfig(w io.Writer, path string) error {
 		return err
 	}
 
+	// v2 encryption policies are recommended, so set policy_version 2 when
+	// the kernel supports it. v2 policies are supported by upstream Linux
+	// v5.4 and later. For now we simply check the kernel version. Ideally
+	// we'd instead check whether setting a v2 policy actually works, in
+	// order to also detect backports of the kernel patches. However, that's
+	// hard because from this context (creating /etc/fscrypt.conf) we may
+	// not yet have access to a filesystem that supports encryption.
+	var policyVersion int64
+	if util.IsKernelVersionAtLeast(5, 4) {
+		fmt.Fprintln(w, "Defaulting to policy_version 2 because kernel supports it.")
+		policyVersion = 2
+	} else {
+		fmt.Fprintln(w, "Defaulting to policy_version 1 because kernel doesn't support v2.")
+	}
 	fmt.Fprintln(w, "Customizing passphrase hashing difficulty for this system...")
-	err = actions.CreateConfigFile(timeTargetFlag.Value)
+	err = actions.CreateConfigFile(timeTargetFlag.Value, policyVersion)
 	if err != nil {
 		return err
 	}

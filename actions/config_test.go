@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/google/fscrypt/metadata"
 )
 
 // Test that the global config file is created with mode 0644, regardless of the
@@ -42,7 +44,7 @@ func TestConfigFileIsCreatedWithCorrectMode(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	ConfigFileLocation = filepath.Join(tempDir, "test.conf")
 
-	if err = CreateConfigFile(time.Millisecond); err != nil {
+	if err = CreateConfigFile(time.Millisecond, 0); err != nil {
 		t.Fatal(err)
 	}
 	fileInfo, err := os.Stat(ConfigFileLocation)
@@ -51,5 +53,27 @@ func TestConfigFileIsCreatedWithCorrectMode(t *testing.T) {
 	}
 	if fileInfo.Mode().Perm() != 0644 {
 		t.Error("Expected newly created config file to have mode 0644")
+	}
+}
+
+func TestCreateConfigFileV2Policy(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	ConfigFileLocation = filepath.Join(tempDir, "test.conf")
+
+	if err = CreateConfigFile(time.Millisecond, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	var config *metadata.Config
+	config, err = getConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Options.PolicyVersion != 2 {
+		t.Error("Expected PolicyVersion 2")
 	}
 }

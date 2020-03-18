@@ -52,7 +52,7 @@ func setupContext() (ctx *Context, err error) {
 		return nil, fmt.Errorf("created context at %q without config file", badCtx.Mount.Path)
 	}
 
-	if err = CreateConfigFile(testTime); err != nil {
+	if err = CreateConfigFile(testTime, 0); err != nil {
 		return nil, err
 	}
 	defer func() {

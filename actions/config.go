@@ -58,8 +58,9 @@ var (
 
 // CreateConfigFile creates a new config file at the appropriate location with
 // the appropriate hashing costs and encryption parameters. The hashing will be
-// configured to take as long as the specified time target.
-func CreateConfigFile(target time.Duration) error {
+// configured to take as long as the specified time target. In addition, the
+// version of encryption policy to use may be overridden from the default of v1.
+func CreateConfigFile(target time.Duration, policyVersion int64) error {
 	// Create the config file before computing the hashing costs, so we fail
 	// immediately if the program has insufficient permissions.
 	configFile, err := filesystem.OpenFileOverridingUmask(ConfigFileLocation,
@@ -75,6 +76,10 @@ func CreateConfigFile(target time.Duration) error {
 	config := &metadata.Config{
 		Source:  metadata.DefaultSource,
 		Options: metadata.DefaultOptions,
+	}
+
+	if policyVersion != 0 {
+		config.Options.PolicyVersion = policyVersion
 	}
 
 	if config.HashCosts, err = getHashingCosts(target); err != nil {

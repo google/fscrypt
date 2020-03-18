@@ -91,3 +91,10 @@ func TestNeverErrorNoPanic(t *testing.T) {
 
 	NeverError(nil)
 }
+
+func TestIsKernelVersionAtLeast(t *testing.T) {
+	// Even just running Go requires at least v2.6.23, so...
+	if !IsKernelVersionAtLeast(2, 6) {
+		t.Error("IsKernelVersionAtLeast() is broken")
+	}
+}
