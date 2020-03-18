@@ -62,9 +62,6 @@ type Options struct {
 	Mount *filesystem.Mount
 	// User is the user for whom the key should be added/removed/gotten.
 	User *user.User
-	// Service is the prefix to prepend to the description of the keys in
-	// user keyrings.  Not relevant for filesystem keyrings.
-	Service string
 	// UseFsKeyringForV1Policies is true if keys for v1 encryption policies
 	// should be put in the filesystem's keyring (if supported) rather than
 	// in the user's keyring.  Note that this makes AddEncryptionKey and
@@ -84,6 +81,19 @@ func shouldUseFsKeyring(descriptor string, options *Options) bool {
 	return true
 }
 
+// buildKeyDescription builds the description for an fscrypt key of type
+// "logon". For ext4 and f2fs, it uses the legacy filesystem-specific prefixes
+// for compatibility with kernels before v4.8 and v4.6 respectively. For other
+// filesystems it uses the generic prefix "fscrypt".
+func buildKeyDescription(options *Options, descriptor string) string {
+	switch options.Mount.FilesystemType {
+	case "ext4", "f2fs":
+		return options.Mount.FilesystemType + ":" + descriptor
+	default:
+		return unix.FSCRYPT_KEY_DESC_PREFIX + descriptor
+	}
+}
+
 // AddEncryptionKey adds an encryption policy key to a kernel keyring.  It uses
 // either the filesystem keyring for the target Mount or the user keyring for
 // the target User.
@@ -94,7 +104,7 @@ func AddEncryptionKey(key *crypto.Key, descriptor string, options *Options) erro
 	if shouldUseFsKeyring(descriptor, options) {
 		return fsAddEncryptionKey(key, descriptor, options.Mount, options.User)
 	}
-	return userAddKey(key, options.Service+descriptor, options.User)
+	return userAddKey(key, buildKeyDescription(options, descriptor), options.User)
 }
 
 // RemoveEncryptionKey removes an encryption policy key from a kernel keyring.
@@ -108,7 +118,7 @@ func RemoveEncryptionKey(descriptor string, options *Options, allUsers bool) err
 		}
 		return fsRemoveEncryptionKey(descriptor, options.Mount, user)
 	}
-	return userRemoveKey(options.Service+descriptor, options.User)
+	return userRemoveKey(buildKeyDescription(options, descriptor), options.User)
 }
 
 // KeyStatus is an enum that represents the status of a key in a kernel keyring.
@@ -147,7 +157,7 @@ func GetEncryptionKeyStatus(descriptor string, options *Options) (KeyStatus, err
 	if shouldUseFsKeyring(descriptor, options) {
 		return fsGetEncryptionKeyStatus(descriptor, options.Mount, options.User)
 	}
-	_, err := userFindKey(options.Service+descriptor, options.User)
+	_, err := userFindKey(buildKeyDescription(options, descriptor), options.User)
 	if err != nil {
 		return KeyAbsent, nil
 	}

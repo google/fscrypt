@@ -114,7 +114,7 @@ var (
 	// UPDATE THIS ARRAY WHEN ADDING NEW FLAGS!!!
 	// TODO(joerichey) add presubmit rule to enforce this
 	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
-		forceFlag, legacyFlag, skipUnlockFlag, timeTargetFlag,
+		forceFlag, skipUnlockFlag, timeTargetFlag,
 		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
 		unlockWithFlag, policyFlag, allUsersFlag, noRecoveryFlag}
 	// universalFlags contains flags that should be on every command
@@ -147,12 +147,6 @@ var (
 			warnings, causing any action to automatically proceed.
 			WARNING: This bypasses confirmations for protective
 			operations, use with care.`),
-	}
-	legacyFlag = &boolFlag{
-		Name: "legacy",
-		Usage: `Allow for support of older kernels with ext4 (before
-			v4.8) and F2FS (before v4.6) filesystems.`,
-		Default: true,
 	}
 	skipUnlockFlag = &boolFlag{
 		Name: "skip-unlock",

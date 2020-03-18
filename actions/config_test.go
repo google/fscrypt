@@ -42,7 +42,7 @@ func TestConfigFileIsCreatedWithCorrectMode(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 	ConfigFileLocation = filepath.Join(tempDir, "test.conf")
 
-	if err = CreateConfigFile(time.Millisecond, false); err != nil {
+	if err = CreateConfigFile(time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 	fileInfo, err := os.Stat(ConfigFileLocation)

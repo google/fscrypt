@@ -51,7 +51,7 @@ func createGlobalConfig(w io.Writer, path string) error {
 	}
 
 	fmt.Fprintln(w, "Customizing passphrase hashing difficulty for this system...")
-	err = actions.CreateConfigFile(timeTargetFlag.Value, legacyFlag.Value)
+	err = actions.CreateConfigFile(timeTargetFlag.Value)
 	if err != nil {
 		return err
 	}

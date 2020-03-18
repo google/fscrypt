@@ -195,7 +195,6 @@ that looks like the following:
 		"memory": "131072",
 		"parallelism": "32"
 	},
-	"compatibility": "legacy",
 	"options": {
 		"padding": "32",
 		"contents": "AES_256_XTS",
@@ -215,9 +214,6 @@ The fields are:
   By default, `fscrypt setup` calibrates the hashing to use all CPUs
   and take about 1 second.  The `--time` option to `fscrypt setup` can
   be used to customize this time when creating the configuration file.
-
-* "compatibility" can be "legacy" to support kernels older than v4.8,
-  or the empty string to only support kernels v4.8 and later.
 
 * "options" are the encryption options to use for new encrypted
   directories:

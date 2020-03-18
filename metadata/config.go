@@ -28,7 +28,6 @@ package metadata
 
 import (
 	"io"
-	"strings"
 
 	"github.com/golang/protobuf/jsonpb"
 )
@@ -57,17 +56,4 @@ func ReadConfig(in io.Reader) (*Config, error) {
 		AllowUnknownFields: true,
 	}
 	return config, u.Unmarshal(in, config)
-}
-
-// HasCompatibilityOption returns true if the specified string is in the list of
-// compatibility options. This assumes the compatibility options are in a comma
-// separated string.
-func (c *Config) HasCompatibilityOption(option string) bool {
-	options := strings.Split(c.Compatibility, ",")
-	for _, o := range options {
-		if o == option {
-			return true
-		}
-	}
-	return false
 }

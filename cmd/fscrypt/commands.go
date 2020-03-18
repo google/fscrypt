@@ -62,7 +62,7 @@ var Setup = cli.Command{
 		the README). This may require root privileges.`,
 		mountpointArg, actions.ConfigFileLocation,
 		shortDisplay(timeTargetFlag)),
-	Flags:  []cli.Flag{timeTargetFlag, legacyFlag, forceFlag},
+	Flags:  []cli.Flag{timeTargetFlag, forceFlag},
 	Action: setupAction,
 }
 
