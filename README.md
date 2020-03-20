@@ -263,21 +263,37 @@ The fields are:
   setting and instead (re-)create your encrypted directories with
   `"policy_version": "2"`.
 
-### Setting up the PAM module
+### PAM configuration
 
-Note that to make use of the installed PAM module, your
-[PAM configuration files](http://www.linux-pam.org/Linux-PAM-html/sag-configuration.html)
-in `/etc/pam.d` must be modified to add fscrypt.
+If you want any encrypted directories to be protected by your login
+passphrase and be automatically unlocked when you log in, you'll need
+to edit your [PAM configuration
+files](http://www.linux-pam.org/Linux-PAM-html/sag-configuration.html)
+to enable the PAM module (`pam_fscrypt`).
 
-#### Automatic setup on Ubuntu
+#### On Ubuntu
 
-fscrypt automatically installs the
-[PAM config file](https://wiki.ubuntu.com/PAMConfigFrameworkSpec)
-`pam_fscrypt/config` to `/usr/share/pam-configs/fscrypt`. This file contains
-reasonable defaults for the PAM module. To automatically apply these changes,
+Both the official `fscrypt` package for Ubuntu and `sudo make install`
+will install a configuration file for [Ubuntu's PAM configuration
+framework](https://wiki.ubuntu.com/PAMConfigFrameworkSpec) to
+`/usr/share/pam-configs/fscrypt`. This file contains reasonable
+defaults for the PAM module. To automatically apply these defaults,
 run `sudo pam-auth-update` and follow the on-screen instructions.
 
-#### Manual setup
+#### On Arch Linux
+
+On Arch Linux, follow the recommendations at the [Arch Linux
+Wiki](https://wiki.archlinux.org/index.php/Fscrypt#Auto-unlocking_directories).
+
+We recommend using the Arch Linux package, either `fscrypt` (official)
+or `fscrypt-git` (AUR). If you instead install `fscrypt` manually
+using `sudo make install`, then in addition to the steps on the Wiki
+you'll also need to create `/etc/pam.d/fscrypt` as described below.
+
+#### On other Linux distros
+
+On all other Linux distros, follow the general guidance below to edit
+your PAM configuration files.
 
 The fscrypt PAM module implements the Auth, Session, and Password
 [types](http://www.linux-pam.org/Linux-PAM-html/sag-configuration-file.html).
@@ -308,6 +324,17 @@ clear the filesystem caches when the last session closes, ensuring all the
 locked data is inaccessible; this only needed for v1 encryption policies.
 All the types also support the `debug` option which prints additional
 debug information to the syslog.
+
+Finally, some Linux distros use restrictive settings in
+`/etc/pam.d/other` that prevent non-whitelisted programs from checking
+your login passphrase. This prevents `fscrypt` from creating any login
+passphrase-protected directories, even without auto-unlocking. To
+ensure that `fscrypt` will work properly (if you didn't install an
+official `fscrypt` package from your distro, which should have already
+handled this), also create a file `/etc/pam.d/fscrypt` containing:
+```
+auth        required    pam_unix.so
+```
 
 ## Note about stability
 
