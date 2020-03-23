@@ -129,7 +129,7 @@ var (
 	}
 	versionFlag = &boolFlag{
 		Name:  "version",
-		Usage: `Prints version and license information.`,
+		Usage: `Prints version information.`,
 	}
 	verboseFlag = &boolFlag{
 		Name:  "verbose",
