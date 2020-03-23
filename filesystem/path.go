@@ -78,6 +78,12 @@ func isRegularFile(path string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
+// HaveReadAccessTo returns true if the process has read access to a file or
+// directory, without actually opening it.
+func HaveReadAccessTo(path string) bool {
+	return unix.Access(path, unix.R_OK) == nil
+}
+
 // DeviceNumber represents a combined major:minor device number.
 type DeviceNumber uint64
 

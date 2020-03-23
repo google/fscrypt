@@ -98,11 +98,10 @@ func shortDisplay(f prettyFlag) string {
 //
 //  --help                     Prints help screen for commands and subcommands.
 //
-// If a default is specified, this if appended to the usage. Example:
+// If a default is specified, then it is appended to the usage. Example:
 //
-//  --legacy                   Allow for support of older kernels with ext4
-//                             (before v4.8) and F2FS (before v4.6) filesystems.
-//                             (default: true)
+//  --time=TIME                Calibrate passphrase hashing to take the
+//                             specified amount of TIME (default: 1s)
 //
 func longDisplay(f prettyFlag, defaultString ...string) string {
 	usage := f.GetUsage()

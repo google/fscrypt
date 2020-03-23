@@ -173,6 +173,10 @@ To check whether the needed option is enabled in your kernel, run:
 zgrep -h ENCRYPTION /proc/config.gz /boot/config-$(uname -r) | sort | uniq
 ```
 
+It is also recommended to use Linux kernel v5.4 or later, since this
+allows the use of v2 encryption policies.  v2 policies have several
+security and usability improvements over v1 policies.
+
 Be careful when using encryption on removable media, since filesystems with the
 `encrypt` feature cannot be mounted on systems with kernel versions older than
 the minimums listed above -- even to access unencrypted files!
@@ -195,12 +199,11 @@ that looks like the following:
 		"memory": "131072",
 		"parallelism": "32"
 	},
-	"compatibility": "legacy",
 	"options": {
 		"padding": "32",
 		"contents": "AES_256_XTS",
 		"filenames": "AES_256_CTS",
-		"policy_version": "1"
+		"policy_version": "2"
 	},
 	"use_fs_keyring_for_v1_policies": false
 }
@@ -215,9 +218,6 @@ The fields are:
   By default, `fscrypt setup` calibrates the hashing to use all CPUs
   and take about 1 second.  The `--time` option to `fscrypt setup` can
   be used to customize this time when creating the configuration file.
-
-* "compatibility" can be "legacy" to support kernels older than v4.8,
-  or the empty string to only support kernels v4.8 and later.
 
 * "options" are the encryption options to use for new encrypted
   directories:
@@ -245,9 +245,10 @@ The fields are:
       for more details about the supported algorithms.
 
     * "policy\_version" is the version of encryption policy to use.
-      The choices are "1" and "2".  Directories created with policy
-      version "2" are only usable on kernel v5.4 or later, but are
-      preferable to version "1" if you don't mind this restriction.
+      The choices are "1" and "2".  If unset, "1" is assumed.
+      Directories created with policy version "2" are only usable on
+      kernel v5.4 or later, but are preferable to version "1" if you
+      don't mind this restriction.
 
 * "use\_fs\_keyring\_for\_v1\_policies" specifies whether to add keys
   for v1 encryption policies to the filesystem keyring, rather than to
@@ -366,6 +367,7 @@ MOUNTPOINT  DEVICE     FILESYSTEM  ENCRYPTION   FSCRYPT
 
 # Create the global configuration file. Nothing else necessarily needs root.
 >>>>> sudo fscrypt setup
+Defaulting to policy_version 2 because kernel supports it.
 Customizing passphrase hashing difficulty for this system...
 Created global config file at "/etc/fscrypt.conf".
 Metadata directories created at "/.fscrypt".
@@ -394,8 +396,8 @@ ext4 filesystem "/mnt/disk" has 1 protector and 1 policy
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-POLICY            UNLOCKED  PROTECTORS
-7626382168311a9d  Yes       7626382168311a9d
+POLICY                            UNLOCKED  PROTECTORS
+16382f282d7b29ee27e6460151d03382  Yes       7626382168311a9d
 ```
 
 #### Quiet Version
@@ -413,24 +415,23 @@ POLICY            UNLOCKED  PROTECTORS
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
 
-# Lock the directory.  'sudo' and the '--user' argument are only
-# required if the directory uses a v1 encryption policy.
->>>>> sudo fscrypt lock /mnt/disk/dir1 --user=$USER
-Encrypted data removed from filesystem cache.
+# Lock the directory.  Note: if using a v1 encryption policy instead
+# of v2, you'll need 'sudo fscrypt lock /mnt/disk/dir1 --user=$USER'.
+>>>>> fscrypt lock /mnt/disk/dir1
 "/mnt/disk/dir1" is now locked.
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:
@@ -450,8 +451,8 @@ Enter custom passphrase for protector "Super Secret":
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -463,7 +464,7 @@ Hello World
 
 #### Quiet Version
 ```bash
->>>>> sudo fscrypt lock /mnt/disk/dir1 --quiet --user=$USER
+>>>>> fscrypt lock /mnt/disk/dir1 --quiet
 >>>>> echo "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
 ```
 
@@ -486,8 +487,8 @@ Enter login passphrase for joerichey:
 >>>>> fscrypt status /mnt/disk/dir2
 "/mnt/disk/dir2" is encrypted with fscrypt.
 
-Policy:   fe1c92009abc1cff
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   fe1c92009abc1cff4f3257c77e8134e3
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -500,9 +501,9 @@ PROTECTOR         LINKED   DESCRIPTION
 7626382168311a9d  No       custom protector "Super Secret"
 6891f0a901f0065e  Yes (/)  login protector for joerichey
 
-POLICY            UNLOCKED  PROTECTORS
-16382f282d7b29ee  Yes       7626382168311a9d
-fe1c92009abc1cff  Yes       6891f0a901f0065e
+POLICY                            UNLOCKED  PROTECTORS
+16382f282d7b29ee27e6460151d03382  Yes       7626382168311a9d
+fe1c92009abc1cff4f3257c77e8134e3  Yes       6891f0a901f0065e
 >>>>> fscrypt status /
 ext4 filesystem "/" has 1 protector(s) and 0 policy(ies)
 
@@ -522,8 +523,8 @@ PROTECTOR         LINKED  DESCRIPTION
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -577,9 +578,9 @@ PROTECTOR         LINKED   DESCRIPTION
 2c75f519b9c9959d  No       raw key protector "Skeleton"
 6891f0a901f0065e  Yes (/)  login protector for joerichey
 
-POLICY            UNLOCKED  PROTECTORS
-16382f282d7b29ee  Yes       7626382168311a9d
-fe1c92009abc1cff  Yes       6891f0a901f0065e
+POLICY                            UNLOCKED  PROTECTORS
+16382f282d7b29ee27e6460151d03382  Yes       7626382168311a9d
+fe1c92009abc1cff4f3257c77e8134e3  Yes       6891f0a901f0065e
 
 # Finally, we could apply this key to a directory
 >>>>> mkdir /mnt/disk/dir3
@@ -611,31 +612,31 @@ PROTECTOR         LINKED   DESCRIPTION
 2c75f519b9c9959d  No       raw key protector "Skeleton"
 6891f0a901f0065e  Yes (/)  login protector for joerichey
 
-POLICY            UNLOCKED  PROTECTORS
-d03fb894584a4318  No        2c75f519b9c9959d
-16382f282d7b29ee  No        7626382168311a9d
-fe1c92009abc1cff  No        6891f0a901f0065e
+POLICY                            UNLOCKED  PROTECTORS
+d03fb894584a4318d1780e9a7b0b47eb  No        2c75f519b9c9959d
+16382f282d7b29ee27e6460151d03382  No        7626382168311a9d
+fe1c92009abc1cff4f3257c77e8134e3  No        6891f0a901f0065e
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 7626382168311a9d  No      custom protector "Super Secret"
->>>>> fscrypt metadata add-protector-to-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee
+>>>>> fscrypt metadata add-protector-to-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382
 WARNING: All files using this policy will be accessible with this protector!!
-Protect policy 16382f282d7b29ee with protector 2c75f519b9c9959d? [Y/n]
+Protect policy 16382f282d7b29ee27e6460151d03382 with protector 2c75f519b9c9959d? [Y/n]
 Enter key file for protector "Skeleton": secret.key
 Enter custom passphrase for protector "Super Secret":
-Protector 2c75f519b9c9959d now protecting policy 16382f282d7b29ee.
+Protector 2c75f519b9c9959d now protecting policy 16382f282d7b29ee27e6460151d03382.
 >>>>> fscrypt status /mnt/disk/dir1
 "/mnt/disk/dir1" is encrypted with fscrypt.
 
-Policy:   16382f282d7b29ee
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
+Policy:   16382f282d7b29ee27e6460151d03382
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 2 protectors:
@@ -653,16 +654,16 @@ Enter key file for protector "Skeleton": secret.key
 "/mnt/disk/dir1" is now unlocked and ready for use.
 
 # The protector can also be removed from the policy (if it is not the only one)
->>>>> fscrypt metadata remove-protector-from-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee
+>>>>> fscrypt metadata remove-protector-from-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382
 WARNING: All files using this policy will NO LONGER be accessible with this protector!!
-Stop protecting policy 16382f282d7b29ee with protector 2c75f519b9c9959d? [y/N] y
-Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee.
+Stop protecting policy 16382f282d7b29ee27e6460151d03382 with protector 2c75f519b9c9959d? [y/N] y
+Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee27e6460151d03382.
 ```
 
 #### Quiet Version
 ```bash
->>>>> echo "hunter2" | fscrypt metadata add-protector-to-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee --key=secret.key --quiet
->>>>> fscrypt metadata remove-protector-from-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee --quiet --force
+>>>>> echo "hunter2" | fscrypt metadata add-protector-to-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382 --key=secret.key --quiet
+>>>>> fscrypt metadata remove-protector-from-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382 --quiet --force
 ```
 
 ## Contributing
@@ -777,27 +778,49 @@ manifest in other ways such as Docker containers being unable to
 access encrypted files, or NetworkManager being unable to access
 certificates if they are located in an encrypted directory.
 
-If you are using kernel v5.4 or later, you can fix this by setting the
-following in `/etc/fscrypt.conf`:
+The recommended way to fix this is by creating your encrypted
+directories using v2 encryption policies rather than v1.  This
+requires Linux v5.4 or later and `fscrypt` v0.2.6 or later.  If these
+prerequisites are met, enable v2 policies for new directories by
+setting `"policy_version": "2"` in `/etc/fscrypt.conf`.  For example:
 
-    "use_fs_keyring_for_v1_policies": true
+```
+	"options": {
+		"padding": "32",
+		"contents": "AES_256_XTS",
+		"filenames": "AES_256_CTS",
+		"policy_version": "2"
+	},
+```
 
-However, this makes manually unlocking and locking encrypted
-directories start to require root.  (The PAM module will still work.)
-E.g., you'll need to run `sudo fscrypt unlock`, not `fscrypt unlock`.
+This only affects new directories.  If you want to upgrade an existing
+encrypted directory to use a v2 policy, you'll need to re-create it by
+using `fscrypt encrypt` to encrypt a new empty directory, copying your
+files into it, and replacing the original directory with it.
 
-Alternatively, you can upgrade your encrypted directories to use v2
-encryption policies by setting the following in the "options" section
-of `/etc/fscrypt.conf`:
+In `fscrypt` v0.2.7 and later, the `fscrypt setup` command
+automatically sets `"policy_version": "2"` when creating
+`/etc/fscrypt.conf` if kernel support is present.
 
-    "policy_version": "2"
+__IMPORTANT:__ directories that use v2 encryption policies are
+unusable on Linux v5.3 and earlier.  If this will be a problem for you
+(for example, if your encrypted directories are on removable storage
+that needs to work on computers with both old and new kernels), you'll
+need to use v1 policies instead.  In this case, you can enable a
+fallback option to make `fscrypt` use the filesystem keyring for v1
+policies:
 
-... and then for each of your encrypted directories, using `fscrypt
-encrypt` to encrypt a new empty directory, copying your files into it,
-and replacing the original directory with it.  This will fix the key
-access problems, while also keeping `fscrypt unlock` and `fscrypt
-lock` usable by non-root users.  This is the recommended solution if
-you don't need to access your files on kernels older than v5.4.
+```
+	"use_fs_keyring_for_v1_policies": true
+```
+
+This fallback option only has an effect if the kernel supports using
+the filesystem keyring.  This option is also useful if you simply
+don't want to re-create your old, v1 directories.  However, this
+option makes manually unlocking and locking encrypted directories
+start to require root.  (The PAM module will still work.)  E.g.,
+you'll need to run `sudo fscrypt unlock`, not `fscrypt unlock`.  Most
+people should just use v2 policies instead.
 
 ## Legal
 

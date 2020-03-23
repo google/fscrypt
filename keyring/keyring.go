@@ -43,15 +43,16 @@ import (
 
 // Keyring error values
 var (
-	ErrKeyAdd               = util.SystemError("could not add key to the keyring")
-	ErrKeyRemove            = util.SystemError("could not remove key from the keyring")
-	ErrKeyNotPresent        = errors.New("key not present or already removed")
-	ErrKeyFilesOpen         = errors.New("some files using the key are still open")
-	ErrKeyAddedByOtherUsers = errors.New("other users have added the key too")
-	ErrKeySearch            = errors.New("could not find key with descriptor")
-	ErrSessionUserKeying    = errors.New("user keyring not linked into session keyring")
-	ErrAccessUserKeyring    = errors.New("could not access user keyring")
-	ErrLinkUserKeyring      = util.SystemError("could not link user keyring into root keyring")
+	ErrKeyAdd                = util.SystemError("could not add key to the keyring")
+	ErrKeyRemove             = util.SystemError("could not remove key from the keyring")
+	ErrKeyNotPresent         = errors.New("key not present or already removed")
+	ErrKeyFilesOpen          = errors.New("some files using the key are still open")
+	ErrKeyAddedByOtherUsers  = errors.New("other users have added the key too")
+	ErrKeySearch             = errors.New("could not find key with descriptor")
+	ErrSessionUserKeying     = errors.New("user keyring not linked into session keyring")
+	ErrAccessUserKeyring     = errors.New("could not access user keyring")
+	ErrLinkUserKeyring       = util.SystemError("could not link user keyring into root keyring")
+	ErrV2PoliciesUnsupported = errors.New("kernel is too old to support v2 encryption policies")
 )
 
 // Options are the options which specify *which* keyring the key should be
@@ -62,9 +63,6 @@ type Options struct {
 	Mount *filesystem.Mount
 	// User is the user for whom the key should be added/removed/gotten.
 	User *user.User
-	// Service is the prefix to prepend to the description of the keys in
-	// user keyrings.  Not relevant for filesystem keyrings.
-	Service string
 	// UseFsKeyringForV1Policies is true if keys for v1 encryption policies
 	// should be put in the filesystem's keyring (if supported) rather than
 	// in the user's keyring.  Note that this makes AddEncryptionKey and
@@ -72,16 +70,32 @@ type Options struct {
 	UseFsKeyringForV1Policies bool
 }
 
-func shouldUseFsKeyring(descriptor string, options *Options) bool {
+func shouldUseFsKeyring(descriptor string, options *Options) (bool, error) {
 	// For v1 encryption policy keys, use the filesystem keyring if
 	// use_fs_keyring_for_v1_policies is set in /etc/fscrypt.conf and the
 	// kernel supports it.
 	if len(descriptor) == hex.EncodedLen(unix.FSCRYPT_KEY_DESCRIPTOR_SIZE) {
-		return options.UseFsKeyringForV1Policies && isFsKeyringSupported(options.Mount)
+		return options.UseFsKeyringForV1Policies && IsFsKeyringSupported(options.Mount), nil
 	}
 	// For v2 encryption policy keys, always use the filesystem keyring; the
 	// kernel doesn't support any other way.
-	return true
+	if !IsFsKeyringSupported(options.Mount) {
+		return true, ErrV2PoliciesUnsupported
+	}
+	return true, nil
+}
+
+// buildKeyDescription builds the description for an fscrypt key of type
+// "logon". For ext4 and f2fs, it uses the legacy filesystem-specific prefixes
+// for compatibility with kernels before v4.8 and v4.6 respectively. For other
+// filesystems it uses the generic prefix "fscrypt".
+func buildKeyDescription(options *Options, descriptor string) string {
+	switch options.Mount.FilesystemType {
+	case "ext4", "f2fs":
+		return options.Mount.FilesystemType + ":" + descriptor
+	default:
+		return unix.FSCRYPT_KEY_DESC_PREFIX + descriptor
+	}
 }
 
 // AddEncryptionKey adds an encryption policy key to a kernel keyring.  It uses
@@ -91,24 +105,32 @@ func AddEncryptionKey(key *crypto.Key, descriptor string, options *Options) erro
 	if err := util.CheckValidLength(metadata.PolicyKeyLen, key.Len()); err != nil {
 		return errors.Wrap(err, "policy key")
 	}
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return err
+	}
+	if useFsKeyring {
 		return fsAddEncryptionKey(key, descriptor, options.Mount, options.User)
 	}
-	return userAddKey(key, options.Service+descriptor, options.User)
+	return userAddKey(key, buildKeyDescription(options, descriptor), options.User)
 }
 
 // RemoveEncryptionKey removes an encryption policy key from a kernel keyring.
 // It uses either the filesystem keyring for the target Mount or the user
 // keyring for the target User.
 func RemoveEncryptionKey(descriptor string, options *Options, allUsers bool) error {
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return err
+	}
+	if useFsKeyring {
 		user := options.User
 		if allUsers {
 			user = nil
 		}
 		return fsRemoveEncryptionKey(descriptor, options.Mount, user)
 	}
-	return userRemoveKey(options.Service+descriptor, options.User)
+	return userRemoveKey(buildKeyDescription(options, descriptor), options.User)
 }
 
 // KeyStatus is an enum that represents the status of a key in a kernel keyring.
@@ -144,10 +166,14 @@ func (status KeyStatus) String() string {
 // kernel keyring.  It uses either the filesystem keyring for the target Mount
 // or the user keyring for the target User.
 func GetEncryptionKeyStatus(descriptor string, options *Options) (KeyStatus, error) {
-	if shouldUseFsKeyring(descriptor, options) {
+	useFsKeyring, err := shouldUseFsKeyring(descriptor, options)
+	if err != nil {
+		return KeyStatusUnknown, err
+	}
+	if useFsKeyring {
 		return fsGetEncryptionKeyStatus(descriptor, options.Mount, options.User)
 	}
-	_, err := userFindKey(options.Service+descriptor, options.User)
+	_, err = userFindKey(buildKeyDescription(options, descriptor), options.User)
 	if err != nil {
 		return KeyAbsent, nil
 	}

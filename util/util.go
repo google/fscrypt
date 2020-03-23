@@ -25,10 +25,14 @@ package util
 
 import (
 	"bufio"
+	"fmt"
+	"log"
 	"os"
 	"os/user"
 	"strconv"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // Ptr converts a Go byte array to a pointer to the start of the array.
@@ -125,4 +129,23 @@ func EffectiveUser() (*user.User, error) {
 // IsUserRoot checks if the effective user is root.
 func IsUserRoot() bool {
 	return os.Geteuid() == 0
+}
+
+// IsKernelVersionAtLeast returns true if the Linux kernel version is at least
+// major.minor. If something goes wrong it assumes false.
+func IsKernelVersionAtLeast(major, minor int) bool {
+	var uname unix.Utsname
+	if err := unix.Uname(&uname); err != nil {
+		log.Printf("Uname failed [%v], assuming old kernel", err)
+		return false
+	}
+	release := string(uname.Release[:])
+	log.Printf("Kernel version is %s", release)
+	var actualMajor, actualMinor int
+	if n, _ := fmt.Sscanf(release, "%d.%d", &actualMajor, &actualMinor); n != 2 {
+		log.Printf("Unrecognized uname format %q, assuming old kernel", release)
+		return false
+	}
+	return actualMajor > major ||
+		(actualMajor == major && actualMinor >= minor)
 }

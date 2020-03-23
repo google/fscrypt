@@ -33,8 +33,7 @@ var testConfig = &Config{
 		Memory:      1 << 12,
 		Parallelism: 8,
 	},
-	Compatibility: "",
-	Options:       DefaultOptions,
+	Options: DefaultOptions,
 }
 
 var testConfigString = `{
@@ -44,7 +43,6 @@ var testConfigString = `{
 		"memory": "4096",
 		"parallelism": "8"
 	},
-	"compatibility": "",
 	"options": {
 		"padding": "32",
 		"contents": "AES_256_XTS",
@@ -81,7 +79,7 @@ func TestRead(t *testing.T) {
 }
 
 // Makes sure we can parse a legacy config file that doesn't have the fields
-// that were added later.
+// that were added later and that has the removed "compatibility" field.
 func TestOptionalFields(t *testing.T) {
 	contents := `{
 		"source": "custom_passphrase",
@@ -90,7 +88,7 @@ func TestOptionalFields(t *testing.T) {
 			"memory": "4096",
 			"parallelism": "8"
 		},
-		"compatibility": "",
+		"compatibility": "legacy",
 		"options": {
 			"padding": "32",
 			"contents": "AES_256_XTS",

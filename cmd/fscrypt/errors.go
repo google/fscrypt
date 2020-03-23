@@ -113,6 +113,10 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
 			shortDisplay(userFlag))
+	case keyring.ErrV2PoliciesUnsupported:
+		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
+		version 5.4 and later. Either use a newer kernel, or change
+		policy_version to 1 in %s.`, actions.ConfigFileLocation)
 	case actions.ErrBadConfigFile:
 		return `Run "sudo fscrypt setup" to recreate the file.`
 	case actions.ErrNoConfigFile:
@@ -127,6 +131,13 @@ func getErrorSuggestions(err error) string {
 			metadata is corrupted.`
 	case actions.ErrMissingProtectorName:
 		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
+	case actions.ErrAccessDeniedPossiblyV2:
+		return fmt.Sprintf(`This may be caused by the directory using a v2
+		encryption policy and the current kernel not supporting it. If
+		indeed the case, then this directory can only be used on kernel
+		v5.4 and later. You can create directories accessible on older
+		kernels by changing policy_version to 1 in %s.`,
+			actions.ConfigFileLocation)
 	case ErrNoDestructiveOps:
 		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
 	case ErrSpecifyProtector:

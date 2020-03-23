@@ -36,10 +36,6 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// LegacyConfig indicates that keys should be inserted into the keyring with the
-// legacy service prefixes. Needed for kernels before v4.8.
-const LegacyConfig = "legacy"
-
 // ConfigFileLocation is the location of fscrypt's global settings. This can be
 // overridden by the user of this package.
 var ConfigFileLocation = "/etc/fscrypt.conf"
@@ -61,12 +57,10 @@ var (
 )
 
 // CreateConfigFile creates a new config file at the appropriate location with
-// the appropriate hashing costs and encryption parameters. This creation is
-// configurable in two ways. First, a time target must be specified. This target
-// will determine the hashing costs, by picking parameters that make the hashing
-// take as long as the specified target. Second, the config can include the
-// legacy option, which is needed for systems with kernels older than v4.8.
-func CreateConfigFile(target time.Duration, useLegacy bool) error {
+// the appropriate hashing costs and encryption parameters. The hashing will be
+// configured to take as long as the specified time target. In addition, the
+// version of encryption policy to use may be overridden from the default of v1.
+func CreateConfigFile(target time.Duration, policyVersion int64) error {
 	// Create the config file before computing the hashing costs, so we fail
 	// immediately if the program has insufficient permissions.
 	configFile, err := filesystem.OpenFileOverridingUmask(ConfigFileLocation,
@@ -83,9 +77,9 @@ func CreateConfigFile(target time.Duration, useLegacy bool) error {
 		Source:  metadata.DefaultSource,
 		Options: metadata.DefaultOptions,
 	}
-	if useLegacy {
-		config.Compatibility = LegacyConfig
-		log.Printf("Using %q compatibility option\n", LegacyConfig)
+
+	if policyVersion != 0 {
+		config.Options.PolicyVersion = policyVersion
 	}
 
 	if config.HashCosts, err = getHashingCosts(target); err != nil {

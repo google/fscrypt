@@ -22,6 +22,7 @@ package actions
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
@@ -41,6 +42,7 @@ var (
 	ErrOnlyProtector          = errors.New("cannot remove the only protector for a policy")
 	ErrAlreadyProtected       = errors.New("policy already protected by protector")
 	ErrNotProtected           = errors.New("policy not protected by protector")
+	ErrAccessDeniedPossiblyV2 = errors.New("permission denied")
 )
 
 // PurgeAllPolicies removes all policy keys on the filesystem from the kernel
@@ -152,6 +154,15 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	// the path, and the data we get from the mountpoint.
 	pathData, err := metadata.GetPolicy(path)
 	if err != nil {
+		// On kernels that don't support v2 encryption policies, trying
+		// to open a directory with a v2 policy simply gave EACCES. This
+		// is ambiguous with other errors, but try to detect this case
+		// and show a better error message.
+		if os.IsPermission(err) &&
+			filesystem.HaveReadAccessTo(path) &&
+			!keyring.IsFsKeyringSupported(ctx.Mount) {
+			return nil, errors.Wrapf(ErrAccessDeniedPossiblyV2, "open %s", path)
+		}
 		return nil, err
 	}
 	descriptor := pathData.KeyDescriptor

@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/metadata"
@@ -47,7 +45,6 @@ func makeKey(b byte, n int) (*crypto.Key, error) {
 }
 
 var (
-	defaultService          = unix.FSCRYPT_KEY_DESC_PREFIX
 	testUser, _             = util.EffectiveUser()
 	fakeValidPolicyKey, _   = makeKey(42, metadata.PolicyKeyLen)
 	fakeInvalidPolicyKey, _ = makeKey(42, metadata.PolicyKeyLen-1)
@@ -84,7 +81,7 @@ func getTestMount(t *testing.T) *filesystem.Mount {
 // filesystem keyring and v2 encryption policies are supported.
 func getTestMountV2(t *testing.T) *filesystem.Mount {
 	mount := getTestMount(t)
-	if !isFsKeyringSupported(mount) {
+	if !IsFsKeyringSupported(mount) {
 		t.Skip("No support for fs keyring, skipping test.")
 	}
 	return mount
@@ -166,28 +163,11 @@ func testAddAndRemoveKey(t *testing.T, descriptor string, options *Options) {
 	assertKeyStatus(t, descriptor, options, KeyAbsent)
 }
 
-func TestUserKeyringDefaultService(t *testing.T) {
+func TestUserKeyring(t *testing.T) {
+	mount := getTestMount(t)
 	options := &Options{
+		Mount:                     mount,
 		User:                      testUser,
-		Service:                   defaultService,
-		UseFsKeyringForV1Policies: false,
-	}
-	testAddAndRemoveKey(t, fakeV1Descriptor, options)
-}
-
-func TestUserKeyringExt4Service(t *testing.T) {
-	options := &Options{
-		User:                      testUser,
-		Service:                   "ext4:",
-		UseFsKeyringForV1Policies: false,
-	}
-	testAddAndRemoveKey(t, fakeV1Descriptor, options)
-}
-
-func TestUserKeyringF2fsService(t *testing.T) {
-	options := &Options{
-		User:                      testUser,
-		Service:                   "f2fs:",
 		UseFsKeyringForV1Policies: false,
 	}
 	testAddAndRemoveKey(t, fakeV1Descriptor, options)
