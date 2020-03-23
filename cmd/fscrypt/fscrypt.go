@@ -29,22 +29,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"time"
 
 	"github.com/urfave/cli"
 )
 
-var (
-	// Current version of the program (set by Makefile)
-	version string
-	// Formatted build time (set by Makefile)
-	buildTime string
-	// Authors to display in the info command
-	Authors = []cli.Author{{
-		Name:  "Joe Richey",
-		Email: "joerichey@google.com",
-	}}
-)
+// Current version of the program (set by Makefile)
+var version string
 
 func main() {
 	cli.AppHelpTemplate = appHelpTemplate
@@ -54,20 +44,14 @@ func main() {
 	// Create our command line application
 	app := cli.NewApp()
 	app.Usage = shortUsage
-	app.Authors = Authors
-	app.Copyright = apache2GoogleCopyright
 
-	// Grab the version and compilation time passed in from the Makefile.
+	// Grab the version passed in from the Makefile.
 	app.Version = version
-	app.Compiled, _ = time.Parse(time.UnixDate, buildTime)
 	app.OnUsageError = onUsageError
 
 	// Setup global flags
 	cli.HelpFlag = helpFlag
 	cli.VersionFlag = versionFlag
-	cli.VersionPrinter = func(c *cli.Context) {
-		cli.HelpPrinter(c.App.Writer, versionInfoTemplate, c.App)
-	}
 	app.Flags = universalFlags
 
 	// We hide the help subcommand so that "fscrypt <command> --help" works

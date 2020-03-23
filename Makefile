@@ -68,10 +68,8 @@ GO_LINK_FLAGS := -s -w
 # Flag to embed the version (pulled from tags) into the binary.
 TAG_VERSION := $(shell git describe --tags)
 VERSION_FLAG := -X "main.version=$(if $(TAG_VERSION),$(TAG_VERSION),$(VERSION))"
-# Flag to embed the date and time of the build into the binary.
-DATE_FLAG := -X "main.buildTime=$(shell date)"
 
-override GO_LINK_FLAGS += $(VERSION_FLAG) $(DATE_FLAG) -extldflags "$(LDFLAGS)"
+override GO_LINK_FLAGS += $(VERSION_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 # Always use Go modules
 export GO111MODULE = on
