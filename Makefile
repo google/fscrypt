@@ -73,6 +73,10 @@ override GO_LINK_FLAGS += $(VERSION_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
 # Always use Go modules
 export GO111MODULE = on
+# Use -trimpath if available
+ifneq "" "$(shell go help build | grep trimpath)"
+override GO_FLAGS += -trimpath
+endif
 
 ###### Find All Files and Directories ######
 FILES := $(shell find . -path '*/.git*' -prune -o -type f -printf "%P\n")
