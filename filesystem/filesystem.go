@@ -70,8 +70,9 @@ var (
 //	DeviceNumber   - Device number of the filesystem.  This is set even if
 //			 Device isn't, since all filesystems have a device
 //			 number assigned by the kernel, even pseudo-filesystems.
-//	BindMnt        - True if this mount is not for the full filesystem but
-//			 rather is only for a subtree.
+//	Subtree        - The mounted subtree of the filesystem.  This is usually
+//			 "/", meaning that the entire filesystem is mounted, but
+//			 it can differ for bind mounts.
 //	ReadOnly       - True if this is a read-only mount
 //
 // In order to use a Mount to store fscrypt metadata, some directories must be
@@ -99,7 +100,7 @@ type Mount struct {
 	FilesystemType string
 	Device         string
 	DeviceNumber   DeviceNumber
-	BindMnt        bool
+	Subtree        string
 	ReadOnly       bool
 }
 
