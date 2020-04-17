@@ -84,8 +84,8 @@ func TestLoadMountInfoBasic(t *testing.T) {
 	if mnt.DeviceNumber.String() != "259:3" {
 		t.Error("Wrong device number")
 	}
-	if mnt.BindMnt {
-		t.Error("Wrong bind mount flag")
+	if mnt.Subtree != "/" {
+		t.Error("Wrong subtree")
 	}
 	if mnt.ReadOnly {
 		t.Error("Wrong readonly flag")
@@ -220,8 +220,9 @@ func TestReadWriteMountIsPreferredOverReadOnlyMount(t *testing.T) {
 	}
 }
 
-// Test that a mount of the full filesystem is preferred over a bind mount.
-func TestFullMountIsPreferredOverBindMount(t *testing.T) {
+// Test that a mount of the full filesystem is preferred over mounts of non-root
+// subtrees, given independent mountpoints.
+func TestRootSubtreeIsPreferred(t *testing.T) {
 	mountinfo := `
 222 15 259:3 /subtree1 /home rw shared:1 - ext4 /dev/root rw
 222 15 259:3 / /mnt rw shared:1 - ext4 /dev/root rw
@@ -231,16 +232,133 @@ func TestFullMountIsPreferredOverBindMount(t *testing.T) {
 	defer endLoadMountInfoTest()
 	loadMountInfoFromString(mountinfo)
 	mnt := mountForDevice("259:3")
-	if mnt.Path != "/mnt" {
+	if mnt.Subtree != "/" {
 		t.Error("Wrong mount was chosen")
 	}
 }
 
-// Test that if a filesystem only has bind mounts, a nil mountsByDevice entry is
-// created.
-func TestLoadOnlyBindMounts(t *testing.T) {
+// Test that a mount that is not of the full filesystem but still contains all
+// other mounted subtrees is preferred, given independent mountpoints.
+func TestHighestSubtreeIsPreferred(t *testing.T) {
 	mountinfo := `
-222 15 259:3 /foo /mnt ro,relatime shared:1 - ext4 /dev/root rw,data=ordered
+222 15 259:3 /foo/bar /mnt rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /foo /tmp rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /foo/baz /home rw shared:1 - ext4 /dev/root rw
+`
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromString(mountinfo)
+	deviceNumber, _ := newDeviceNumberFromString("259:3")
+	mnt := mountsByDevice[deviceNumber]
+	if mnt.Subtree != "/foo" {
+		t.Error("Wrong mount was chosen")
+	}
+}
+
+// Test that mountpoint "/" is preferred, given independent subtrees.
+func TestRootMountpointIsPreferred(t *testing.T) {
+	mountinfo := `
+222 15 259:3 /var/cache/pacman/pkg /mnt rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /var/lib/lxc/base/rootfs / rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /srv/repo/x86_64 /home rw shared:1 - ext4 /dev/root rw
+`
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromString(mountinfo)
+	deviceNumber, _ := newDeviceNumberFromString("259:3")
+	mnt := mountsByDevice[deviceNumber]
+	if mnt.Subtree != "/var/lib/lxc/base/rootfs" {
+		t.Error("Wrong mount was chosen")
+	}
+}
+
+// Test that a mountpoint that is not "/" but still contains all other
+// mountpoints is preferred, given independent subtrees.
+func TestHighestMountpointIsPreferred(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	tempDir, err = filepath.Abs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tempDir+"/a/b", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/a/c", 0700); err != nil {
+		t.Fatal(err)
+	}
+	mountinfo := fmt.Sprintf(`
+222 15 259:3 /0 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /1 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /2 %s rw shared:1 - ext4 /dev/root rw
+`, tempDir+"/a/b", tempDir+"/a", tempDir+"/a/c")
+
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromString(mountinfo)
+	deviceNumber, _ := newDeviceNumberFromString("259:3")
+	mnt := mountsByDevice[deviceNumber]
+	if mnt.Subtree != "/1" {
+		t.Error("Wrong mount was chosen")
+	}
+}
+
+// Test that if some subtrees are contained in other subtrees, *and* some
+// mountpoints are contained in other mountpoints, the chosen Mount is the root
+// of a tree of mountpoints whose mounted subtrees contain all mounted subtrees.
+func TestLoadContainedSubtreesAndMountpoints(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	tempDir, err = filepath.Abs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tempDir+"/a/b", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/a/c", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/d", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/e", 0700); err != nil {
+		t.Fatal(err)
+	}
+	// The first three mounts form a tree of mountpoints.  The rest have
+	// independent mountpoints but have mounted subtrees contained in the
+	// mounted subtrees of the first mountpoint tree.
+	mountinfo := fmt.Sprintf(`
+222 15 259:3 /0 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /1 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /2 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /1/3 %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /2/4 %s rw shared:1 - ext4 /dev/root rw
+`, tempDir+"/a/b", tempDir+"/a", tempDir+"/a/c",
+		tempDir+"/d", tempDir+"/e")
+
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromString(mountinfo)
+	deviceNumber, _ := newDeviceNumberFromString("259:3")
+	mnt := mountsByDevice[deviceNumber]
+	if mnt.Subtree != "/1" {
+		t.Error("Wrong mount was chosen")
+	}
+}
+
+// Test loading mounts with independent subtrees *and* independent mountpoints.
+// This case is ambiguous, so an explicit nil entry should be stored.
+func TestLoadAmbiguousMounts(t *testing.T) {
+	mountinfo := `
+222 15 259:3 /foo /mnt rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /bar /tmp rw shared:1 - ext4 /dev/root rw
 `
 	beginLoadMountInfoTest()
 	defer endLoadMountInfoTest()

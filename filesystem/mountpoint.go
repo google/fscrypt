@@ -39,6 +39,11 @@ import (
 
 var (
 	// This map holds data about the state of the system's filesystems.
+	//
+	// It only contains one Mount per filesystem, even if there are
+	// additional bind mounts, since we want to store fscrypt metadata in
+	// only one place per filesystem.  If it is ambiguous which Mount should
+	// be used, an explicit nil entry is stored.
 	mountsByDevice map[DeviceNumber]*Mount
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
@@ -122,7 +127,7 @@ func parseMountInfoLine(line string) *Mount {
 	if err != nil {
 		return nil
 	}
-	mnt.BindMnt = unescapeString(fields[3]) != "/"
+	mnt.Subtree = unescapeString(fields[3])
 	mnt.Path = unescapeString(fields[4])
 	for _, opt := range strings.Split(fields[5], ",") {
 		if opt == "ro" {
@@ -132,6 +137,124 @@ func parseMountInfoLine(line string) *Mount {
 	mnt.FilesystemType = unescapeString(fields[n+1])
 	mnt.Device = getDeviceName(mnt.DeviceNumber)
 	return mnt
+}
+
+type mountpointTreeNode struct {
+	mount    *Mount
+	parent   *mountpointTreeNode
+	children []*mountpointTreeNode
+}
+
+func addUncontainedSubtreesRecursive(dst map[string]bool,
+	node *mountpointTreeNode, allUncontainedSubtrees map[string]bool) {
+	if allUncontainedSubtrees[node.mount.Subtree] {
+		dst[node.mount.Subtree] = true
+	}
+	for _, child := range node.children {
+		addUncontainedSubtreesRecursive(dst, child, allUncontainedSubtrees)
+	}
+}
+
+// findMainMount finds the "main" Mount of a filesystem.  The "main" Mount is
+// where the filesystem's fscrypt metadata is stored.
+//
+// Normally, there is just one Mount and it's of the entire filesystem
+// (mnt.Subtree == "/").  But in general, the filesystem might be mounted in
+// multiple places, including "bind mounts" where mnt.Subtree != "/".  Also, the
+// filesystem might have a combination of read-write and read-only mounts.
+//
+// To handle most cases, we could just choose a mount with mnt.Subtree == "/",
+// preferably a read-write mount.  However, that doesn't work in containers
+// where the "/" subtree might not be mounted.  Here's a real-world example:
+//
+//              mnt.Subtree               mnt.Path
+//              -----------               --------
+//              /var/lib/lxc/base/rootfs  /
+//              /var/cache/pacman/pkg     /var/cache/pacman/pkg
+//              /srv/repo/x86_64          /srv/http/x86_64
+//
+// In this case, all mnt.Subtree are independent.  To handle this case, we must
+// choose the Mount whose mnt.Path contains the others, i.e. the first one.
+// Note: the fscrypt metadata won't be usable from outside the container since
+// it won't be at the real root of the filesystem, but that may be acceptable.
+//
+// However, we can't look *only* at mnt.Path, since in some cases mnt.Subtree is
+// needed to correctly handle bind mounts.  For example, in the following case,
+// the first Mount should be chosen:
+//
+//              mnt.Subtree               mnt.Path
+//              -----------               --------
+//              /foo                      /foo
+//              /foo/dir                  /dir
+//
+// To solve this, we divide the mounts into non-overlapping trees of mnt.Path.
+// Then, we choose one of these trees which contains (exactly or via path
+// prefix) *all* mnt.Subtree.  We then return the root of this tree.  In both
+// the above examples, this algorithm returns the first Mount.
+func findMainMount(filesystemMounts []*Mount) *Mount {
+	// Index this filesystem's mounts by path.  Note: paths are unique here,
+	// since non-last mounts were already excluded earlier.
+	//
+	// Also build the set of all mounted subtrees.
+	mountsByPath := make(map[string]*mountpointTreeNode)
+	allSubtrees := make(map[string]bool)
+	for _, mnt := range filesystemMounts {
+		mountsByPath[mnt.Path] = &mountpointTreeNode{mount: mnt}
+		allSubtrees[mnt.Subtree] = true
+	}
+
+	// Divide the mounts into non-overlapping trees of mountpoints.
+	for path, mntNode := range mountsByPath {
+		for path != "/" && mntNode.parent == nil {
+			path = filepath.Dir(path)
+			if parent := mountsByPath[path]; parent != nil {
+				mntNode.parent = parent
+				parent.children = append(parent.children, mntNode)
+			}
+		}
+	}
+
+	// Build the set of mounted subtrees that aren't contained in any other
+	// mounted subtree.
+	allUncontainedSubtrees := make(map[string]bool)
+	for subtree := range allSubtrees {
+		contained := false
+		for t := subtree; t != "/" && !contained; {
+			t = filepath.Dir(t)
+			contained = allSubtrees[t]
+		}
+		if !contained {
+			allUncontainedSubtrees[subtree] = true
+		}
+	}
+
+	// Select the root of a mountpoint tree whose mounted subtrees contain
+	// *all* mounted subtrees.  Equivalently, select a mountpoint tree in
+	// which every uncontained subtree is mounted.
+	var mainMount *Mount
+	for _, mntNode := range mountsByPath {
+		mnt := mntNode.mount
+		if mntNode.parent != nil {
+			continue
+		}
+		uncontainedSubtrees := make(map[string]bool)
+		addUncontainedSubtreesRecursive(uncontainedSubtrees, mntNode, allUncontainedSubtrees)
+		if len(uncontainedSubtrees) != len(allUncontainedSubtrees) {
+			continue
+		}
+		// If there's more than one eligible mount, they should have the
+		// same Subtree.  Otherwise it's ambiguous which one to use.
+		if mainMount != nil && mainMount.Subtree != mnt.Subtree {
+			log.Printf("Unsupported case: %q (%v) has multiple non-overlapping mounts. This filesystem will be ignored!",
+				mnt.Device, mnt.DeviceNumber)
+			return nil
+		}
+		// Prefer a read-write mount to a read-only one.
+		if mainMount == nil || mainMount.ReadOnly {
+			mainMount = mnt
+		}
+	}
+	return mainMount
 }
 
 // This is separate from loadMountInfo() only for unit testing.
@@ -159,23 +282,17 @@ func readMountInfo(r io.Reader) error {
 		// mountpoints are listed in mount order.
 		mountsByPath[mnt.Path] = mnt
 	}
-	// fscrypt only really cares about the root directory of each
-	// filesystem, because that's where the fscrypt metadata is stored.  So
-	// keep just one Mount per filesystem, ignoring bind mounts.  Store that
-	// Mount in mountsByDevice so that it can be found later from the device
-	// number.  Also, prefer a read-write mount to a read-only one.
-	//
-	// If the filesystem has *only* bind mounts, store an explicit nil entry
-	// so that we can show a useful error message later.
+	// For each filesystem, choose a "main" Mount and discard any additional
+	// bind mounts.  fscrypt only cares about the main Mount, since it's
+	// where the fscrypt metadata is stored.  Store all main Mounts in
+	// mountsByDevice so that they can be found by device number later.
+	allMountsByDevice := make(map[DeviceNumber][]*Mount)
 	for _, mnt := range mountsByPath {
-		existingMnt, ok := mountsByDevice[mnt.DeviceNumber]
-		if mnt.BindMnt {
-			if !ok {
-				mountsByDevice[mnt.DeviceNumber] = nil
-			}
-		} else if existingMnt == nil || (existingMnt.ReadOnly && !mnt.ReadOnly) {
-			mountsByDevice[mnt.DeviceNumber] = mnt
-		}
+		allMountsByDevice[mnt.DeviceNumber] =
+			append(allMountsByDevice[mnt.DeviceNumber], mnt)
+	}
+	for deviceNumber, filesystemMounts := range allMountsByDevice {
+		mountsByDevice[deviceNumber] = findMainMount(filesystemMounts)
 	}
 	return nil
 }
@@ -197,13 +314,13 @@ func loadMountInfo() error {
 	return nil
 }
 
-func filesystemRootDirNotVisibleError(deviceNumber DeviceNumber) error {
-	return errors.Errorf("root of filesystem on device %q (%v) is not visible in the current mount namespace",
+func filesystemLacksMainMountError(deviceNumber DeviceNumber) error {
+	return errors.Errorf("Device %q (%v) lacks a \"main\" mountpoint in the current mount namespace, so it's ambiguous where to store the fscrypt metadata.",
 		getDeviceName(deviceNumber), deviceNumber)
 }
 
-// AllFilesystems lists all non-bind Mounts on the current system ordered by
-// path.  Use CheckSetup() to see if they are used with fscrypt.
+// AllFilesystems lists all mounted filesystems ordered by path to their "main"
+// Mount.  Use CheckSetup() to see if they are set up for use with fscrypt.
 func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
@@ -250,24 +367,24 @@ func FindMount(path string) (*Mount, error) {
 		return nil, errors.Errorf("couldn't find mountpoint containing %q", path)
 	}
 	if mnt == nil {
-		return nil, filesystemRootDirNotVisibleError(deviceNumber)
+		return nil, filesystemLacksMainMountError(deviceNumber)
 	}
 	return mnt, nil
 }
 
 // GetMount is like FindMount, except GetMount also returns an error if the path
-// isn't the root directory of a filesystem.  For example, if a filesystem is
-// mounted at "/mnt" and the file "/mnt/a" exists, FindMount("/mnt/a") will
-// succeed whereas GetMount("/mnt/a") will fail.
+// doesn't name the same file as the filesystem's "main" Mount.  For example, if
+// a filesystem is fully mounted at "/mnt" and if "/mnt/a" exists, then
+// FindMount("/mnt/a") will succeed whereas GetMount("/mnt/a") will fail.  This
+// is true even if "/mnt/a" is a bind mount of part of the same filesystem.
 func GetMount(mountpoint string) (*Mount, error) {
 	mnt, err := FindMount(mountpoint)
 	if err != nil {
 		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
 	}
-	// Check whether 'mountpoint' is the root directory of the filesystem,
-	// i.e. is the same directory as 'mnt.Path'.  Use os.SameFile() (i.e.,
-	// compare inode numbers) rather than compare canonical paths, since the
-	// filesystem might be fully mounted in multiple places.
+	// Check whether 'mountpoint' names the same directory as 'mnt.Path'.
+	// Use os.SameFile() (i.e., compare inode numbers) rather than compare
+	// canonical paths, since filesystems may be mounted in multiple places.
 	fi1, err := os.Stat(mountpoint)
 	if err != nil {
 		return nil, err
@@ -323,7 +440,7 @@ func getMountFromLink(link string) (*Mount, error) {
 			getDeviceName(deviceNumber), deviceNumber)
 	}
 	if mnt == nil {
-		return nil, filesystemRootDirNotVisibleError(deviceNumber)
+		return nil, filesystemLacksMainMountError(deviceNumber)
 	}
 	return mnt, nil
 }
