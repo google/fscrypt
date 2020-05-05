@@ -228,7 +228,7 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		return err
 	}
 
-	ioc := unix.FS_IOC_REMOVE_ENCRYPTION_KEY
+	ioc := uintptr(unix.FS_IOC_REMOVE_ENCRYPTION_KEY)
 	iocName := "FS_IOC_REMOVE_ENCRYPTION_KEY"
 	var savedPrivs *savedPrivs
 	if user == nil {
