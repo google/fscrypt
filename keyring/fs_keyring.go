@@ -228,7 +228,7 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		return err
 	}
 
-	ioc := unix.FS_IOC_REMOVE_ENCRYPTION_KEY
+	ioc := uintptr(unix.FS_IOC_REMOVE_ENCRYPTION_KEY)
 	iocName := "FS_IOC_REMOVE_ENCRYPTION_KEY"
 	var savedPrivs *savedPrivs
 	if user == nil {
@@ -240,7 +240,7 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 			return err
 		}
 	}
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(), uintptr(ioc), uintptr(unsafe.Pointer(&arg)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, dir.Fd(), ioc, uintptr(unsafe.Pointer(&arg)))
 	restorePrivs(savedPrivs)
 
 	log.Printf("%s(%q, %s) = %v, removal_status_flags=0x%x",
