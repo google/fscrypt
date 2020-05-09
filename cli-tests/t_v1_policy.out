@@ -1,0 +1,98 @@
+
+# Set policy_version 1
+
+# Try to encrypt as root
+[ERROR] fscrypt encrypt: user must be specified when run as root
+
+When running this command as root, you usually still want to provision/remove
+keys for a normal user's keyring and use a normal user's login passphrase as a
+protector (so the corresponding files will be accessible for that user). This
+can be done with --user=USERNAME. To use the root user's keyring or passphrase,
+use --user=root.
+
+# Try to use --user=root as user
+[ERROR] fscrypt encrypt: setting uids: operation not permitted: could not access
+                         user keyring
+
+You can only use --user=USERNAME to access the user keyring of another user if
+you are running as root.
+
+# Try to encrypt without user keyring in session keyring
+[ERROR] fscrypt encrypt: user keyring not linked into session keyring
+
+This is usually the result of a bad PAM configuration. Either correct the
+problem in your PAM stack, enable pam_keyinit.so, or run "keyctl link @u @s".
+
+# Encrypt a directory
+
+# Get dir status as user
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Get dir status as root
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Create files in v1-encrypted directory
+
+# Try to lock v1-encrypted directory as user
+[ERROR] fscrypt lock: inode cache can only be dropped as root
+
+Either this command should be run as root to properly clear the inode cache, or
+it should be run with --drop-caches=false (this may leave encrypted files and
+directories in an accessible state).
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Try to lock v1-encrypted directory as root without --user
+[ERROR] fscrypt lock: user must be specified when run as root
+
+When running this command as root, you usually still want to provision/remove
+keys for a normal user's keyring and use a normal user's login passphrase as a
+protector (so the corresponding files will be accessible for that user). This
+can be done with --user=USERNAME. To use the root user's keyring or passphrase,
+use --user=root.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Lock v1-encrypted directory
+Encrypted data removed from filesystem cache.
+"MNT/dir" is now locked.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+cat: MNT/dir/file: No such file or directory
