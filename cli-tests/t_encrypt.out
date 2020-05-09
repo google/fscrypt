@@ -1,0 +1,67 @@
+
+# Try to encrypt a nonexistent directory
+[ERROR] fscrypt encrypt: no such file or directory
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
+
+# Try to encrypt a nonempty directory
+[ERROR] fscrypt encrypt: MNT/dir: not an empty directory
+
+Encryption can only be setup on empty directories; files cannot be encrypted
+in-place. Instead, encrypt an empty directory, copy the files into that
+encrypted directory, and securely delete the originals with "shred".
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
+
+# Encrypt a directory as non-root user
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc2  Yes       desc1
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc2
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc2  Yes       desc1
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc2
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+
+# Try to encrypt an already-encrypted directory
+[ERROR] fscrypt encrypt: MNT/dir: file or directory already
+                         encrypted
+
+# Try to encrypt another user's directory as a non-root user
+[ERROR] fscrypt encrypt: MNT/dir: you do not own this
+                         directory
+
+Encryption can only be setup on directories you own, even if you have write
+permission for the directory.
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
