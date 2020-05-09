@@ -1,0 +1,44 @@
+
+# Get status of setup mountpoint via global status
+ext4 supported Yes
+ext4 supported Yes
+
+# Get status of setup mountpoint
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+
+# Get status of unencrypted directory on setup mountpoint
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
+
+# Remove fscrypt metadata from MNT
+
+# Check enabled / setup count again
+
+# Get status of not-setup mounntpoint via global status
+ext4 supported No
+ext4 supported No
+
+# Get status of not-setup mountpoint
+[ERROR] fscrypt status: filesystem MNT: not setup for use
+                        with fscrypt
+
+Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
+[ERROR] fscrypt status: filesystem MNT: not setup for use
+                        with fscrypt
+
+Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
+
+# Get status of unencrypted directory on not-setup mountpoint
+[ERROR] fscrypt status: filesystem MNT: not setup for use
+                        with fscrypt
+
+Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
+[ERROR] fscrypt status: filesystem MNT: not setup for use
+                        with fscrypt
+
+Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.

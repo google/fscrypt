@@ -110,11 +110,12 @@ lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
 	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	misspell -source=text $(FILES)
+	( cd cli-tests && shellcheck -x *.sh)
 
 clean:
 	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES) $(PAM_CONFIG)
 
-###### Testing Commands (setup/teardown require sudo) ######
+###### Go tests ######
 .PHONY: test test-setup test-teardown
 
 # If MOUNT exists signal that we should run integration tests.
@@ -138,6 +139,15 @@ test-teardown:
 	sudo umount $(MOUNT)
 	rmdir $(MOUNT)
 	rm -f $(IMAGE)
+
+###### Command-line interface tests ######
+.PHONY: cli-test cli-test-update
+
+cli-test: $(BIN)/$(NAME)
+	sudo cli-tests/run.sh
+
+cli-test-update: $(BIN)/$(NAME)
+	sudo cli-tests/run.sh --update-output
 
 # Runs tests and generates coverage
 COVERAGE_FILES := $(addsuffix coverage.out,$(GO_DIRS))

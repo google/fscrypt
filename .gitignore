@@ -8,6 +8,7 @@ bin/staticcheck
 bin/gocovmerge
 bin/misspell
 bin/config
+cli-tests/*.out.actual
 *coverage.out
 .vscode
 tags

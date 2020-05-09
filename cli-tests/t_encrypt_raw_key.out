@@ -1,0 +1,25 @@
+
+# Encrypt with raw_key protector
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      raw key protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc2  Yes       desc1
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc2
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      raw key protector "prot"
+
+# Try to encrypt with raw_key protector, using wrong key length
+[ERROR] fscrypt encrypt: TMPDIR/raw_key: key file must be 32 bytes
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted

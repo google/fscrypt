@@ -51,8 +51,10 @@ func createProtectorFromContext(ctx *actions.Context) (*actions.Protector, error
 
 	// We only want to create new login protectors on the root filesystem.
 	// So we make a new context if necessary.
-	if ctx.Config.Source == metadata.SourceType_pam_passphrase && ctx.Mount.Path != "/" {
-		log.Printf("creating login protector on %q instead of %q", "/", ctx.Mount.Path)
+	if ctx.Config.Source == metadata.SourceType_pam_passphrase &&
+		ctx.Mount.Path != actions.LoginProtectorMountpoint {
+		log.Printf("creating login protector on %q instead of %q",
+			actions.LoginProtectorMountpoint, ctx.Mount.Path)
 		if ctx, err = modifiedContext(ctx); err != nil {
 			return nil, err
 		}
@@ -84,7 +86,7 @@ func expandedProtectorOptions(ctx *actions.Context) ([]*actions.ProtectorOption,
 	}
 
 	// Do nothing different if we are at the root, or cannot load the root.
-	if ctx.Mount.Path == "/" {
+	if ctx.Mount.Path == actions.LoginProtectorMountpoint {
 		return options, nil
 	}
 	if ctx, err = modifiedContext(ctx); err != nil {
@@ -117,10 +119,10 @@ func expandedProtectorOptions(ctx *actions.Context) ([]*actions.ProtectorOption,
 	return options, nil
 }
 
-// modifiedContext returns a copy of ctx with the mountpoint replaced by that of
-// the root filesystem.
+// modifiedContext returns a copy of ctx with the mountpoint replaced by
+// LoginProtectorMountpoint.
 func modifiedContext(ctx *actions.Context) (*actions.Context, error) {
-	mnt, err := filesystem.GetMount("/")
+	mnt, err := filesystem.GetMount(actions.LoginProtectorMountpoint)
 	if err != nil {
 		return nil, err
 	}

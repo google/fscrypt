@@ -22,6 +22,8 @@ jobs:
 
     - stage: presubmits
       name: Generate, Format, and Lint
+      before_install:
+        - sudo apt-get -y install shellcheck
       install:
         - make tools
       script:

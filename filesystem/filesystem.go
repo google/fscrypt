@@ -38,7 +38,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
@@ -62,6 +64,11 @@ var (
 	ErrGlobalMountInfo = util.SystemError("creating global mountpoint list failed")
 	ErrCorruptMetadata = util.SystemError("on-disk metadata is corrupt")
 )
+
+// SortDescriptorsByLastMtime indicates whether descriptors are sorted by last
+// modification time when being listed.  This can be set to true to get
+// consistent output for testing.
+var SortDescriptorsByLastMtime = false
 
 // Mount contains information for a specific mounted filesystem.
 //	Path           - Absolute path where the directory is mounted
@@ -534,6 +541,37 @@ func (m *Mount) ListPolicies() ([]string, error) {
 	return policies, m.err(err)
 }
 
+type namesAndTimes struct {
+	names []string
+	times []time.Time
+}
+
+func (c namesAndTimes) Len() int {
+	return len(c.names)
+}
+
+func (c namesAndTimes) Less(i, j int) bool {
+	return c.times[i].Before(c.times[j])
+}
+
+func (c namesAndTimes) Swap(i, j int) {
+	c.names[i], c.names[j] = c.names[j], c.names[i]
+	c.times[i], c.times[j] = c.times[j], c.times[i]
+}
+
+func sortFileListByLastMtime(directoryPath string, names []string) error {
+	c := namesAndTimes{names: names, times: make([]time.Time, len(names))}
+	for i, name := range names {
+		fi, err := os.Lstat(filepath.Join(directoryPath, name))
+		if err != nil {
+			return err
+		}
+		c.times[i] = fi.ModTime()
+	}
+	sort.Sort(c)
+	return nil
+}
+
 // listDirectory returns a list of descriptors for a metadata directory,
 // including files which are links to other filesystem's metadata.
 func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
@@ -547,6 +585,12 @@ func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
 	names, err := dir.Readdirnames(-1)
 	if err != nil {
 		return nil, err
+	}
+
+	if SortDescriptorsByLastMtime {
+		if err := sortFileListByLastMtime(directoryPath, names); err != nil {
+			return nil, err
+		}
 	}
 
 	descriptors := make([]string, 0, len(names))

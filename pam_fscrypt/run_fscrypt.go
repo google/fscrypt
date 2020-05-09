@@ -132,7 +132,8 @@ func setupLogging(args map[string]bool) io.Writer {
 // one exists. This protector descriptor (if found) will be cached in the pam
 // data, under descriptorLabel.
 func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
-	ctx, err := actions.NewContextFromMountpoint("/", handle.PamUser)
+	ctx, err := actions.NewContextFromMountpoint(actions.LoginProtectorMountpoint,
+		handle.PamUser)
 	if err != nil {
 		return nil, err
 	}

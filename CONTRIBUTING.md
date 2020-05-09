@@ -59,7 +59,11 @@ On every pull request, [Travis CI](https://travis-ci.org/google/fscrypt) runs
 unit tests, integration tests, code formatters, and linters. To pass these
 checks you should make sure that in your submission:
 - `make` properly builds `fscrypt` and `pam_fscrypt.so`.
-- All tests, including [integration tests](#running-integration-tests), should pass.
+- All tests, including [integration tests](#running-integration-tests) and
+  [command-line interface (CLI)
+  tests](https://github.com/google/fscrypt/blob/master/cli-tests/README.md),
+  should pass. If the CLI tests fail due to an expected change in output, you
+  can use `make cli-test-update`.
 - `make format` has been run.
 - If you made any changes to files ending in `.proto`, the corresponding
   `.pb.go` files should be regenerated with `make gen`.
@@ -74,17 +78,27 @@ Essentially, if you run:
 make test-setup
 make all
 make test-teardown
+make cli-test
 go mod tidy
 ```
 and everything succeeds, and no files are changed, you're good to submit.
 
-The `Makefile` should automatically download and build whatever it needs.
-The only exceptions to this rule are:
+The `Makefile` will automatically download and build any needed Go dependencies.
+However, you'll also need to install some non-Go dependencies:
   - `make format` requires
     [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html).
-  - `make test-setup` requires
-    [`e2fsprogs`](https://en.wikipedia.org/wiki/E2fsprogs) version 1.43
-    or later (or any patched version that supports `-O encrypt`).
+  - `make lint` requires [`shellcheck`](https://github.com/koalaman/shellcheck).
+  - `make test-setup` and `make cli-test` require
+    [`e2fsprogs`](https://en.wikipedia.org/wiki/E2fsprogs) version 1.43 or
+    later.
+  - `make cli-test` requires [`expect`](https://en.wikipedia.org/wiki/Expect)
+    and
+    [`keyutils`](https://manpages.debian.org/testing/keyutils/keyctl.1.en.html).
+
+On Ubuntu, the following command installs the needed packages:
+```
+sudo apt-get install clang-format shellcheck e2fsprogs expect keyutils
+```
 
 ### Running Integration Tests
 
