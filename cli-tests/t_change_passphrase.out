@@ -1,0 +1,32 @@
+
+# Create encrypted directory
+
+# Try to unlock with wrong passphrase
+[ERROR] fscrypt unlock: incorrect key provided
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
+
+# Change passphrase
+
+# Try to unlock with old passphrase
+[ERROR] fscrypt unlock: incorrect key provided
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
+
+# Unlock with new passphrase
+
+# Try to change passphrase (interactively, mismatch)
+spawn fscrypt metadata change-passphrase --protector=MNT:desc1
+Enter old custom passphrase for protector "prot": 
+Enter new custom passphrase for protector "prot": 
+Confirm passphrase: 
+[ERROR] fscrypt metadata change-passphrase: entered passphrases do not match
+
+# Change passphrase (interactively)
+spawn fscrypt metadata change-passphrase --protector=MNT:desc1
+Enter old custom passphrase for protector "prot": 
+Enter new custom passphrase for protector "prot": 
+Confirm passphrase: 
+Passphrase for protector desc1 successfully changed.
+
+# Lock, then unlock with new passphrase
+"MNT/dir" is now locked.
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
