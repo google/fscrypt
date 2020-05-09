@@ -318,7 +318,8 @@ func optionFn(policyDescriptor string, options []*actions.ProtectorOption) (int,
 				return idx, nil
 			}
 		}
-		return 0, actions.ErrNotProtected
+		return 0, &actions.ErrNotProtected{PolicyDescriptor: policyDescriptor,
+			ProtectorDescriptor: protector.Descriptor()}
 	}
 
 	log.Printf("optionFn(%s)", policyDescriptor)

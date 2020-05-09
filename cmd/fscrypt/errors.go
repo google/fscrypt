@@ -127,21 +127,6 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
 		version 5.4 and later. Either use a newer kernel, or change
 		policy_version to 1 in %s.`, actions.ConfigFileLocation)
-	case actions.ErrMissingPolicyMetadata:
-		return `This file or directory has either been encrypted with
-			another tool (such as e4crypt) or the corresponding
-			filesystem metadata has been deleted.`
-	case actions.ErrPolicyMetadataMismatch:
-		return `The metadata for this encrypted directory is in an
-			inconsistent state. This most likely means the filesystem
-			metadata is corrupted.`
-	case actions.ErrAccessDeniedPossiblyV2:
-		return fmt.Sprintf(`This may be caused by the directory using a v2
-		encryption policy and the current kernel not supporting it. If
-		indeed the case, then this directory can only be used on kernel
-		v5.4 and later. You can create directories accessible on older
-		kernels by changing policy_version to 1 in %s.`,
-			actions.ConfigFileLocation)
 	case ErrNoDestructiveOps:
 		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
 	case ErrSpecifyProtector:

@@ -181,9 +181,9 @@ func (m *Mount) PolicyDir() string {
 	return filepath.Join(m.BaseDir(), policyDirName)
 }
 
-// policyPath returns the full path to a regular policy file with the
+// PolicyPath returns the full path to a regular policy file with the
 // specified descriptor.
-func (m *Mount) policyPath(descriptor string) string {
+func (m *Mount) PolicyPath(descriptor string) string {
 	return filepath.Join(m.PolicyDir(), descriptor)
 }
 
@@ -512,7 +512,7 @@ func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
 		return err
 	}
 
-	return m.err(m.addMetadata(m.policyPath(data.KeyDescriptor), data))
+	return m.err(m.addMetadata(m.PolicyPath(data.KeyDescriptor), data))
 }
 
 // GetPolicy looks up the policy metadata by descriptor.
@@ -521,7 +521,7 @@ func (m *Mount) GetPolicy(descriptor string) (*metadata.PolicyData, error) {
 		return nil, err
 	}
 	data := new(metadata.PolicyData)
-	return data, m.err(m.getMetadata(m.policyPath(descriptor), data))
+	return data, m.err(m.getMetadata(m.PolicyPath(descriptor), data))
 }
 
 // RemovePolicy deletes the policy metadata from the filesystem storage.
@@ -529,7 +529,7 @@ func (m *Mount) RemovePolicy(descriptor string) error {
 	if err := m.CheckSetup(); err != nil {
 		return err
 	}
-	return m.err(m.removeMetadata(m.policyPath(descriptor)))
+	return m.err(m.removeMetadata(m.PolicyPath(descriptor)))
 }
 
 // ListPolicies lists the descriptors of all policies on this filesystem.

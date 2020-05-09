@@ -81,21 +81,39 @@ contents
 desc1  Yes       desc2
 
 # Try to unlock with corrupt policy metadata
-[ERROR] fscrypt unlock: MNT/dir: system error: missing
-                        policy metadata for encrypted directory
-
-This file or directory has either been encrypted with another tool (such as
-e4crypt) or the corresponding filesystem metadata has been deleted.
+[ERROR] fscrypt unlock: filesystem "MNT" does not contain
+                        the policy metadata for "MNT/dir".
+                        This directory has either been encrypted with another
+                        tool (such as e4crypt), or the file
+                        "MNT/.fscrypt/policies/desc1"
+                        has been deleted.
 
 # Try to unlock with missing policy metadata
-[ERROR] fscrypt unlock: MNT/dir: system error: missing
-                        policy metadata for encrypted directory
-
-This file or directory has either been encrypted with another tool (such as
-e4crypt) or the corresponding filesystem metadata has been deleted.
+[ERROR] fscrypt unlock: filesystem "MNT" does not contain
+                        the policy metadata for "MNT/dir".
+                        This directory has either been encrypted with another
+                        tool (such as e4crypt), or the file
+                        "MNT/.fscrypt/policies/desc20"
+                        has been deleted.
 
 # Try to unlock with missing protector metadata
 [ERROR] fscrypt unlock: could not load any protectors
 
 You may need to mount a linked filesystem. Run with --verbose for more
 information.
+
+# Try to unlock with wrong policy metadata
+[ERROR] fscrypt unlock: inconsistent metadata between encrypted directory
+                        "MNT/dir1" and its corresponding
+                        metadata file
+                        "MNT/.fscrypt/policies/desc21".
+
+                        Directory has
+                        descriptor:desc21 padding:32
+                        contents:AES_256_XTS filenames:AES_256_CTS
+                        policy_version:2
+
+                        Metadata file has
+                        descriptor:desc23 padding:32
+                        contents:AES_256_XTS filenames:AES_256_CTS
+                        policy_version:2
