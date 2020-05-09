@@ -36,6 +36,29 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
+// ErrAccessUserKeyring indicates that a user's keyring cannot be
+// accessed.
+type ErrAccessUserKeyring struct {
+	TargetUser      *user.User
+	UnderlyingError error
+}
+
+func (err *ErrAccessUserKeyring) Error() string {
+	return fmt.Sprintf("could not access user keyring for %q: %s",
+		err.TargetUser.Username, err.UnderlyingError)
+}
+
+// ErrSessionUserKeyring indicates that a user's keyring is not linked
+// into the session keyring.
+type ErrSessionUserKeyring struct {
+	TargetUser *user.User
+}
+
+func (err *ErrSessionUserKeyring) Error() string {
+	return fmt.Sprintf("user keyring for %q is not linked into the session keyring",
+		err.TargetUser.Username)
+}
+
 // KeyType is always logon as required by filesystem encryption.
 const KeyType = "logon"
 
@@ -67,7 +90,9 @@ func userAddKey(key *crypto.Key, description string, targetUser *user.User) erro
 	log.Printf("KeyctlAddKey(%s, %s, <data>, %d) = %d, %v",
 		KeyType, description, keyringID, keyID, err)
 	if err != nil {
-		return errors.Wrap(ErrKeyAdd, err.Error())
+		return errors.Wrapf(err,
+			"error adding key with description %s to user keyring for %q",
+			description, targetUser.Username)
 	}
 	return nil
 }
@@ -86,7 +111,9 @@ func userRemoveKey(description string, targetUser *user.User) error {
 	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
 	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
 	if err != nil {
-		return errors.Wrap(ErrKeyRemove, err.Error())
+		return errors.Wrapf(err,
+			"error removing key with description %s from user keyring for %q",
+			description, targetUser.Username)
 	}
 	return nil
 }
@@ -106,7 +133,9 @@ func userFindKey(description string, targetUser *user.User) (int, int, error) {
 	keyID, err := unix.KeyctlSearch(keyringID, KeyType, description, 0)
 	log.Printf("KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, KeyType, description, keyID, err)
 	if err != nil {
-		return 0, 0, errors.Wrap(ErrKeySearch, err.Error())
+		return 0, 0, errors.Wrapf(err,
+			"error searching for key %s in user keyring for %q",
+			description, targetUser.Username)
 	}
 	return keyID, keyringID, err
 }
@@ -123,14 +152,14 @@ func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
 	uid := util.AtoiOrPanic(targetUser.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
 	if err != nil {
-		return 0, errors.Wrap(ErrAccessUserKeyring, err.Error())
+		return 0, &ErrAccessUserKeyring{targetUser, err}
 	}
 
 	if !util.IsUserRoot() {
 		// Make sure the returned keyring will be accessible by checking
 		// that it is in the session keyring.
 		if checkSession && !isUserKeyringInSession(uid) {
-			return 0, ErrSessionUserKeying
+			return 0, &ErrSessionUserKeyring{targetUser}
 		}
 		return targetKeyring, nil
 	}
@@ -139,12 +168,14 @@ func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
 	// the root user's user keyring (which will not be garbage collected).
 	rootKeyring, err := userKeyringIDLookup(0)
 	if err != nil {
-		return 0, errors.Wrap(ErrLinkUserKeyring, err.Error())
+		return 0, errors.Wrapf(err, "error looking up root's user keyring")
 	}
 
 	if rootKeyring != targetKeyring {
 		if err = keyringLink(targetKeyring, rootKeyring); err != nil {
-			return 0, errors.Wrap(ErrLinkUserKeyring, err.Error())
+			return 0, errors.Wrapf(err,
+				"error linking user keyring for %q into root's user keyring",
+				targetUser.Username)
 		}
 	}
 	return targetKeyring, nil

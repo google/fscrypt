@@ -43,15 +43,9 @@ import (
 
 // Keyring error values
 var (
-	ErrKeyAdd                = util.SystemError("could not add key to the keyring")
-	ErrKeyRemove             = util.SystemError("could not remove key from the keyring")
-	ErrKeyNotPresent         = errors.New("key not present or already removed")
-	ErrKeyFilesOpen          = errors.New("some files using the key are still open")
 	ErrKeyAddedByOtherUsers  = errors.New("other users have added the key too")
-	ErrKeySearch             = errors.New("could not find key with descriptor")
-	ErrSessionUserKeying     = errors.New("user keyring not linked into session keyring")
-	ErrAccessUserKeyring     = errors.New("could not access user keyring")
-	ErrLinkUserKeyring       = util.SystemError("could not link user keyring into root keyring")
+	ErrKeyFilesOpen          = errors.New("some files using the key are still open")
+	ErrKeyNotPresent         = errors.New("key not present or already removed")
 	ErrV2PoliciesUnsupported = errors.New("kernel is too old to support v2 encryption policies")
 )
 

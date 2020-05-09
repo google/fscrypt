@@ -88,6 +88,14 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
 	case *actions.ErrNoConfigFile:
 		return `Run "sudo fscrypt setup" to create this file.`
+	case *keyring.ErrAccessUserKeyring:
+		return fmt.Sprintf(`You can only use %s to access the user
+			keyring of another user if you are running as root.`,
+			shortDisplay(userFlag))
+	case *keyring.ErrSessionUserKeyring:
+		return `This is usually the result of a bad PAM configuration.
+			Either correct the problem in your PAM stack, enable
+			pam_keyinit.so, or run "keyctl link @u @s".`
 	}
 	switch errors.Cause(err) {
 	case filesystem.ErrNotSetup:
@@ -115,14 +123,6 @@ func getErrorSuggestions(err error) string {
 		return `Directory couldn't be fully locked because other user(s)
 			have unlocked it. If you want to force the directory to
 			be locked, use 'sudo fscrypt lock --all-users DIR'.`
-	case keyring.ErrSessionUserKeying:
-		return `This is usually the result of a bad PAM configuration.
-			Either correct the problem in your PAM stack, enable
-			pam_keyinit.so, or run "keyctl link @u @s".`
-	case keyring.ErrAccessUserKeyring:
-		return fmt.Sprintf(`You can only use %s to access the user
-			keyring of another user if you are running as root.`,
-			shortDisplay(userFlag))
 	case keyring.ErrV2PoliciesUnsupported:
 		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
 		version 5.4 and later. Either use a newer kernel, or change

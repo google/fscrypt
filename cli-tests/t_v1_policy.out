@@ -11,14 +11,15 @@ can be done with --user=USERNAME. To use the root user's keyring or passphrase,
 use --user=root.
 
 # Try to use --user=root as user
-[ERROR] fscrypt encrypt: setting uids: operation not permitted: could not access
-                         user keyring
+[ERROR] fscrypt encrypt: could not access user keyring for "root": setting uids:
+                         operation not permitted
 
 You can only use --user=USERNAME to access the user keyring of another user if
 you are running as root.
 
 # Try to encrypt without user keyring in session keyring
-[ERROR] fscrypt encrypt: user keyring not linked into session keyring
+[ERROR] fscrypt encrypt: user keyring for "fscrypt-test-user" is not linked into
+                         the session keyring
 
 This is usually the result of a bad PAM configuration. Either correct the
 problem in your PAM stack, enable pam_keyinit.so, or run "keyctl link @u @s".
