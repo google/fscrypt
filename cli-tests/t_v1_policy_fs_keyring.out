@@ -1,0 +1,75 @@
+
+# Enable v1 policies with fs keyring
+
+# Try to encrypt directory as user
+[ERROR] fscrypt encrypt: root is required to add/remove v1 encryption policy
+                         keys to/from filesystem
+
+Either this command should be run as root, or you should set
+'"use_fs_keyring_for_v1_policies": false' in /etc/fscrypt.conf, or you should
+re-create your encrypted directories using v2 encryption policies rather than v1
+(this requires setting '"policy_version": "2"' in the "options" section of
+/etc/fscrypt.conf).
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
+
+# Encrypt directory as user with --skip-unlock
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
+
+# Try to unlock directory as user
+[ERROR] fscrypt unlock: root is required to add/remove v1 encryption policy keys
+                        to/from filesystem
+
+Either this command should be run as root, or you should set
+'"use_fs_keyring_for_v1_policies": false' in /etc/fscrypt.conf, or you should
+re-create your encrypted directories using v2 encryption policies rather than v1
+(this requires setting '"policy_version": "2"' in the "options" section of
+/etc/fscrypt.conf).
+
+# Unlock directory as root
+Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Try to lock directory as user
+[ERROR] fscrypt lock: root is required to add/remove v1 encryption policy keys
+                      to/from filesystem
+
+Either this command should be run as root, or you should set
+'"use_fs_keyring_for_v1_policies": false' in /etc/fscrypt.conf, or you should
+re-create your encrypted directories using v2 encryption policies rather than v1
+(this requires setting '"policy_version": "2"' in the "options" section of
+/etc/fscrypt.conf).
+
+# Lock directory as root
+"MNT/dir" is now locked.
+cat: MNT/dir/file: No such file or directory
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Check that user can access file when directory is unlocked by root
+Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
+contents
