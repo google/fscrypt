@@ -78,39 +78,37 @@ func userRemoveKey(description string, targetUser *user.User) error {
 	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
 	defer runtime.UnlockOSThread()
 
-	keyID, err := userFindKey(description, targetUser)
+	keyID, keyringID, err := userFindKey(description, targetUser)
 	if err != nil {
 		return ErrKeyNotPresent
 	}
 
-	// We use KEYCTL_INVALIDATE instead of KEYCTL_REVOKE because
-	// invalidating a key immediately removes it.
-	_, err = unix.KeyctlInt(unix.KEYCTL_INVALIDATE, keyID, 0, 0, 0)
-	log.Printf("KeyctlInvalidate(%d) = %v", keyID, err)
+	_, err = unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0)
+	log.Printf("KeyctlUnlink(%d, %d) = %v", keyID, keyringID, err)
 	if err != nil {
 		return errors.Wrap(ErrKeyRemove, err.Error())
 	}
 	return nil
 }
 
-// userFindKey tries to locate a key in the user keyring with the provided
-// description. The key ID is returned if we can find the key. An error is
-// returned if the key does not exist.
-func userFindKey(description string, targetUser *user.User) (int, error) {
+// userFindKey tries to locate a key with the provided description in the user
+// keyring for the target user. The key ID and keyring ID are returned if we can
+// find the key. An error is returned if the key does not exist.
+func userFindKey(description string, targetUser *user.User) (int, int, error) {
 	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
 	defer runtime.UnlockOSThread()
 
 	keyringID, err := UserKeyringID(targetUser, false)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	keyID, err := unix.KeyctlSearch(keyringID, KeyType, description, 0)
 	log.Printf("KeyctlSearch(%d, %s, %s) = %d, %v", keyringID, KeyType, description, keyID, err)
 	if err != nil {
-		return 0, errors.Wrap(ErrKeySearch, err.Error())
+		return 0, 0, errors.Wrap(ErrKeySearch, err.Error())
 	}
-	return keyID, err
+	return keyID, keyringID, err
 }
 
 // UserKeyringID returns the key id of the target user's user keyring. We also
