@@ -173,7 +173,7 @@ func GetEncryptionKeyStatus(descriptor string, options *Options) (KeyStatus, err
 	if useFsKeyring {
 		return fsGetEncryptionKeyStatus(descriptor, options.Mount, options.User)
 	}
-	_, err = userFindKey(buildKeyDescription(options, descriptor), options.User)
+	_, _, err = userFindKey(buildKeyDescription(options, descriptor), options.User)
 	if err != nil {
 		return KeyAbsent, nil
 	}

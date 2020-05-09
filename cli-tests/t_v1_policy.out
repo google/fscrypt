@@ -96,3 +96,42 @@ Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc2  No      custom protector "prot"
 cat: MNT/dir/file: No such file or directory
+
+# Testing incompletely locking v1-encrypted directory
+Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
+Encrypted data removed from filesystem cache.
+[ERROR] fscrypt lock: some files using the key are still open
+
+Directory was incompletely locked because some files are still open. These files
+remain accessible. Try killing any processes using files in the directory, then
+re-running 'fscrypt lock'.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: Partially (incompletely locked)
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+POLICY            UNLOCKED  PROTECTORS
+desc1  No        desc2
+
+# Finishing locking v1-encrypted directory
+Encrypted data removed from filesystem cache.
+"MNT/dir" is now locked.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+cat: MNT/dir/file: No such file or directory
