@@ -33,6 +33,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
 )
 
 // Current version of the program (set by Makefile)
@@ -48,6 +49,9 @@ func main() {
 	}
 	if rootmnt := os.Getenv("FSCRYPT_ROOT_MNT"); rootmnt != "" {
 		actions.LoginProtectorMountpoint = rootmnt
+	}
+	if consistent := os.Getenv("FSCRYPT_CONSISTENT_OUTPUT"); consistent == "1" {
+		filesystem.SortDescriptorsByLastMtime = true
 	}
 
 	// Create our command line application
