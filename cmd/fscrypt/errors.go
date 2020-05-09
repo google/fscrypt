@@ -47,7 +47,6 @@ const failureExitCode = 1
 var (
 	ErrCanceled           = errors.New("operation canceled")
 	ErrNoDestructiveOps   = errors.New("operation would be destructive")
-	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
 	ErrInvalidSource      = errors.New("invalid source type")
 	ErrPassphraseMismatch = errors.New("entered passphrases do not match")
 	ErrSpecifyProtector   = errors.New("multiple protectors available")

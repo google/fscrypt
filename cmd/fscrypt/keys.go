@@ -55,14 +55,14 @@ var (
 // struct is empty as the reader needs to maintain no internal state.
 type passphraseReader struct{}
 
-// Read gets input from the terminal until a newline is encountered. This read
-// should be called with the maximum buffer size for the passphrase.
+// Read gets input from the terminal until a newline is encountered or the given
+// buffer is full.
 func (p passphraseReader) Read(buf []byte) (int, error) {
 	// We read one byte at a time to handle backspaces
 	position := 0
 	for {
 		if position == len(buf) {
-			return position, ErrMaxPassphrase
+			return position, nil
 		}
 		if _, err := io.ReadFull(os.Stdin, buf[position:position+1]); err != nil {
 			return position, err
