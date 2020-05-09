@@ -30,6 +30,10 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
+// LoginProtectorMountpoint is the mountpoint where login protectors are stored.
+// This can be overridden by the user of this package.
+var LoginProtectorMountpoint = "/"
+
 // Errors relating to Protectors
 var (
 	ErrProtectorName        = errors.New("login protectors do not need a name")

@@ -46,6 +46,9 @@ func main() {
 	if conffile := os.Getenv("FSCRYPT_CONF"); conffile != "" {
 		actions.ConfigFileLocation = conffile
 	}
+	if rootmnt := os.Getenv("FSCRYPT_ROOT_MNT"); rootmnt != "" {
+		actions.LoginProtectorMountpoint = rootmnt
+	}
 
 	// Create our command line application
 	app := cli.NewApp()

@@ -73,12 +73,13 @@ func setupAction(c *cli.Context) error {
 		if err := createGlobalConfig(c.App.Writer, actions.ConfigFileLocation); err != nil {
 			return newExitError(c, err)
 		}
-		if err := setupFilesystem(c.App.Writer, "/"); err != nil {
+		if err := setupFilesystem(c.App.Writer, actions.LoginProtectorMountpoint); err != nil {
 			if errors.Cause(err) != filesystem.ErrAlreadySetup {
 				return newExitError(c, err)
 			}
 			fmt.Fprintf(c.App.Writer,
-				"Skipping creating /.fscrypt because it already exists.\n")
+				"Skipping creating %s because it already exists.\n",
+				filepath.Join(actions.LoginProtectorMountpoint, ".fscrypt"))
 		}
 	case 1:
 		// Case (2) - filesystem setup
