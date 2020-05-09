@@ -139,8 +139,8 @@ ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 ext4 filesystem "MNT_ROOT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Try to use the wrong login passphrase
 [ERROR] fscrypt encrypt: incorrect login passphrase
@@ -148,5 +148,5 @@ ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 ext4 filesystem "MNT_ROOT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted

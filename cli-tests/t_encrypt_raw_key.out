@@ -21,5 +21,5 @@ desc1  No      raw key protector "prot"
 [ERROR] fscrypt encrypt: TMPDIR/raw_key: key file must be 32 bytes
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted

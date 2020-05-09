@@ -10,10 +10,10 @@ ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 
 # Get status of unencrypted directory on setup mountpoint
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Remove fscrypt metadata from MNT
 

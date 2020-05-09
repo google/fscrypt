@@ -22,9 +22,12 @@ package metadata
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 	"math"
 	"os"
+	"os/user"
+	"strconv"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -33,38 +36,70 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Encryption specific errors
 var (
+	// ErrEncryptionNotSupported indicates that encryption is not supported
+	// on the given filesystem, and there is no way to enable it.
 	ErrEncryptionNotSupported = errors.New("encryption not supported")
-	ErrEncryptionNotEnabled   = errors.New("encryption not enabled")
-	ErrNotEncrypted           = errors.New("file or directory not encrypted")
-	ErrEncrypted              = errors.New("file or directory already encrypted")
-	ErrBadEncryptionOptions   = util.SystemError("invalid encryption options provided")
+
+	// ErrEncryptionNotEnabled indicates that encryption is not supported on
+	// the given filesystem, but there is a way to enable it.
+	ErrEncryptionNotEnabled = errors.New("encryption not enabled")
 )
 
-// policyIoctl is a wrapper around the ioctls that get and set encryption
-// policies: FS_IOC_GET_ENCRYPTION_POLICY, FS_IOC_GET_ENCRYPTION_POLICY_EX, and
-// FS_IOC_SET_ENCRYPTION_POLICY.  It translates the raw errno values into more
-// descriptive errors.
-func policyIoctl(file *os.File, request uintptr, arg unsafe.Pointer) error {
-	// The returned errno value can sometimes give strange errors, so we
-	// return encryption specific errors.
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), request, uintptr(arg))
-	switch errno {
-	case 0:
-		return nil
-	case unix.ENOTTY:
-		return ErrEncryptionNotSupported
-	case unix.EOPNOTSUPP:
-		return ErrEncryptionNotEnabled
-	case unix.ENODATA, unix.ENOENT:
-		// ENOENT was returned instead of ENODATA on some filesystems before v4.11.
-		return ErrNotEncrypted
-	case unix.EEXIST:
-		return ErrEncrypted
-	default:
-		return errno
+// ErrAlreadyEncrypted indicates that the path is already encrypted.
+type ErrAlreadyEncrypted struct {
+	Path string
+}
+
+func (err *ErrAlreadyEncrypted) Error() string {
+	return fmt.Sprintf("file or directory %q is already encrypted", err.Path)
+}
+
+// ErrBadEncryptionOptions indicates that unsupported encryption options were given.
+type ErrBadEncryptionOptions struct {
+	Path    string
+	Options *EncryptionOptions
+}
+
+func (err *ErrBadEncryptionOptions) Error() string {
+	return fmt.Sprintf(`cannot encrypt %q because the kernel doesn't support the requested encryption options.
+
+	The options are %s`, err.Path, err.Options)
+}
+
+// ErrDirectoryNotOwned indicates a directory can't be encrypted because it's
+// owned by another user.
+type ErrDirectoryNotOwned struct {
+	Path  string
+	Owner uint32
+}
+
+func (err *ErrDirectoryNotOwned) Error() string {
+	owner := strconv.Itoa(int(err.Owner))
+	if u, e := user.LookupId(owner); e == nil && u.Username != "" {
+		owner = u.Username
 	}
+	return fmt.Sprintf(`cannot encrypt %q because it's owned by another user (%s).
+
+	Encryption can only be enabled on a directory you own, even if you have
+	write access to the directory.`, err.Path, owner)
+}
+
+// ErrNotEncrypted indicates that the path is not encrypted.
+type ErrNotEncrypted struct {
+	Path string
+}
+
+func (err *ErrNotEncrypted) Error() string {
+	return fmt.Sprintf("file or directory %q is not encrypted", err.Path)
+}
+
+func policyIoctl(file *os.File, request uintptr, arg unsafe.Pointer) error {
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, file.Fd(), request, uintptr(arg))
+	if errno == 0 {
+		return nil
+	}
+	return errno
 }
 
 // Maps EncryptionOptions.Padding <-> FSCRYPT_POLICY_FLAGS
@@ -125,13 +160,23 @@ func GetPolicy(path string) (*PolicyData, error) {
 	arg.Size = uint64(unsafe.Sizeof(arg.Policy))
 	policyPtr := util.Ptr(arg.Policy[:])
 	err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY_EX, unsafe.Pointer(&arg))
-	if err == ErrEncryptionNotSupported {
+	if err == unix.ENOTTY {
 		// Fall back to the old version of the ioctl. This works for v1 policies only.
 		err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY, policyPtr)
 		arg.Size = uint64(unsafe.Sizeof(unix.FscryptPolicyV1{}))
 	}
-	if err != nil {
-		return nil, errors.Wrapf(err, "get encryption policy %s", path)
+	switch err {
+	case nil:
+		break
+	case unix.ENOTTY:
+		return nil, ErrEncryptionNotSupported
+	case unix.EOPNOTSUPP:
+		return nil, ErrEncryptionNotEnabled
+	case unix.ENODATA, unix.ENOENT:
+		// ENOENT was returned instead of ENODATA on some filesystems before v4.11.
+		return nil, &ErrNotEncrypted{path}
+	default:
+		return nil, errors.Wrapf(err, "failed to get encryption policy of %q", path)
 	}
 	switch arg.Policy[0] { // arg.policy.version
 	case unix.FSCRYPT_POLICY_V1:
@@ -237,7 +282,6 @@ func SetPolicy(path string, data *PolicyData) error {
 	default:
 		err = errors.Errorf("policy version of %d is invalid", data.Options.PolicyVersion)
 	}
-
 	if err == unix.EINVAL {
 		// Before kernel v4.11, many different errors all caused unix.EINVAL to be returned.
 		// We try to disambiguate this error here. This disambiguation will not always give
@@ -247,14 +291,27 @@ func SetPolicy(path string, data *PolicyData) error {
 			err = unix.ENOTDIR
 		} else if _, policyErr := GetPolicy(path); policyErr == nil {
 			// Checking if a policy is already set on this directory
-			err = ErrEncrypted
-		} else {
-			// Default to generic "bad options".
-			err = ErrBadEncryptionOptions
+			err = unix.EEXIST
 		}
 	}
-
-	return errors.Wrapf(err, "set encryption policy %s", path)
+	switch err {
+	case nil:
+		return nil
+	case unix.EACCES:
+		var stat unix.Stat_t
+		if statErr := unix.Stat(path, &stat); statErr == nil && stat.Uid != uint32(os.Geteuid()) {
+			return &ErrDirectoryNotOwned{path, stat.Uid}
+		}
+	case unix.EEXIST:
+		return &ErrAlreadyEncrypted{path}
+	case unix.EINVAL:
+		return &ErrBadEncryptionOptions{path, data.Options}
+	case unix.ENOTTY:
+		return ErrEncryptionNotSupported
+	case unix.EOPNOTSUPP:
+		return ErrEncryptionNotEnabled
+	}
+	return errors.Wrapf(err, "failed to set encryption policy on %q", path)
 }
 
 // CheckSupport returns an error if the filesystem containing path does not
@@ -282,6 +339,10 @@ func CheckSupport(path string) error {
 			Please open an issue, filesystem %q may be corrupted.`, path)
 	case unix.EINVAL, unix.EACCES:
 		return nil
+	case unix.ENOTTY:
+		return ErrEncryptionNotSupported
+	case unix.EOPNOTSUPP:
+		return ErrEncryptionNotEnabled
 	}
-	return err
+	return errors.Wrapf(err, "unexpected error checking for encryption support on filesystem %q", path)
 }

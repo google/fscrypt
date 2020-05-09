@@ -282,11 +282,7 @@ func encryptPath(path string) (err error) {
 			}
 		}()
 	}
-	if err = policy.Apply(path); os.IsPermission(errors.Cause(err)) {
-		// EACCES at this point indicates ownership issues.
-		err = errors.Wrap(ErrBadOwners, path)
-	}
-	if err != nil {
+	if err = policy.Apply(path); err != nil {
 		return
 	}
 	if recoveryPassphrase != nil {
@@ -320,14 +316,15 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 
 	log.Printf("ensuring %s supports encryption and filesystem is using fscrypt", path)
 	switch _, err := actions.GetPolicyFromPath(ctx, path); errors.Cause(err) {
-	case metadata.ErrNotEncrypted:
-		// We are not encrypted. Finally, we check that the filesystem
-		// supports encryption
-		return ctx.Mount.CheckSupport()
 	case nil:
 		// We are encrypted
-		return errors.Wrap(metadata.ErrEncrypted, path)
+		return &metadata.ErrAlreadyEncrypted{path}
 	default:
+		if _, ok := err.(*metadata.ErrNotEncrypted); ok {
+			// We are not encrypted. Finally, we check that the filesystem
+			// supports encryption
+			return ctx.Mount.CheckSupport()
+		}
 		return err
 	}
 }

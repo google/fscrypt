@@ -51,5 +51,5 @@ desc6  No      custom protector "prot"
 Use --name=PROTECTOR_NAME to specify a protector name.
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted

@@ -57,7 +57,6 @@ var (
 	ErrMustBeRoot         = errors.New("this command must be run as root")
 	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
 	ErrPolicyLocked       = errors.New("this file or directory is already locked")
-	ErrBadOwners          = errors.New("you do not own this directory")
 	ErrNotEmptyDir        = errors.New("not an empty directory")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
@@ -133,9 +132,6 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
 	case ErrSpecifyKeyFile:
 		return fmt.Sprintf("Use %s to specify a key file.", shortDisplay(keyFileFlag))
-	case ErrBadOwners:
-		return `Encryption can only be setup on directories you own,
-			even if you have write permission for the directory.`
 	case ErrNotEmptyDir:
 		return `Encryption can only be setup on empty directories; files
 			cannot be encrypted in-place. Instead, encrypt an empty

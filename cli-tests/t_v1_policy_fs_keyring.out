@@ -10,8 +10,8 @@ Either this command should be run as root, or you should set
 re-create your encrypted directories using v2 encryption policies rather than v1
 (this requires setting '"policy_version": "2"' in the "options" section of
 /etc/fscrypt.conf).
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Encrypt directory as user with --skip-unlock
 "MNT/dir" is encrypted with fscrypt.
