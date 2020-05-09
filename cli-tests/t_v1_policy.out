@@ -11,14 +11,15 @@ can be done with --user=USERNAME. To use the root user's keyring or passphrase,
 use --user=root.
 
 # Try to use --user=root as user
-[ERROR] fscrypt encrypt: setting uids: operation not permitted: could not access
-                         user keyring
+[ERROR] fscrypt encrypt: could not access user keyring for "root": setting uids:
+                         operation not permitted
 
 You can only use --user=USERNAME to access the user keyring of another user if
 you are running as root.
 
 # Try to encrypt without user keyring in session keyring
-[ERROR] fscrypt encrypt: user keyring not linked into session keyring
+[ERROR] fscrypt encrypt: user keyring for "fscrypt-test-user" is not linked into
+                         the session keyring
 
 This is usually the result of a bad PAM configuration. Either correct the
 problem in your PAM stack, enable pam_keyinit.so, or run "keyctl link @u @s".
@@ -100,11 +101,16 @@ cat: MNT/dir/file: No such file or directory
 # Testing incompletely locking v1-encrypted directory
 Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
 Encrypted data removed from filesystem cache.
-[ERROR] fscrypt lock: some files using the key are still open
+[ERROR] fscrypt lock: Directory was incompletely locked because some files are
+                      still open. These files remain accessible.
 
-Directory was incompletely locked because some files are still open. These files
-remain accessible. Try killing any processes using files in the directory, then
-re-running 'fscrypt lock'.
+Try killing any processes using files in the directory, for example using:
+
+     find "MNT/dir" -print0 | xargs -0 fuser -k
+
+Then re-run:
+
+     fscrypt lock "MNT/dir"
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1

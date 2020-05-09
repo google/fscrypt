@@ -34,16 +34,109 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Errors relating to Policies
-var (
-	ErrMissingPolicyMetadata  = util.SystemError("missing policy metadata for encrypted directory")
-	ErrPolicyMetadataMismatch = util.SystemError("inconsistent metadata between filesystem and directory")
-	ErrDifferentFilesystem    = errors.New("policies may only protect files on the same filesystem")
-	ErrOnlyProtector          = errors.New("cannot remove the only protector for a policy")
-	ErrAlreadyProtected       = errors.New("policy already protected by protector")
-	ErrNotProtected           = errors.New("policy not protected by protector")
-	ErrAccessDeniedPossiblyV2 = errors.New("permission denied")
-)
+// ErrAccessDeniedPossiblyV2 indicates that a directory's encryption policy
+// couldn't be retrieved due to "permission denied", but it looks like it's due
+// to the directory using a v2 policy but the kernel not supporting it.
+type ErrAccessDeniedPossiblyV2 struct {
+	DirPath string
+}
+
+func (err *ErrAccessDeniedPossiblyV2) Error() string {
+	return fmt.Sprintf(`
+	failed to get encryption policy of %s: permission denied
+
+	This may be caused by the directory using a v2 encryption policy and the
+	current kernel not supporting it. If indeed the case, then this
+	directory can only be used on kernel v5.4 and later. You can create
+	directories accessible on older kernels by changing policy_version to 1
+	in %s.`,
+		err.DirPath, ConfigFileLocation)
+}
+
+// ErrAlreadyProtected indicates that a policy is already protected by the given
+// protector.
+type ErrAlreadyProtected struct {
+	Policy    *Policy
+	Protector *Protector
+}
+
+func (err *ErrAlreadyProtected) Error() string {
+	return fmt.Sprintf("policy %s is already protected by protector %s",
+		err.Policy.Descriptor(), err.Protector.Descriptor())
+}
+
+// ErrDifferentFilesystem indicates that a policy can't be applied to a
+// directory on a different filesystem.
+type ErrDifferentFilesystem struct {
+	PolicyMount *filesystem.Mount
+	PathMount   *filesystem.Mount
+}
+
+func (err *ErrDifferentFilesystem) Error() string {
+	return fmt.Sprintf(`cannot apply policy from filesystem %q to a
+	directory on filesystem %q. Policies may only protect files on the same
+	filesystem.`, err.PolicyMount.Path, err.PathMount.Path)
+}
+
+// ErrMissingPolicyMetadata indicates that a directory is encrypted but its
+// policy metadata cannot be found.
+type ErrMissingPolicyMetadata struct {
+	Mount      *filesystem.Mount
+	DirPath    string
+	Descriptor string
+}
+
+func (err *ErrMissingPolicyMetadata) Error() string {
+	return fmt.Sprintf(`filesystem %q does not contain the policy metadata
+	for %q. This directory has either been encrypted with another tool (such
+	as e4crypt), or the file %q has been deleted.`,
+		err.Mount.Path, err.DirPath,
+		err.Mount.PolicyPath(err.Descriptor))
+}
+
+// ErrNotProtected indicates that the given policy is not protected by the given
+// protector.
+type ErrNotProtected struct {
+	PolicyDescriptor    string
+	ProtectorDescriptor string
+}
+
+func (err *ErrNotProtected) Error() string {
+	return fmt.Sprintf(`policy %s is not protected by protector %s`,
+		err.PolicyDescriptor, err.ProtectorDescriptor)
+}
+
+// ErrOnlyProtector indicates that the last protector can't be removed from a
+// policy.
+type ErrOnlyProtector struct {
+	Policy *Policy
+}
+
+func (err *ErrOnlyProtector) Error() string {
+	return fmt.Sprintf(`cannot remove the only protector from policy %s. A
+	policy must have at least one protector.`, err.Policy.Descriptor())
+}
+
+// ErrPolicyMetadataMismatch indicates that the policy metadata for an encrypted
+// directory is inconsistent with that directory.
+type ErrPolicyMetadataMismatch struct {
+	DirPath   string
+	Mount     *filesystem.Mount
+	PathData  *metadata.PolicyData
+	MountData *metadata.PolicyData
+}
+
+func (err *ErrPolicyMetadataMismatch) Error() string {
+	return fmt.Sprintf(`inconsistent metadata between encrypted directory %q
+	and its corresponding metadata file %q.
+
+	Directory has descriptor:%s %s
+
+	Metadata file has descriptor:%s %s`,
+		err.DirPath, err.Mount.PolicyPath(err.PathData.KeyDescriptor),
+		err.PathData.KeyDescriptor, err.PathData.Options,
+		err.MountData.KeyDescriptor, err.MountData.Options)
+}
 
 // PurgeAllPolicies removes all policy keys on the filesystem from the kernel
 // keyring. In order for this to fully take effect, the filesystem may also need
@@ -153,6 +246,7 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	// We double check that the options agree for both the data we get from
 	// the path, and the data we get from the mountpoint.
 	pathData, err := metadata.GetPolicy(path)
+	err = ctx.Mount.EncryptionSupportError(err)
 	if err != nil {
 		// On kernels that don't support v2 encryption policies, trying
 		// to open a directory with a v2 policy simply gave EACCES. This
@@ -161,7 +255,7 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 		if os.IsPermission(err) &&
 			filesystem.HaveReadAccessTo(path) &&
 			!keyring.IsFsKeyringSupported(ctx.Mount) {
-			return nil, errors.Wrapf(ErrAccessDeniedPossiblyV2, "open %s", path)
+			return nil, &ErrAccessDeniedPossiblyV2{path}
 		}
 		return nil, err
 	}
@@ -171,14 +265,16 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	mountData, err := ctx.Mount.GetPolicy(descriptor)
 	if err != nil {
 		log.Printf("getting policy metadata: %v", err)
-		return nil, errors.Wrap(ErrMissingPolicyMetadata, path)
+		if _, ok := err.(*filesystem.ErrPolicyNotFound); ok {
+			return nil, &ErrMissingPolicyMetadata{ctx.Mount, path, descriptor}
+		}
+		return nil, err
 	}
 	log.Printf("found data for policy %s on %q", descriptor, ctx.Mount.Path)
 
-	if !proto.Equal(pathData.Options, mountData.Options) {
-		log.Printf("options from path: %+v", pathData.Options)
-		log.Printf("options from mount: %+v", mountData.Options)
-		return nil, errors.Wrapf(ErrPolicyMetadataMismatch, "policy %s", descriptor)
+	if !proto.Equal(pathData.Options, mountData.Options) ||
+		pathData.KeyDescriptor != mountData.KeyDescriptor {
+		return nil, &ErrPolicyMetadataMismatch{path, ctx.Mount, pathData, mountData}
 	}
 	log.Print("data from filesystem and path agree")
 
@@ -290,7 +386,7 @@ func (policy *Policy) UnlockWithProtector(protector *Protector) error {
 	}
 	idx, ok := policy.findWrappedKeyIndex(protector.Descriptor())
 	if !ok {
-		return ErrNotProtected
+		return &ErrNotProtected{policy.Descriptor(), protector.Descriptor()}
 	}
 
 	var err error
@@ -321,7 +417,7 @@ func (policy *Policy) UsesProtector(protector *Protector) bool {
 // protector must both be unlocked.
 func (policy *Policy) AddProtector(protector *Protector) error {
 	if policy.UsesProtector(protector) {
-		return ErrAlreadyProtected
+		return &ErrAlreadyProtected{policy, protector}
 	}
 	if policy.key == nil || protector.key == nil {
 		return ErrLocked
@@ -372,11 +468,11 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 func (policy *Policy) RemoveProtector(protector *Protector) error {
 	idx, ok := policy.findWrappedKeyIndex(protector.Descriptor())
 	if !ok {
-		return ErrNotProtected
+		return &ErrNotProtected{policy.Descriptor(), protector.Descriptor()}
 	}
 
 	if len(policy.data.WrappedPolicyKeys) == 1 {
-		return ErrOnlyProtector
+		return &ErrOnlyProtector{policy}
 	}
 
 	// Remove the wrapped key from the data
@@ -397,10 +493,11 @@ func (policy *Policy) Apply(path string) error {
 	if pathMount, err := filesystem.FindMount(path); err != nil {
 		return err
 	} else if pathMount != policy.Context.Mount {
-		return ErrDifferentFilesystem
+		return &ErrDifferentFilesystem{policy.Context.Mount, pathMount}
 	}
 
-	return metadata.SetPolicy(path, policy.data)
+	err := metadata.SetPolicy(path, policy.data)
+	return policy.Context.Mount.EncryptionSupportError(err)
 }
 
 // GetProvisioningStatus returns the status of this policy's key in the keyring.

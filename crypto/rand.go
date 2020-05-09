@@ -90,10 +90,9 @@ func (r randReader) Read(buffer []byte) (int, error) {
 	case nil:
 		return n, nil
 	case unix.EAGAIN:
-		return 0, errors.Wrap(ErrGetrandomFail, "insufficient entropy in pool")
+		err = errors.New("insufficient entropy in pool")
 	case unix.ENOSYS:
-		return 0, errors.Wrap(ErrGetrandomFail, "kernel must be v3.17 or later")
-	default:
-		return 0, errors.Wrap(ErrGetrandomFail, err.Error())
+		err = errors.New("kernel must be v3.17 or later")
 	}
+	return 0, errors.Wrap(err, "getrandom() failed")
 }

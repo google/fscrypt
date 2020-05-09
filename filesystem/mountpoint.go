@@ -380,7 +380,7 @@ func FindMount(path string) (*Mount, error) {
 func GetMount(mountpoint string) (*Mount, error) {
 	mnt, err := FindMount(mountpoint)
 	if err != nil {
-		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+		return nil, &ErrNotAMountpoint{mountpoint}
 	}
 	// Check whether 'mountpoint' names the same directory as 'mnt.Path'.
 	// Use os.SameFile() (i.e., compare inode numbers) rather than compare
@@ -394,7 +394,7 @@ func GetMount(mountpoint string) (*Mount, error) {
 		return nil, err
 	}
 	if !os.SameFile(fi1, fi2) {
-		return nil, errors.Wrap(ErrNotAMountpoint, mountpoint)
+		return nil, &ErrNotAMountpoint{mountpoint}
 	}
 	return mnt, nil
 }
@@ -410,22 +410,22 @@ func getMountFromLink(link string) (*Mount, error) {
 	link = strings.TrimSpace(link)
 	linkComponents := strings.Split(link, "=")
 	if len(linkComponents) != 2 {
-		return nil, errors.Wrapf(ErrFollowLink, "link %q format is invalid", link)
+		return nil, &ErrFollowLink{link, errors.New("invalid link format")}
 	}
 	token := linkComponents[0]
 	value := linkComponents[1]
 	if token != uuidToken {
-		return nil, errors.Wrapf(ErrFollowLink, "token type %q not supported", token)
+		return nil, &ErrFollowLink{link, errors.Errorf("token type %q not supported", token)}
 	}
 
 	// See if UUID points to an existing device
 	searchPath := filepath.Join(uuidDirectory, value)
 	if filepath.Base(searchPath) != value {
-		return nil, errors.Wrapf(ErrFollowLink, "value %q is not a UUID", value)
+		return nil, &ErrFollowLink{link, errors.Errorf("invalid UUID format %q", value)}
 	}
 	deviceNumber, err := getDeviceNumber(searchPath)
 	if err != nil {
-		return nil, errors.Wrapf(ErrFollowLink, "no device with UUID %q", value)
+		return nil, &ErrFollowLink{link, errors.Errorf("no device with UUID %s", value)}
 	}
 
 	// Lookup mountpoints for device in global store
@@ -436,11 +436,11 @@ func getMountFromLink(link string) (*Mount, error) {
 	}
 	mnt, ok := mountsByDevice[deviceNumber]
 	if !ok {
-		return nil, errors.Wrapf(ErrFollowLink, "no mounts for device %q (%v)",
-			getDeviceName(deviceNumber), deviceNumber)
+		return nil, &ErrFollowLink{link, errors.Errorf("no mounts for device %q (%v)",
+			getDeviceName(deviceNumber), deviceNumber)}
 	}
 	if mnt == nil {
-		return nil, filesystemLacksMainMountError(deviceNumber)
+		return nil, &ErrFollowLink{link, filesystemLacksMainMountError(deviceNumber)}
 	}
 	return mnt, nil
 }
@@ -450,12 +450,12 @@ func getMountFromLink(link string) (*Mount, error) {
 // error is returned if the mount has no device, or no UUID.
 func makeLink(mnt *Mount, token string) (string, error) {
 	if token != uuidToken {
-		return "", errors.Wrapf(ErrMakeLink, "token type %q not supported", token)
+		return "", &ErrMakeLink{mnt, errors.Errorf("token type %q not supported", token)}
 	}
 
 	dirContents, err := ioutil.ReadDir(uuidDirectory)
 	if err != nil {
-		return "", errors.Wrap(ErrMakeLink, err.Error())
+		return "", &ErrMakeLink{mnt, err}
 	}
 	for _, fileInfo := range dirContents {
 		if fileInfo.Mode()&os.ModeSymlink == 0 {
@@ -471,6 +471,6 @@ func makeLink(mnt *Mount, token string) (string, error) {
 			return fmt.Sprintf("%s=%s", uuidToken, uuid), nil
 		}
 	}
-	return "", errors.Wrapf(ErrMakeLink, "device %q (%v) has no UUID",
-		mnt.Device, mnt.DeviceNumber)
+	return "", &ErrMakeLink{mnt, errors.Errorf("cannot determine UUID of device %q (%v)",
+		mnt.Device, mnt.DeviceNumber)}
 }

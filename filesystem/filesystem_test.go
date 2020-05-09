@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/pkg/errors"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
@@ -367,7 +366,7 @@ func TestLinkedProtector(t *testing.T) {
 
 	// Get the protector though the second system
 	_, err = fakeMnt.GetRegularProtector(protector.ProtectorDescriptor)
-	if errors.Cause(err) != ErrNoMetadata {
+	if _, ok := err.(*ErrProtectorNotFound); !ok {
 		t.Fatal(err)
 	}
 

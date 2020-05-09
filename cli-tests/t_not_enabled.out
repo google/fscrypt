@@ -2,28 +2,52 @@
 # Disable encryption on DEV
 
 # Try to encrypt a directory when encryption is disabled
-[ERROR] fscrypt encrypt: get encryption policy MNT/dir:
-                         encryption not enabled
+[ERROR] fscrypt encrypt: encryption not enabled on filesystem
+                         MNT (DEV).
 
-Encryption is either disabled in the kernel config, or needs to be enabled for
-this filesystem. See the documentation on how to enable encryption on ext4
-systems (and the risks of doing so).
+To enable encryption support on this filesystem, run:
+
+     sudo tune2fs -O encrypt "DEV"
+
+Also ensure that your kernel has CONFIG_FS_ENCRYPTION=y. See the documentation
+for more details.
 
 # Try to unlock a directory when encryption is disabled
-[ERROR] fscrypt unlock: get encryption policy MNT/dir:
-                        encryption not enabled
+[ERROR] fscrypt unlock: encryption not enabled on filesystem
+                        MNT (DEV).
 
-Encryption is either disabled in the kernel config, or needs to be enabled for
-this filesystem. See the documentation on how to enable encryption on ext4
-systems (and the risks of doing so).
+To enable encryption support on this filesystem, run:
+
+     sudo tune2fs -O encrypt "DEV"
+
+Also ensure that your kernel has CONFIG_FS_ENCRYPTION=y. See the documentation
+for more details.
 
 # Try to lock a directory when encryption is disabled
-[ERROR] fscrypt lock: get encryption policy MNT/dir:
-                      encryption not enabled
+[ERROR] fscrypt lock: encryption not enabled on filesystem
+                      MNT (DEV).
 
-Encryption is either disabled in the kernel config, or needs to be enabled for
-this filesystem. See the documentation on how to enable encryption on ext4
-systems (and the risks of doing so).
+To enable encryption support on this filesystem, run:
+
+     sudo tune2fs -O encrypt "DEV"
+
+Also ensure that your kernel has CONFIG_FS_ENCRYPTION=y. See the documentation
+for more details.
+
+# Check for additional message when GRUB appears to be installed
+[ERROR] fscrypt encrypt: encryption not enabled on filesystem
+                         MNT (DEV).
+
+To enable encryption support on this filesystem, run:
+
+     sudo tune2fs -O encrypt "DEV"
+
+WARNING: you seem to have GRUB installed on this filesystem. Before doing the
+above, make sure you are using GRUB v2.04 or later; otherwise your system will
+become unbootable.
+
+Also ensure that your kernel has CONFIG_FS_ENCRYPTION=y. See the documentation
+for more details.
 
 # Enable encryption on DEV
 

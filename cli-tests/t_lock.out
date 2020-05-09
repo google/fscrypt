@@ -33,11 +33,16 @@ desc2  No      custom protector "prot"
 contents
 
 # Try to lock directory while files busy
-[ERROR] fscrypt lock: some files using the key are still open
+[ERROR] fscrypt lock: Directory was incompletely locked because some files are
+                      still open. These files remain accessible.
 
-Directory was incompletely locked because some files are still open. These files
-remain accessible. Try killing any processes using files in the directory, then
-re-running 'fscrypt lock'.
+Try killing any processes using files in the directory, for example using:
+
+     find "MNT/dir" -print0 | xargs -0 fuser -k
+
+Then re-run:
+
+     fscrypt lock "MNT/dir"
 
 # => status should be incompletely locked
 "MNT/dir" is encrypted with fscrypt.
@@ -72,11 +77,12 @@ mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
 
 # Try to lock directory while other user has unlocked
 Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
-[ERROR] fscrypt lock: other users have added the key too
+[ERROR] fscrypt lock: Directory "MNT/dir" couldn't be fully
+                      locked because other user(s) have unlocked it.
 
-Directory couldn't be fully locked because other user(s) have unlocked it. If
-you want to force the directory to be locked, use 'sudo fscrypt lock --all-users
-DIR'.
+If you want to force the directory to be locked, use:
+
+     sudo fscrypt lock --all-users "MNT/dir"
 contents
 "MNT/dir" is now locked.
 cat: MNT/dir/file: No such file or directory

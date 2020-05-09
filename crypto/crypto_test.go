@@ -257,7 +257,7 @@ func TestBigKeyGen(t *testing.T) {
 	case nil:
 		key.Wipe()
 		return
-	case ErrKeyLock:
+	case ErrMlockUlimit:
 		// Don't fail just because "ulimit -l" is too low.
 		return
 	default:

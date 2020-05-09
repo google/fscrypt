@@ -23,8 +23,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/pkg/errors"
-
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
 )
@@ -72,7 +70,7 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 		if err == nil {
 			break
 		}
-		if errors.Cause(err) != ErrDuplicateName {
+		if _, ok := err.(*ErrProtectorNameExists); !ok {
 			return nil, nil, err
 		}
 		seq++

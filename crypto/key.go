@@ -98,7 +98,7 @@ func NewBlankKey(length int) (*Key, error) {
 	if length == 0 {
 		return &Key{data: nil}, nil
 	} else if length < 0 {
-		return nil, errors.Wrapf(ErrNegativeLength, "length of %d requested", length)
+		return nil, errors.Errorf("requested key length %d is negative", length)
 	}
 
 	flags := keyMmapFlags
@@ -109,11 +109,11 @@ func NewBlankKey(length int) (*Key, error) {
 	// See MAP_ANONYMOUS in http://man7.org/linux/man-pages/man2/mmap.2.html
 	data, err := unix.Mmap(-1, 0, length, keyProtection, flags)
 	if err == unix.EAGAIN {
-		return nil, ErrKeyLock
+		return nil, ErrMlockUlimit
 	}
 	if err != nil {
-		log.Printf("unix.Mmap() with length=%d failed: %v", length, err)
-		return nil, ErrKeyAlloc
+		return nil, errors.Wrapf(err,
+			"failed to allocate (mmap) key buffer of length %d", length)
 	}
 
 	key := &Key{data: data}
@@ -139,7 +139,7 @@ func (key *Key) Wipe() error {
 
 		if err := unix.Munmap(data); err != nil {
 			log.Printf("unix.Munmap() failed: %v", err)
-			return ErrKeyFree
+			return errors.Wrapf(err, "failed to free (munmap) key buffer")
 		}
 	}
 	return nil

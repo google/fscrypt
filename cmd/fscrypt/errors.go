@@ -30,6 +30,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
@@ -46,7 +47,6 @@ const failureExitCode = 1
 var (
 	ErrCanceled           = errors.New("operation canceled")
 	ErrNoDestructiveOps   = errors.New("operation would be destructive")
-	ErrMaxPassphrase      = util.SystemError("max passphrase length exceeded")
 	ErrInvalidSource      = errors.New("invalid source type")
 	ErrPassphraseMismatch = errors.New("entered passphrases do not match")
 	ErrSpecifyProtector   = errors.New("multiple protectors available")
@@ -55,16 +55,46 @@ var (
 	ErrKeyFileLength      = errors.Errorf("key file must be %d bytes", metadata.InternalKeyLen)
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
 	ErrMustBeRoot         = errors.New("this command must be run as root")
-	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
-	ErrPolicyLocked       = errors.New("this file or directory is already locked")
-	ErrBadOwners          = errors.New("you do not own this directory")
-	ErrNotEmptyDir        = errors.New("not an empty directory")
+	ErrDirAlreadyUnlocked = errors.New("this file or directory is already unlocked")
+	ErrDirAlreadyLocked   = errors.New("this file or directory is already locked")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
 	ErrFsKeyringPerm      = errors.New("root is required to add/remove v1 encryption policy keys to/from filesystem")
 )
+
+// ErrDirFilesOpen indicates that a directory can't be fully locked because
+// files protected by the directory's policy are still open.
+type ErrDirFilesOpen struct {
+	DirPath string
+}
+
+func (err *ErrDirFilesOpen) Error() string {
+	return fmt.Sprintf(`Directory was incompletely locked because some files
+	are still open. These files remain accessible.`)
+}
+
+// ErrDirUnlockedByOtherUsers indicates that a directory can't be locked because
+// the directory's policy is still provisioned by other users.
+type ErrDirUnlockedByOtherUsers struct {
+	DirPath string
+}
+
+func (err *ErrDirUnlockedByOtherUsers) Error() string {
+	return fmt.Sprintf(`Directory %q couldn't be fully locked because other
+	user(s) have unlocked it.`, err.DirPath)
+}
+
+// ErrDirNotEmpty indicates that a directory can't be encrypted because it's not
+// empty.
+type ErrDirNotEmpty struct {
+	DirPath string
+}
+
+func (err *ErrDirNotEmpty) Error() string {
+	return fmt.Sprintf("Directory %q cannot be encrypted because it is non-empty.", err.DirPath)
+}
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
 
@@ -76,82 +106,156 @@ func getFullName(c *cli.Context) string {
 	return c.App.HelpName
 }
 
+func suggestEnablingEncryption(mnt *filesystem.Mount) string {
+	kconfig := "CONFIG_FS_ENCRYPTION=y"
+	switch mnt.FilesystemType {
+	case "ext4":
+		// Recommend running tune2fs -O encrypt.  But be really careful;
+		// old kernels didn't support block_size != PAGE_SIZE, and old
+		// GRUB didn't support encryption.
+		var statfs unix.Statfs_t
+		if err := unix.Statfs(mnt.Path, &statfs); err != nil {
+			return ""
+		}
+		pagesize := int64(os.Getpagesize())
+		if statfs.Bsize != pagesize && !util.IsKernelVersionAtLeast(5, 5) {
+			return fmt.Sprintf(`This filesystem uses a block size
+			(%d) other than the system page size (%d). Ext4
+			encryption didn't support this case until kernel v5.5.
+			Do *not* enable encryption on this filesystem. Either
+			upgrade your kernel to v5.5 or later, or re-create this
+			filesystem using 'mkfs.ext4 -b %d -O encrypt %s'
+			(WARNING: that will erase all data on it).`,
+				statfs.Bsize, pagesize, pagesize, mnt.Device)
+		}
+		if !util.IsKernelVersionAtLeast(5, 1) {
+			kconfig = "CONFIG_EXT4_ENCRYPTION=y"
+		}
+		s := fmt.Sprintf(`To enable encryption support on this
+		filesystem, run:
+
+		> sudo tune2fs -O encrypt %q
+		`, mnt.Device)
+		if _, err := os.Stat(filepath.Join(mnt.Path, "boot/grub")); err == nil {
+			s += `
+			WARNING: you seem to have GRUB installed on this
+			filesystem. Before doing the above, make sure you are
+			using GRUB v2.04 or later; otherwise your system will
+			become unbootable.
+			`
+		}
+		s += fmt.Sprintf(`
+		Also ensure that your kernel has %s. See the documentation for
+		more details.`, kconfig)
+		return s
+	case "f2fs":
+		if !util.IsKernelVersionAtLeast(5, 1) {
+			kconfig = "CONFIG_F2FS_FS_ENCRYPTION=y"
+		}
+		return fmt.Sprintf(`To enable encryption support on this
+		filesystem, you'll need to run:
+
+		> sudo fsck.f2fs -O encrypt %q
+
+		Also ensure that your kernel has %s. See the documentation for
+		more details.`, mnt.Device, kconfig)
+	default:
+		return `See the documentation for how to enable encryption
+		support on this filesystem.`
+	}
+}
+
 // getErrorSuggestions returns a string containing suggestions about how to fix
 // an error. If no suggestion is necessary or available, return empty string.
 func getErrorSuggestions(err error) string {
+	switch e := err.(type) {
+	case *ErrDirFilesOpen:
+		return fmt.Sprintf(`Try killing any processes using files in the
+		directory, for example using:
+
+		> find %q -print0 | xargs -0 fuser -k
+
+		Then re-run:
+
+		> fscrypt lock %q`, e.DirPath, e.DirPath)
+	case *ErrDirNotEmpty:
+		dir := e.DirPath
+		newDir := dir + ".new"
+		return fmt.Sprintf(`Files cannot be encrypted in-place. Instead,
+		encrypt a new directory, copy the files into it, and securely
+		delete the original directory. For example:
+
+		> mkdir %s
+		> fscrypt encrypt %s
+		> cp -a -T %s %s
+		> find %s -type f -print0 | xargs -0 shred -n1 --remove=unlink
+		> rm -rf %s
+		> mv %s %s
+
+		Caution: due to the nature of modern storage devices and filesystems,
+		the original data may still be recoverable from disk. It's much better
+		to encrypt your files from the start.`, newDir, newDir, dir, newDir, dir, dir, newDir, dir)
+	case *ErrDirUnlockedByOtherUsers:
+		return fmt.Sprintf(`If you want to force the directory to be
+		locked, use:
+
+		> sudo fscrypt lock --all-users %q`, e.DirPath)
+	case *actions.ErrBadConfigFile:
+		return `Either fix this file manually, or run "sudo fscrypt setup" to recreate it.`
+	case *actions.ErrLoginProtectorName:
+		return fmt.Sprintf("To fix this, don't specify the %s option.", shortDisplay(nameFlag))
+	case *actions.ErrMissingProtectorName:
+		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
+	case *actions.ErrNoConfigFile:
+		return `Run "sudo fscrypt setup" to create this file.`
+	case *filesystem.ErrEncryptionNotEnabled:
+		return suggestEnablingEncryption(e.Mount)
+	case *filesystem.ErrEncryptionNotSupported:
+		switch e.Mount.FilesystemType {
+		case "ext4":
+			if !util.IsKernelVersionAtLeast(4, 1) {
+				return "ext4 encryption requires kernel v4.1 or later."
+			}
+		case "f2fs":
+			if !util.IsKernelVersionAtLeast(4, 2) {
+				return "f2fs encryption requires kernel v4.2 or later."
+			}
+		case "ubifs":
+			if !util.IsKernelVersionAtLeast(4, 10) {
+				return "ubifs encryption requires kernel v4.10 or later."
+			}
+		}
+		return ""
+	case *filesystem.ErrNotSetup:
+		return fmt.Sprintf(`Run "sudo fscrypt setup %s" to use fscrypt
+		        on this filesystem.`, e.Mount.Path)
+	case *keyring.ErrAccessUserKeyring:
+		return fmt.Sprintf(`You can only use %s to access the user
+			keyring of another user if you are running as root.`,
+			shortDisplay(userFlag))
+	case *keyring.ErrSessionUserKeyring:
+		return `This is usually the result of a bad PAM configuration.
+			Either correct the problem in your PAM stack, enable
+			pam_keyinit.so, or run "keyctl link @u @s".`
+	}
 	switch errors.Cause(err) {
-	case filesystem.ErrNotSetup:
-		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
-	case crypto.ErrKeyLock:
+	case crypto.ErrMlockUlimit:
 		return `Too much memory was requested to be locked in RAM. The
 			current limit for this user can be checked with "ulimit
 			-l". The limit can be modified by either changing the
 			"memlock" item in /etc/security/limits.conf or by
 			changing the "LimitMEMLOCK" value in systemd.`
-	case metadata.ErrEncryptionNotSupported:
-		return `Encryption for this type of filesystem is not supported
-			on this kernel version.`
-	case metadata.ErrEncryptionNotEnabled:
-		return `Encryption is either disabled in the kernel config, or
-			needs to be enabled for this filesystem. See the
-			documentation on how to enable encryption on ext4
-			systems (and the risks of doing so).`
-	case keyring.ErrKeyFilesOpen:
-		return `Directory was incompletely locked because some files are
-			still open. These files remain accessible. Try killing
-			any processes using files in the directory, then
-			re-running 'fscrypt lock'.`
-	case keyring.ErrKeyAddedByOtherUsers:
-		return `Directory couldn't be fully locked because other user(s)
-			have unlocked it. If you want to force the directory to
-			be locked, use 'sudo fscrypt lock --all-users DIR'.`
-	case keyring.ErrSessionUserKeying:
-		return `This is usually the result of a bad PAM configuration.
-			Either correct the problem in your PAM stack, enable
-			pam_keyinit.so, or run "keyctl link @u @s".`
-	case keyring.ErrAccessUserKeyring:
-		return fmt.Sprintf(`You can only use %s to access the user
-			keyring of another user if you are running as root.`,
-			shortDisplay(userFlag))
 	case keyring.ErrV2PoliciesUnsupported:
 		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
 		version 5.4 and later. Either use a newer kernel, or change
 		policy_version to 1 in %s.`, actions.ConfigFileLocation)
-	case actions.ErrBadConfigFile:
-		return `Run "sudo fscrypt setup" to recreate the file.`
-	case actions.ErrNoConfigFile:
-		return `Run "sudo fscrypt setup" to create the file.`
-	case actions.ErrMissingPolicyMetadata:
-		return `This file or directory has either been encrypted with
-			another tool (such as e4crypt) or the corresponding
-			filesystem metadata has been deleted.`
-	case actions.ErrPolicyMetadataMismatch:
-		return `The metadata for this encrypted directory is in an
-			inconsistent state. This most likely means the filesystem
-			metadata is corrupted.`
-	case actions.ErrMissingProtectorName:
-		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
-	case actions.ErrAccessDeniedPossiblyV2:
-		return fmt.Sprintf(`This may be caused by the directory using a v2
-		encryption policy and the current kernel not supporting it. If
-		indeed the case, then this directory can only be used on kernel
-		v5.4 and later. You can create directories accessible on older
-		kernels by changing policy_version to 1 in %s.`,
-			actions.ConfigFileLocation)
 	case ErrNoDestructiveOps:
-		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
+		return fmt.Sprintf("If desired, use %s to automatically run destructive operations.",
+			shortDisplay(forceFlag))
 	case ErrSpecifyProtector:
 		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
 	case ErrSpecifyKeyFile:
 		return fmt.Sprintf("Use %s to specify a key file.", shortDisplay(keyFileFlag))
-	case ErrBadOwners:
-		return `Encryption can only be setup on directories you own,
-			even if you have write permission for the directory.`
-	case ErrNotEmptyDir:
-		return `Encryption can only be setup on empty directories; files
-			cannot be encrypted in-place. Instead, encrypt an empty
-			directory, copy the files into that encrypted directory,
-			and securely delete the originals with "shred".`
 	case ErrDropCachesPerm:
 		return fmt.Sprintf(`Either this command should be run as root to
 			properly clear the inode cache, or it should be run with

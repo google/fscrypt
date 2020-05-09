@@ -22,12 +22,12 @@ package actions
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/crypto"
@@ -39,6 +39,46 @@ import (
 // ConfigFileLocation is the location of fscrypt's global settings. This can be
 // overridden by the user of this package.
 var ConfigFileLocation = "/etc/fscrypt.conf"
+
+// ErrBadConfig is an internal error that indicates that the config struct is invalid.
+type ErrBadConfig struct {
+	Config          *metadata.Config
+	UnderlyingError error
+}
+
+func (err *ErrBadConfig) Error() string {
+	return fmt.Sprintf(`internal error: config is invalid: %s
+
+	The invalid config is %s`, err.UnderlyingError, err.Config)
+}
+
+// ErrBadConfigFile indicates that the config file is invalid.
+type ErrBadConfigFile struct {
+	Path            string
+	UnderlyingError error
+}
+
+func (err *ErrBadConfigFile) Error() string {
+	return fmt.Sprintf("%q is invalid: %s", err.Path, err.UnderlyingError)
+}
+
+// ErrConfigFileExists indicates that the config file already exists.
+type ErrConfigFileExists struct {
+	Path string
+}
+
+func (err *ErrConfigFileExists) Error() string {
+	return fmt.Sprintf("%q already exists", err.Path)
+}
+
+// ErrNoConfigFile indicates that the config file doesn't exist.
+type ErrNoConfigFile struct {
+	Path string
+}
+
+func (err *ErrNoConfigFile) Error() string {
+	return fmt.Sprintf("%q doesn't exist", err.Path)
+}
 
 const (
 	// Permissions of the config file (global readable)
@@ -67,7 +107,7 @@ func CreateConfigFile(target time.Duration, policyVersion int64) error {
 		createFlags, configPermissions)
 	switch {
 	case os.IsExist(err):
-		return ErrConfigFileExists
+		return &ErrConfigFileExists{ConfigFileLocation}
 	case err != nil:
 		return err
 	}
@@ -98,7 +138,7 @@ func getConfig() (*metadata.Config, error) {
 	configFile, err := os.Open(ConfigFileLocation)
 	switch {
 	case os.IsNotExist(err):
-		return nil, ErrNoConfigFile
+		return nil, &ErrNoConfigFile{ConfigFileLocation}
 	case err != nil:
 		return nil, err
 	}
@@ -107,7 +147,7 @@ func getConfig() (*metadata.Config, error) {
 	log.Printf("Reading config from %q\n", ConfigFileLocation)
 	config, err := metadata.ReadConfig(configFile)
 	if err != nil {
-		return nil, errors.Wrap(ErrBadConfigFile, err.Error())
+		return nil, &ErrBadConfigFile{ConfigFileLocation, err}
 	}
 
 	// Use system defaults if not specified
@@ -133,7 +173,7 @@ func getConfig() (*metadata.Config, error) {
 	}
 
 	if err := config.CheckValidity(); err != nil {
-		return nil, errors.Wrap(ErrBadConfigFile, err.Error())
+		return nil, &ErrBadConfigFile{ConfigFileLocation, err}
 	}
 
 	return config, nil

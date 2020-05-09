@@ -26,7 +26,7 @@ Skipping creating MNT_ROOT/.fscrypt because it already exists.
 # fscrypt setup --quiet when fscrypt.conf already exists
 [ERROR] fscrypt setup: operation would be destructive
 
-Use --force to automatically run destructive operations.
+If desired, use --force to automatically run destructive operations.
 
 # fscrypt setup --quiet --force when fscrypt.conf already exists
 
@@ -34,16 +34,16 @@ Use --force to automatically run destructive operations.
 Metadata directories created at "MNT/.fscrypt".
 
 # fscrypt setup filesystem (already set up)
-[ERROR] fscrypt setup: filesystem MNT: already setup for use
-                       with fscrypt
+[ERROR] fscrypt setup: filesystem MNT is already setup for
+                       use with fscrypt
 
 # no config file
-[ERROR] fscrypt setup: global config file does not exist
+[ERROR] fscrypt setup: "FSCRYPT_CONF" doesn't exist
 
-Run "sudo fscrypt setup" to create the file.
+Run "sudo fscrypt setup" to create this file.
 
 # bad config file
-[ERROR] fscrypt setup: invalid character 'b' looking for beginning of value:
-                       global config file has invalid data
+[ERROR] fscrypt setup: "FSCRYPT_CONF" is invalid: invalid
+                       character 'b' looking for beginning of value
 
-Run "sudo fscrypt setup" to recreate the file.
+Either fix this file manually, or run "sudo fscrypt setup" to recreate it.

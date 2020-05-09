@@ -40,14 +40,8 @@ import (
 	"github.com/google/fscrypt/util"
 )
 
-// Errors relating to Config files or Config structures.
-var (
-	ErrNoConfigFile     = errors.New("global config file does not exist")
-	ErrBadConfigFile    = errors.New("global config file has invalid data")
-	ErrConfigFileExists = errors.New("global config file already exists")
-	ErrBadConfig        = errors.New("invalid Config structure provided")
-	ErrLocked           = errors.New("key needs to be unlocked first")
-)
+// ErrLocked indicates that the key hasn't been unwrapped yet.
+var ErrLocked = errors.New("key needs to be unlocked first")
 
 // Context contains the necessary global state to perform most of fscrypt's
 // actions.
@@ -126,7 +120,7 @@ func newContextFromUser(targetUser *user.User) (*Context, error) {
 // which is being used with fscrypt.
 func (ctx *Context) checkContext() error {
 	if err := ctx.Config.CheckValidity(); err != nil {
-		return errors.Wrap(ErrBadConfig, err.Error())
+		return &ErrBadConfig{ctx.Config, err}
 	}
 	return ctx.Mount.CheckSetup()
 }

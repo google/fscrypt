@@ -203,7 +203,9 @@ func fsAddEncryptionKey(key *crypto.Key, descriptor string,
 
 	log.Printf("FS_IOC_ADD_ENCRYPTION_KEY(%q, %s, <raw>) = %v", mount.Path, descriptor, errno)
 	if errno != 0 {
-		return errors.Wrap(ErrKeyAdd, errno.Error())
+		return errors.Wrapf(errno,
+			"error adding key with descriptor %s to filesystem %s",
+			descriptor, mount.Path)
 	}
 	if descriptor, err = validateKeyDescriptor(&arg.Key_spec, descriptor); err != nil {
 		fsRemoveEncryptionKey(descriptor, mount, user)
@@ -266,7 +268,9 @@ func fsRemoveEncryptionKey(descriptor string, mount *filesystem.Mount,
 		}
 		return ErrKeyNotPresent
 	default:
-		return errors.Wrap(ErrKeyRemove, errno.Error())
+		return errors.Wrapf(errno,
+			"error removing key with descriptor %s from filesystem %s",
+			descriptor, mount.Path)
 	}
 }
 
@@ -298,7 +302,10 @@ func fsGetEncryptionKeyStatus(descriptor string, mount *filesystem.Mount,
 	log.Printf("FS_IOC_GET_ENCRYPTION_KEY_STATUS(%q, %s) = %v, status=%d, status_flags=0x%x",
 		mount.Path, descriptor, errno, arg.Status, arg.Status_flags)
 	if errno != 0 {
-		return KeyStatusUnknown, errors.Wrap(ErrKeySearch, errno.Error())
+		return KeyStatusUnknown,
+			errors.Wrapf(errno,
+				"error getting status of key with descriptor %s on filesystem %s",
+				descriptor, mount.Path)
 	}
 	switch arg.Status {
 	case unix.FSCRYPT_KEY_STATUS_ABSENT:
@@ -313,6 +320,7 @@ func fsGetEncryptionKeyStatus(descriptor string, mount *filesystem.Mount,
 		return KeyAbsentButFilesBusy, nil
 	default:
 		return KeyStatusUnknown,
-			errors.Wrapf(ErrKeySearch, "unknown key status (%d)", arg.Status)
+			errors.Errorf("unknown key status (%d) for key with descriptor %s on filesystem %s",
+				arg.Status, descriptor, mount.Path)
 	}
 }

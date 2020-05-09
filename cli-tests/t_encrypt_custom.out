@@ -46,10 +46,10 @@ PROTECTOR         LINKED  DESCRIPTION
 desc6  No      custom protector "prot"
 
 # Try to use a custom protector without a name
-[ERROR] fscrypt encrypt: custom protectors must have a name
+[ERROR] fscrypt encrypt: custom_passphrase protectors must be named
 
 Use --name=PROTECTOR_NAME to specify a protector name.
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted

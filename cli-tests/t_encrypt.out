@@ -3,19 +3,30 @@
 [ERROR] fscrypt encrypt: no such file or directory
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Try to encrypt a nonempty directory
-[ERROR] fscrypt encrypt: MNT/dir: not an empty directory
+[ERROR] fscrypt encrypt: Directory "MNT/dir" cannot be
+                         encrypted because it is non-empty.
 
-Encryption can only be setup on empty directories; files cannot be encrypted
-in-place. Instead, encrypt an empty directory, copy the files into that
-encrypted directory, and securely delete the originals with "shred".
+Files cannot be encrypted in-place. Instead, encrypt a new directory, copy the
+files into it, and securely delete the original directory. For example:
+
+     mkdir MNT/dir.new
+     fscrypt encrypt MNT/dir.new
+     cp -a -T MNT/dir MNT/dir.new
+     find MNT/dir -type f -print0 | xargs -0 shred -n1 --remove=unlink
+     rm -rf MNT/dir
+     mv MNT/dir.new MNT/dir
+
+Caution: due to the nature of modern storage devices and filesystems, the
+original data may still be recoverable from disk. It's much better to encrypt
+your files from the start.
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Encrypt a directory as non-root user
 ext4 filesystem "MNT" has 1 protector and 1 policy
@@ -52,16 +63,16 @@ PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "prot"
 
 # Try to encrypt an already-encrypted directory
-[ERROR] fscrypt encrypt: MNT/dir: file or directory already
-                         encrypted
+[ERROR] fscrypt encrypt: file or directory "MNT/dir" is
+                         already encrypted
 
 # Try to encrypt another user's directory as a non-root user
-[ERROR] fscrypt encrypt: MNT/dir: you do not own this
-                         directory
+[ERROR] fscrypt encrypt: cannot encrypt "MNT/dir" because
+                         it's owned by another user (root).
 
-Encryption can only be setup on directories you own, even if you have write
-permission for the directory.
+                         Encryption can only be enabled on a directory you own,
+                         even if you have write access to the directory.
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted

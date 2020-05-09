@@ -10,10 +10,10 @@ ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 
 # Get status of unencrypted directory on setup mountpoint
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
-[ERROR] fscrypt status: get encryption policy MNT/dir: file
-                        or directory not encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
 
 # Remove fscrypt metadata from MNT
 
@@ -24,21 +24,25 @@ ext4 supported No
 ext4 supported No
 
 # Get status of not-setup mountpoint
-[ERROR] fscrypt status: filesystem MNT: not setup for use
+[ERROR] fscrypt status: filesystem MNT is not setup for use
                         with fscrypt
 
-Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
-[ERROR] fscrypt status: filesystem MNT: not setup for use
+Run "sudo fscrypt setup MNT" to use fscrypt on this
+filesystem.
+[ERROR] fscrypt status: filesystem MNT is not setup for use
                         with fscrypt
 
-Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
+Run "sudo fscrypt setup MNT" to use fscrypt on this
+filesystem.
 
 # Get status of unencrypted directory on not-setup mountpoint
-[ERROR] fscrypt status: filesystem MNT: not setup for use
+[ERROR] fscrypt status: filesystem MNT is not setup for use
                         with fscrypt
 
-Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
-[ERROR] fscrypt status: filesystem MNT: not setup for use
+Run "sudo fscrypt setup MNT" to use fscrypt on this
+filesystem.
+[ERROR] fscrypt status: filesystem MNT is not setup for use
                         with fscrypt
 
-Run "fscrypt setup MOUNTPOINT" to use fscrypt on this filesystem.
+Run "sudo fscrypt setup MNT" to use fscrypt on this
+filesystem.

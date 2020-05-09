@@ -121,7 +121,8 @@ func longDisplay(f prettyFlag, defaultString ...string) string {
 // Takes an input string text, and wraps the text so that each line begins with
 // padding spaces (except for the first line), ends with a newline (except the
 // last line), and each line has length less than lineLength. If the text
-// contains a word which is too long, that word gets its own line.
+// contains a word which is too long, that word gets its own line. Paragraphs
+// and "code blocks" are preserved.
 func wrapText(text string, padding int) string {
 	// We use a buffer to format the wrapped text so we get O(n) runtime
 	var buffer bytes.Buffer
@@ -141,10 +142,18 @@ func wrapText(text string, padding int) string {
 			continue
 		}
 
+		codeBlock := (words[0] == ">")
+		if codeBlock {
+			words[0] = "    "
+			if filled != 0 {
+				buffer.WriteString("\n")
+				filled = 0
+			}
+		}
 		for _, word := range words {
 			wordLen := utf8.RuneCountInString(word)
 			// Write a newline if needed.
-			if filled != 0 && filled+1+wordLen > lineLength {
+			if filled != 0 && filled+1+wordLen > lineLength && !codeBlock {
 				buffer.WriteString("\n")
 				filled = 0
 			}
