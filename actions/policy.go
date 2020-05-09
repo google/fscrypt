@@ -417,12 +417,6 @@ func (policy *Policy) IsProvisionedByTargetUser() bool {
 	return policy.GetProvisioningStatus() == keyring.KeyPresent
 }
 
-// IsFullyDeprovisioned returns true if the policy has been fully deprovisioned,
-// including by all users and with all files protected by it having been closed.
-func (policy *Policy) IsFullyDeprovisioned() bool {
-	return policy.GetProvisioningStatus() == keyring.KeyAbsent
-}
-
 // Provision inserts the Policy key into the kernel keyring. This allows reading
 // and writing of files encrypted with this directory. Requires unlocked Policy.
 func (policy *Policy) Provision() error {
@@ -435,14 +429,15 @@ func (policy *Policy) Provision() error {
 
 // Deprovision removes the Policy key from the kernel keyring. This prevents
 // reading and writing to the directory --- unless the target keyring is a user
-// keyring, in which case caches must be dropped too.
+// keyring, in which case caches must be dropped too. If the Policy key was
+// already removed, returns keyring.ErrKeyNotPresent.
 func (policy *Policy) Deprovision(allUsers bool) error {
 	return keyring.RemoveEncryptionKey(policy.Descriptor(),
 		policy.Context.getKeyringOptions(), allUsers)
 }
 
 // NeedsUserKeyring returns true if Provision and Deprovision for this policy
-// will use a user keyring, not a filesystem keyring.
+// will use a user keyring (deprecated), not a filesystem keyring.
 func (policy *Policy) NeedsUserKeyring() bool {
 	return policy.Version() == 1 && !policy.Context.Config.GetUseFsKeyringForV1Policies()
 }

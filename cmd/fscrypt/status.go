@@ -66,8 +66,20 @@ func yesNoString(b bool) string {
 	return "No"
 }
 
-func policyUnlockedStatus(policy *actions.Policy) string {
-	switch policy.GetProvisioningStatus() {
+func policyUnlockedStatus(policy *actions.Policy, path string) string {
+	status := policy.GetProvisioningStatus()
+
+	// Due to a limitation in the old kernel API for fscrypt, for v1
+	// policies using the user keyring that are incompletely locked we'll
+	// get KeyAbsent, not KeyAbsentButFilesBusy as expected.  If we have a
+	// directory path, use a heuristic to try to detect whether it is still
+	// usable and thus the policy is actually incompletely locked.
+	if status == keyring.KeyAbsent && policy.NeedsUserKeyring() &&
+		path != "" && isDirUnlockedHeuristic(path) {
+		status = keyring.KeyAbsentButFilesBusy
+	}
+
+	switch status {
 	case keyring.KeyPresent, keyring.KeyPresentButOnlyOtherUsers:
 		return "Yes"
 	case keyring.KeyAbsent:
@@ -174,7 +186,8 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 			continue
 		}
 
-		fmt.Fprintf(t, "%s\t%s\t%s\n", descriptor, policyUnlockedStatus(policy),
+		fmt.Fprintf(t, "%s\t%s\t%s\n", descriptor,
+			policyUnlockedStatus(policy, ""),
 			strings.Join(policy.ProtectorDescriptors(), ", "))
 	}
 	return t.Flush()
@@ -194,7 +207,7 @@ func writePathStatus(w io.Writer, path string) error {
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "Policy:   %s\n", policy.Descriptor())
 	fmt.Fprintf(w, "Options:  %s\n", policy.Options())
-	fmt.Fprintf(w, "Unlocked: %s\n", policyUnlockedStatus(policy))
+	fmt.Fprintf(w, "Unlocked: %s\n", policyUnlockedStatus(policy, path))
 	fmt.Fprintln(w)
 
 	options := policy.ProtectorOptions()

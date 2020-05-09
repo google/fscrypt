@@ -496,28 +496,53 @@ func lockAction(c *cli.Context) error {
 	if err = validateKeyringPrereqs(ctx, policy); err != nil {
 		return newExitError(c, err)
 	}
-	// Check if directory is already locked
-	if policy.IsFullyDeprovisioned() {
-		log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
-		return newExitError(c, errors.Wrapf(ErrPolicyLocked, path))
-	}
-	// Check for permission to drop caches, if it will be needed.
+	// Check for permission to drop caches, if it may be needed.
 	if policy.NeedsUserKeyring() && dropCachesFlag.Value && !util.IsUserRoot() {
 		return newExitError(c, ErrDropCachesPerm)
 	}
 
 	if err = policy.Deprovision(allUsersFlag.Value); err != nil {
-		return newExitError(c, err)
+		if err != keyring.ErrKeyNotPresent {
+			return newExitError(c, err)
+		}
+		// Key is no longer present.  Normally that means the directory
+		// is already locked; in that case we exit with an error.  But
+		// if the policy uses the user keyring (v1 policies only), then
+		// the directory might have been incompletely locked earlier,
+		// due to open files.  Try to detect that case and finish
+		// locking the directory by dropping caches again.
+		if !policy.NeedsUserKeyring() || !isDirUnlockedHeuristic(path) {
+			log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
+			return newExitError(c, errors.Wrapf(ErrPolicyLocked, path))
+		}
 	}
 
 	if policy.NeedsUserKeyring() {
 		if err = dropCachesIfRequested(c, ctx); err != nil {
 			return newExitError(c, err)
 		}
+		if isDirUnlockedHeuristic(path) {
+			return newExitError(c, keyring.ErrKeyFilesOpen)
+		}
 	}
 
 	fmt.Fprintf(c.App.Writer, "%q is now locked.\n", path)
 	return nil
+}
+
+// isDirUnlockedHeuristic returns true if we can create a subdirectory of the
+// given directory and therefore it is definitely still unlocked.  It returns
+// false if the directory is probably locked (though it could also be unlocked).
+//
+// This is only useful if the directory's policy uses the user keyring, since
+// otherwise the status can be easily found via the filesystem keyring.
+func isDirUnlockedHeuristic(dirPath string) bool {
+	subdirPath := filepath.Join(dirPath, "fscrypt-is-dir-unlocked")
+	if err := os.Mkdir(subdirPath, 0700); err == nil {
+		os.Remove(subdirPath)
+		return true
+	}
+	return false
 }
 
 // Purge removes all the policy keys from the keyring (also need unmount).

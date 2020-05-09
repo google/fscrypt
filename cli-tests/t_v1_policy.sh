@@ -54,3 +54,18 @@ _print_header "Lock v1-encrypted directory"
 fscrypt lock "$dir" --user="$TEST_USER"
 _user_do "fscrypt status '$dir'"
 _expect_failure "cat '$dir/file'"
+
+# 'fscrypt lock' and 'fscrypt status' implement a heuristic that should detect
+# the "files busy" case with v1.
+_print_header "Testing incompletely locking v1-encrypted directory"
+_user_do "echo hunter2 | fscrypt unlock '$dir'"
+exec 3<"$dir/file"
+_expect_failure "fscrypt lock '$dir' --user='$TEST_USER'"
+_user_do "fscrypt status '$dir'"
+# ... except in this case, because we can't detect it without a directory path.
+_user_do "fscrypt status '$MNT'"
+exec 3<&-
+_print_header "Finishing locking v1-encrypted directory"
+fscrypt lock "$dir" --user="$TEST_USER"
+_user_do "fscrypt status '$dir'"
+_expect_failure "cat '$dir/file'"
