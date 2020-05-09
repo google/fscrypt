@@ -1,0 +1,49 @@
+
+# fscrypt setup creates fscrypt.conf
+Defaulting to policy_version 2 because kernel supports it.
+Customizing passphrase hashing difficulty for this system...
+Created global config file at "FSCRYPT_CONF".
+Skipping creating MNT_ROOT/.fscrypt because it already exists.
+
+# fscrypt setup creates fscrypt.conf and /.fscrypt
+Defaulting to policy_version 2 because kernel supports it.
+Customizing passphrase hashing difficulty for this system...
+Created global config file at "FSCRYPT_CONF".
+Metadata directories created at "MNT_ROOT/.fscrypt".
+
+# fscrypt setup when fscrypt.conf already exists (cancel)
+Replace "FSCRYPT_CONF"? [y/N] [ERROR] fscrypt setup: operation canceled
+
+# fscrypt setup when fscrypt.conf already exists (cancel 2)
+Replace "FSCRYPT_CONF"? [y/N] [ERROR] fscrypt setup: operation canceled
+
+# fscrypt setup when fscrypt.conf already exists (accept)
+Replace "FSCRYPT_CONF"? [y/N] Defaulting to policy_version 2 because kernel supports it.
+Customizing passphrase hashing difficulty for this system...
+Created global config file at "FSCRYPT_CONF".
+Skipping creating MNT_ROOT/.fscrypt because it already exists.
+
+# fscrypt setup --quiet when fscrypt.conf already exists
+[ERROR] fscrypt setup: operation would be destructive
+
+Use --force to automatically run destructive operations.
+
+# fscrypt setup --quiet --force when fscrypt.conf already exists
+
+# fscrypt setup filesystem
+Metadata directories created at "MNT/.fscrypt".
+
+# fscrypt setup filesystem (already set up)
+[ERROR] fscrypt setup: filesystem MNT: already setup for use
+                       with fscrypt
+
+# no config file
+[ERROR] fscrypt setup: global config file does not exist
+
+Run "sudo fscrypt setup" to create the file.
+
+# bad config file
+[ERROR] fscrypt setup: invalid character 'b' looking for beginning of value:
+                       global config file has invalid data
+
+Run "sudo fscrypt setup" to recreate the file.
