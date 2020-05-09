@@ -31,6 +31,8 @@ import (
 	"os"
 
 	"github.com/urfave/cli"
+
+	"github.com/google/fscrypt/actions"
 )
 
 // Current version of the program (set by Makefile)
@@ -40,6 +42,10 @@ func main() {
 	cli.AppHelpTemplate = appHelpTemplate
 	cli.CommandHelpTemplate = commandHelpTemplate
 	cli.SubcommandHelpTemplate = subcommandHelpTemplate
+
+	if conffile := os.Getenv("FSCRYPT_CONF"); conffile != "" {
+		actions.ConfigFileLocation = conffile
+	}
 
 	// Create our command line application
 	app := cli.NewApp()
