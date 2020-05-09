@@ -1,0 +1,55 @@
+
+# Encrypt with custom passphrase protector
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc2  Yes       desc1
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc2
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "prot"
+
+# Encrypt with custom passphrase protector, interactively
+spawn fscrypt encrypt MNT/dir
+The following protector sources are available:
+1 - Your login passphrase (pam_passphrase)
+2 - A custom passphrase (custom_passphrase)
+3 - A raw 256-bit key (raw_key)
+Enter the source number for the new protector [2 - custom_passphrase]: 2
+Enter a name for the new protector: prot
+Enter custom passphrase for protector "prot": 
+Confirm passphrase: 
+"MNT/dir" is now encrypted, unlocked, and ready for use.
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc6  No      custom protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc7  Yes       desc6
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc7
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc6  No      custom protector "prot"
+
+# Try to use a custom protector without a name
+[ERROR] fscrypt encrypt: custom protectors must have a name
+
+Use --name=PROTECTOR_NAME to specify a protector name.
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: get encryption policy MNT/dir: file
+                        or directory not encrypted
