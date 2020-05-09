@@ -46,12 +46,7 @@ jobs:
 
     - name: Integration Tests
       sudo: required
-      addons:
-        apt:
-          sources:
-            - sourceline: 'deb http://en.archive.ubuntu.com/ubuntu/ artful main universe'
-          packages:
-            - e2fsprogs
+      before_install: sudo apt-get -y install e2fsprogs
       install:
         - go get -u github.com/mattn/goveralls
         - make test-setup
