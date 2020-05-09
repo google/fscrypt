@@ -82,6 +82,10 @@ func getErrorSuggestions(err error) string {
 	switch err.(type) {
 	case *actions.ErrBadConfigFile:
 		return `Either fix this file manually, or run "sudo fscrypt setup" to recreate it.`
+	case *actions.ErrLoginProtectorName:
+		return fmt.Sprintf("To fix this, don't specify the %s option.", shortDisplay(nameFlag))
+	case *actions.ErrMissingProtectorName:
+		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
 	case *actions.ErrNoConfigFile:
 		return `Run "sudo fscrypt setup" to create this file.`
 	}
@@ -131,8 +135,6 @@ func getErrorSuggestions(err error) string {
 		return `The metadata for this encrypted directory is in an
 			inconsistent state. This most likely means the filesystem
 			metadata is corrupted.`
-	case actions.ErrMissingProtectorName:
-		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
 	case actions.ErrAccessDeniedPossiblyV2:
 		return fmt.Sprintf(`This may be caused by the directory using a v2
 		encryption policy and the current kernel not supporting it. If

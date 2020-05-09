@@ -130,7 +130,11 @@ POLICY                            UNLOCKED  PROTECTORS
 desc34  Yes       desc35
 
 # Try to give a login protector a name
-[ERROR] fscrypt encrypt: login protectors do not need a name
+[ERROR] fscrypt encrypt: cannot assign name "prot" to new login protector for
+                         user "fscrypt-test-user" because login protectors are
+                         identified by user, not by name.
+
+To fix this, don't specify the --name=PROTECTOR_NAME option.
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 ext4 filesystem "MNT_ROOT" has 0 protectors and 0 policies

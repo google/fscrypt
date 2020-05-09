@@ -22,8 +22,7 @@ package actions
 import (
 	"fmt"
 	"log"
-
-	"github.com/pkg/errors"
+	"os/user"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
@@ -34,13 +33,44 @@ import (
 // This can be overridden by the user of this package.
 var LoginProtectorMountpoint = "/"
 
-// Errors relating to Protectors
-var (
-	ErrProtectorName        = errors.New("login protectors do not need a name")
-	ErrMissingProtectorName = errors.New("custom protectors must have a name")
-	ErrDuplicateName        = errors.New("protector with this name already exists")
-	ErrDuplicateUID         = errors.New("login protector for this user already exists")
-)
+// ErrLoginProtectorExists indicates that a user already has a login protector.
+type ErrLoginProtectorExists struct {
+	User *user.User
+}
+
+func (err *ErrLoginProtectorExists) Error() string {
+	return fmt.Sprintf("user %q already has a login protector", err.User.Username)
+}
+
+// ErrLoginProtectorName indicates that a name was given for a login protector.
+type ErrLoginProtectorName struct {
+	Name string
+	User *user.User
+}
+
+func (err *ErrLoginProtectorName) Error() string {
+	return fmt.Sprintf(`cannot assign name %q to new login protector for
+	user %q because login protectors are identified by user, not by name.`,
+		err.Name, err.User.Username)
+}
+
+// ErrMissingProtectorName indicates that a protector name is needed.
+type ErrMissingProtectorName struct {
+	Source metadata.SourceType
+}
+
+func (err *ErrMissingProtectorName) Error() string {
+	return fmt.Sprintf("%s protectors must be named", err.Source)
+}
+
+// ErrProtectorNameExists indicates that a protector name already exists.
+type ErrProtectorNameExists struct {
+	Name string
+}
+
+func (err *ErrProtectorNameExists) Error() string {
+	return fmt.Sprintf("there is already a protector named %q", err.Name)
+}
 
 // checkForProtectorWithName returns an error if there is already a protector
 // on the filesystem with a specific name (or if we cannot read the necessary
@@ -52,7 +82,7 @@ func checkForProtectorWithName(ctx *Context, name string) error {
 	}
 	for _, option := range options {
 		if option.Name() == name {
-			return errors.Wrapf(ErrDuplicateName, "name %q", name)
+			return &ErrProtectorNameExists{name}
 		}
 	}
 	return nil
@@ -68,7 +98,7 @@ func checkIfUserHasLoginProtector(ctx *Context, uid int64) error {
 	}
 	for _, option := range options {
 		if option.Source() == metadata.SourceType_pam_passphrase && option.UID() == uid {
-			return errors.Wrapf(ErrDuplicateUID, "user %q", ctx.TargetUser.Username)
+			return &ErrLoginProtectorExists{ctx.TargetUser}
 		}
 	}
 	return nil
@@ -97,12 +127,12 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 	if ctx.Config.Source == metadata.SourceType_pam_passphrase {
 		// login protectors don't need a name (we use the username instead)
 		if name != "" {
-			return nil, ErrProtectorName
+			return nil, &ErrLoginProtectorName{name, ctx.TargetUser}
 		}
 	} else {
 		// non-login protectors need a name (so we can distinguish between them)
 		if name == "" {
-			return nil, ErrMissingProtectorName
+			return nil, &ErrMissingProtectorName{ctx.Config.Source}
 		}
 		// we don't want to duplicate naming
 		if err := checkForProtectorWithName(ctx, name); err != nil {
