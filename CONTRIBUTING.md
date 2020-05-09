@@ -87,6 +87,7 @@ The `Makefile` will automatically download and build any needed Go dependencies.
 However, you'll also need to install some non-Go dependencies:
   - `make format` requires
     [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html).
+  - `make lint` requires [`shellcheck`](https://github.com/koalaman/shellcheck).
   - `make test-setup` and `make cli-test` require
     [`e2fsprogs`](https://en.wikipedia.org/wiki/E2fsprogs) version 1.43 or
     later.
@@ -96,7 +97,7 @@ However, you'll also need to install some non-Go dependencies:
 
 On Ubuntu, the following command installs the needed packages:
 ```
-sudo apt-get install clang-format e2fsprogs expect keyutils
+sudo apt-get install clang-format shellcheck e2fsprogs expect keyutils
 ```
 
 ### Running Integration Tests

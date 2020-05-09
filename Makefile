@@ -110,6 +110,7 @@ lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
 	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	misspell -source=text $(FILES)
+	( cd cli-tests && shellcheck -x *.sh)
 
 clean:
 	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES) $(PAM_CONFIG)
