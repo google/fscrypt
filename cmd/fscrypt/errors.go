@@ -79,6 +79,12 @@ func getFullName(c *cli.Context) string {
 // getErrorSuggestions returns a string containing suggestions about how to fix
 // an error. If no suggestion is necessary or available, return empty string.
 func getErrorSuggestions(err error) string {
+	switch err.(type) {
+	case *actions.ErrBadConfigFile:
+		return `Either fix this file manually, or run "sudo fscrypt setup" to recreate it.`
+	case *actions.ErrNoConfigFile:
+		return `Run "sudo fscrypt setup" to create this file.`
+	}
 	switch errors.Cause(err) {
 	case filesystem.ErrNotSetup:
 		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
@@ -117,10 +123,6 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
 		version 5.4 and later. Either use a newer kernel, or change
 		policy_version to 1 in %s.`, actions.ConfigFileLocation)
-	case actions.ErrBadConfigFile:
-		return `Run "sudo fscrypt setup" to recreate the file.`
-	case actions.ErrNoConfigFile:
-		return `Run "sudo fscrypt setup" to create the file.`
 	case actions.ErrMissingPolicyMetadata:
 		return `This file or directory has either been encrypted with
 			another tool (such as e4crypt) or the corresponding

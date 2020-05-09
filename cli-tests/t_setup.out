@@ -38,12 +38,12 @@ Metadata directories created at "MNT/.fscrypt".
                        with fscrypt
 
 # no config file
-[ERROR] fscrypt setup: global config file does not exist
+[ERROR] fscrypt setup: "FSCRYPT_CONF" doesn't exist
 
-Run "sudo fscrypt setup" to create the file.
+Run "sudo fscrypt setup" to create this file.
 
 # bad config file
-[ERROR] fscrypt setup: invalid character 'b' looking for beginning of value:
-                       global config file has invalid data
+[ERROR] fscrypt setup: "FSCRYPT_CONF" is invalid: invalid
+                       character 'b' looking for beginning of value
 
-Run "sudo fscrypt setup" to recreate the file.
+Either fix this file manually, or run "sudo fscrypt setup" to recreate it.
