@@ -55,15 +55,46 @@ var (
 	ErrKeyFileLength      = errors.Errorf("key file must be %d bytes", metadata.InternalKeyLen)
 	ErrAllLoadsFailed     = errors.New("could not load any protectors")
 	ErrMustBeRoot         = errors.New("this command must be run as root")
-	ErrPolicyUnlocked     = errors.New("this file or directory is already unlocked")
-	ErrPolicyLocked       = errors.New("this file or directory is already locked")
-	ErrNotEmptyDir        = errors.New("not an empty directory")
+	ErrDirAlreadyUnlocked = errors.New("this file or directory is already unlocked")
+	ErrDirAlreadyLocked   = errors.New("this file or directory is already locked")
 	ErrNotPassphrase      = errors.New("protector does not use a passphrase")
 	ErrUnknownUser        = errors.New("unknown user")
 	ErrDropCachesPerm     = errors.New("inode cache can only be dropped as root")
 	ErrSpecifyUser        = errors.New("user must be specified when run as root")
 	ErrFsKeyringPerm      = errors.New("root is required to add/remove v1 encryption policy keys to/from filesystem")
 )
+
+// ErrDirFilesOpen indicates that a directory can't be fully locked because
+// files protected by the directory's policy are still open.
+type ErrDirFilesOpen struct {
+	DirPath string
+}
+
+func (err *ErrDirFilesOpen) Error() string {
+	return fmt.Sprintf(`Directory was incompletely locked because some files
+	are still open. These files remain accessible.`)
+}
+
+// ErrDirUnlockedByOtherUsers indicates that a directory can't be locked because
+// the directory's policy is still provisioned by other users.
+type ErrDirUnlockedByOtherUsers struct {
+	DirPath string
+}
+
+func (err *ErrDirUnlockedByOtherUsers) Error() string {
+	return fmt.Sprintf(`Directory %q couldn't be fully locked because other
+	user(s) have unlocked it.`, err.DirPath)
+}
+
+// ErrDirNotEmpty indicates that a directory can't be encrypted because it's not
+// empty.
+type ErrDirNotEmpty struct {
+	DirPath string
+}
+
+func (err *ErrDirNotEmpty) Error() string {
+	return fmt.Sprintf("Directory %q cannot be encrypted because it is non-empty.", err.DirPath)
+}
 
 var loadHelpText = fmt.Sprintf("You may need to mount a linked filesystem. Run with %s for more information.", shortDisplay(verboseFlag))
 
@@ -138,6 +169,37 @@ func suggestEnablingEncryption(mnt *filesystem.Mount) string {
 // an error. If no suggestion is necessary or available, return empty string.
 func getErrorSuggestions(err error) string {
 	switch e := err.(type) {
+	case *ErrDirFilesOpen:
+		return fmt.Sprintf(`Try killing any processes using files in the
+		directory, for example using:
+
+		> find %q -print0 | xargs -0 fuser -k
+
+		Then re-run:
+
+		> fscrypt lock %q`, e.DirPath, e.DirPath)
+	case *ErrDirNotEmpty:
+		dir := e.DirPath
+		newDir := dir + ".new"
+		return fmt.Sprintf(`Files cannot be encrypted in-place. Instead,
+		encrypt a new directory, copy the files into it, and securely
+		delete the original directory. For example:
+
+		> mkdir %s
+		> fscrypt encrypt %s
+		> cp -a -T %s %s
+		> find %s -type f -print0 | xargs -0 shred -n1 --remove=unlink
+		> rm -rf %s
+		> mv %s %s
+
+		Caution: due to the nature of modern storage devices and filesystems,
+		the original data may still be recoverable from disk. It's much better
+		to encrypt your files from the start.`, newDir, newDir, dir, newDir, dir, dir, newDir, dir)
+	case *ErrDirUnlockedByOtherUsers:
+		return fmt.Sprintf(`If you want to force the directory to be
+		locked, use:
+
+		> sudo fscrypt lock --all-users %q`, e.DirPath)
 	case *actions.ErrBadConfigFile:
 		return `Either fix this file manually, or run "sudo fscrypt setup" to recreate it.`
 	case *actions.ErrLoginProtectorName:
@@ -183,30 +245,17 @@ func getErrorSuggestions(err error) string {
 			-l". The limit can be modified by either changing the
 			"memlock" item in /etc/security/limits.conf or by
 			changing the "LimitMEMLOCK" value in systemd.`
-	case keyring.ErrKeyFilesOpen:
-		return `Directory was incompletely locked because some files are
-			still open. These files remain accessible. Try killing
-			any processes using files in the directory, then
-			re-running 'fscrypt lock'.`
-	case keyring.ErrKeyAddedByOtherUsers:
-		return `Directory couldn't be fully locked because other user(s)
-			have unlocked it. If you want to force the directory to
-			be locked, use 'sudo fscrypt lock --all-users DIR'.`
 	case keyring.ErrV2PoliciesUnsupported:
 		return fmt.Sprintf(`v2 encryption policies are only supported by kernel
 		version 5.4 and later. Either use a newer kernel, or change
 		policy_version to 1 in %s.`, actions.ConfigFileLocation)
 	case ErrNoDestructiveOps:
-		return fmt.Sprintf("Use %s to automatically run destructive operations.", shortDisplay(forceFlag))
+		return fmt.Sprintf("If desired, use %s to automatically run destructive operations.",
+			shortDisplay(forceFlag))
 	case ErrSpecifyProtector:
 		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
 	case ErrSpecifyKeyFile:
 		return fmt.Sprintf("Use %s to specify a key file.", shortDisplay(keyFileFlag))
-	case ErrNotEmptyDir:
-		return `Encryption can only be setup on empty directories; files
-			cannot be encrypted in-place. Instead, encrypt an empty
-			directory, copy the files into that encrypted directory,
-			and securely delete the originals with "shred".`
 	case ErrDropCachesPerm:
 		return fmt.Sprintf(`Either this command should be run as root to
 			properly clear the inode cache, or it should be run with

@@ -297,7 +297,18 @@ func encryptPath(path string) (err error) {
 
 // checkEncryptable returns an error if the path cannot be encrypted.
 func checkEncryptable(ctx *actions.Context, path string) error {
-	log.Printf("ensuring %s is an empty and readable directory", path)
+
+	log.Printf("checking whether %q is already encrypted", path)
+	if _, err := metadata.GetPolicy(path); err == nil {
+		return &metadata.ErrAlreadyEncrypted{Path: path}
+	}
+
+	log.Printf("checking whether filesystem %s supports encryption", ctx.Mount.Path)
+	if err := ctx.Mount.CheckSupport(); err != nil {
+		return err
+	}
+
+	log.Printf("checking whether %q is an empty and readable directory", path)
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -307,26 +318,13 @@ func checkEncryptable(ctx *actions.Context, path string) error {
 	switch names, err := f.Readdirnames(-1); {
 	case err != nil:
 		// Could not read directory (might not be a directory)
-		log.Print(errors.Wrap(err, path))
-		return errors.Wrap(ErrNotEmptyDir, path)
-	case len(names) > 0:
-		log.Printf("directory %s is not empty", path)
-		return errors.Wrap(ErrNotEmptyDir, path)
-	}
-
-	log.Printf("ensuring %s supports encryption and filesystem is using fscrypt", path)
-	switch _, err := actions.GetPolicyFromPath(ctx, path); errors.Cause(err) {
-	case nil:
-		// We are encrypted
-		return &metadata.ErrAlreadyEncrypted{path}
-	default:
-		if _, ok := err.(*metadata.ErrNotEncrypted); ok {
-			// We are not encrypted. Finally, we check that the filesystem
-			// supports encryption
-			return ctx.Mount.CheckSupport()
-		}
+		err = errors.Wrap(err, path)
+		log.Print(err)
 		return err
+	case len(names) > 0:
+		return &ErrDirNotEmpty{path}
 	}
+	return err
 }
 
 // selectOrCreateProtector uses user input (or flags) to either create a new
@@ -410,7 +408,7 @@ func unlockAction(c *cli.Context) error {
 	if policy.IsProvisionedByTargetUser() {
 		log.Printf("policy %s is already provisioned by %v",
 			policy.Descriptor(), ctx.TargetUser.Username)
-		return newExitError(c, errors.Wrapf(ErrPolicyUnlocked, path))
+		return newExitError(c, errors.Wrapf(ErrDirAlreadyUnlocked, path))
 	}
 
 	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
@@ -499,7 +497,14 @@ func lockAction(c *cli.Context) error {
 	}
 
 	if err = policy.Deprovision(allUsersFlag.Value); err != nil {
-		if err != keyring.ErrKeyNotPresent {
+		switch err {
+		case keyring.ErrKeyNotPresent:
+			break
+		case keyring.ErrKeyAddedByOtherUsers:
+			return newExitError(c, &ErrDirUnlockedByOtherUsers{path})
+		case keyring.ErrKeyFilesOpen:
+			return newExitError(c, &ErrDirFilesOpen{path})
+		default:
 			return newExitError(c, err)
 		}
 		// Key is no longer present.  Normally that means the directory
@@ -510,7 +515,7 @@ func lockAction(c *cli.Context) error {
 		// locking the directory by dropping caches again.
 		if !policy.NeedsUserKeyring() || !isDirUnlockedHeuristic(path) {
 			log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
-			return newExitError(c, errors.Wrapf(ErrPolicyLocked, path))
+			return newExitError(c, errors.Wrapf(ErrDirAlreadyLocked, path))
 		}
 	}
 
@@ -519,7 +524,7 @@ func lockAction(c *cli.Context) error {
 			return newExitError(c, err)
 		}
 		if isDirUnlockedHeuristic(path) {
-			return newExitError(c, keyring.ErrKeyFilesOpen)
+			return newExitError(c, &ErrDirFilesOpen{path})
 		}
 	}
 

@@ -26,7 +26,7 @@ Skipping creating MNT_ROOT/.fscrypt because it already exists.
 # fscrypt setup --quiet when fscrypt.conf already exists
 [ERROR] fscrypt setup: operation would be destructive
 
-Use --force to automatically run destructive operations.
+If desired, use --force to automatically run destructive operations.
 
 # fscrypt setup --quiet --force when fscrypt.conf already exists
 

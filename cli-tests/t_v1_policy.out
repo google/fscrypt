@@ -101,11 +101,16 @@ cat: MNT/dir/file: No such file or directory
 # Testing incompletely locking v1-encrypted directory
 Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
 Encrypted data removed from filesystem cache.
-[ERROR] fscrypt lock: some files using the key are still open
+[ERROR] fscrypt lock: Directory was incompletely locked because some files are
+                      still open. These files remain accessible.
 
-Directory was incompletely locked because some files are still open. These files
-remain accessible. Try killing any processes using files in the directory, then
-re-running 'fscrypt lock'.
+Try killing any processes using files in the directory, for example using:
+
+     find "MNT/dir" -print0 | xargs -0 fuser -k
+
+Then re-run:
+
+     fscrypt lock "MNT/dir"
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
