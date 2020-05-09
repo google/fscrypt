@@ -1,0 +1,82 @@
+
+# Encrypt directory
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Lock directory
+"MNT/dir" is now locked.
+
+# => filenames should be in encrypted form
+cat: MNT/dir/file: No such file or directory
+
+# => shouldn't be able to create a subdirectory
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
+
+# Unlock directory
+Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+contents
+
+# Try to lock directory while files busy
+[ERROR] fscrypt lock: some files using the key are still open
+
+Directory was incompletely locked because some files are still open. These files
+remain accessible. Try killing any processes using files in the directory, then
+re-running 'fscrypt lock'.
+
+# => status should be incompletely locked
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Partially (incompletely locked)
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# => open file should still be readable
+contents
+
+# => shouldn't be able to create a new file
+bash: MNT/dir/file2: Required key not available
+
+# Finish locking directory
+"MNT/dir" is now locked.
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+cat: MNT/dir/file: No such file or directory
+mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
+
+# Try to lock directory while other user has unlocked
+Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
+[ERROR] fscrypt lock: other users have added the key too
+
+Directory couldn't be fully locked because other user(s) have unlocked it. If
+you want to force the directory to be locked, use 'sudo fscrypt lock --all-users
+DIR'.
+contents
+"MNT/dir" is now locked.
+cat: MNT/dir/file: No such file or directory
