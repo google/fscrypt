@@ -27,12 +27,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/pkg/errors"
-
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/keyring"
-	"github.com/google/fscrypt/metadata"
 )
 
 // Creates a writer which correctly aligns tabs with the specified header.
@@ -46,12 +43,13 @@ func makeTableWriter(w io.Writer, header string) *tabwriter.Writer {
 // encryptionStatus will be printed in the ENCRYPTION column. An empty string
 // indicates the filesystem should not be printed.
 func encryptionStatus(err error) string {
-	switch errors.Cause(err) {
-	case nil:
+	if err == nil {
 		return "supported"
-	case metadata.ErrEncryptionNotEnabled:
+	}
+	switch err.(type) {
+	case *filesystem.ErrEncryptionNotEnabled:
 		return "not enabled"
-	case metadata.ErrEncryptionNotSupported:
+	case *filesystem.ErrEncryptionNotSupported:
 		return "not supported"
 	default:
 		// Unknown error regarding support

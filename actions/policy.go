@@ -246,6 +246,7 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	// We double check that the options agree for both the data we get from
 	// the path, and the data we get from the mountpoint.
 	pathData, err := metadata.GetPolicy(path)
+	err = ctx.Mount.EncryptionSupportError(err)
 	if err != nil {
 		// On kernels that don't support v2 encryption policies, trying
 		// to open a directory with a v2 policy simply gave EACCES. This
@@ -264,7 +265,10 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	mountData, err := ctx.Mount.GetPolicy(descriptor)
 	if err != nil {
 		log.Printf("getting policy metadata: %v", err)
-		return nil, &ErrMissingPolicyMetadata{ctx.Mount, path, descriptor}
+		if _, ok := err.(*filesystem.ErrPolicyNotFound); ok {
+			return nil, &ErrMissingPolicyMetadata{ctx.Mount, path, descriptor}
+		}
+		return nil, err
 	}
 	log.Printf("found data for policy %s on %q", descriptor, ctx.Mount.Path)
 
@@ -492,7 +496,8 @@ func (policy *Policy) Apply(path string) error {
 		return &ErrDifferentFilesystem{policy.Context.Mount, pathMount}
 	}
 
-	return metadata.SetPolicy(path, policy.data)
+	err := metadata.SetPolicy(path, policy.data)
+	return policy.Context.Mount.EncryptionSupportError(err)
 }
 
 // GetProvisioningStatus returns the status of this policy's key in the keyring.

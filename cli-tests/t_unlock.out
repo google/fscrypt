@@ -81,12 +81,9 @@ contents
 desc1  Yes       desc2
 
 # Try to unlock with corrupt policy metadata
-[ERROR] fscrypt unlock: filesystem "MNT" does not contain
-                        the policy metadata for "MNT/dir".
-                        This directory has either been encrypted with another
-                        tool (such as e4crypt), or the file
+[ERROR] fscrypt unlock: fscrypt metadata file at
                         "MNT/.fscrypt/policies/desc1"
-                        has been deleted.
+                        is corrupt: unexpected EOF
 
 # Try to unlock with missing policy metadata
 [ERROR] fscrypt unlock: filesystem "MNT" does not contain

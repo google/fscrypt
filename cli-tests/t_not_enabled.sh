@@ -26,6 +26,11 @@ _expect_failure "fscrypt unlock '$dir'"
 _print_header "Try to lock a directory when encryption is disabled"
 _expect_failure "fscrypt lock '$dir'"
 
+_print_header "Check for additional message when GRUB appears to be installed"
+mkdir -p "$MNT/boot/grub"
+_expect_failure "fscrypt encrypt '$dir'"
+rm -r "${MNT:?}/boot"
+
 _print_header "Enable encryption on $DEV"
 _run_noisy_command "tune2fs -O encrypt '$DEV'"
 

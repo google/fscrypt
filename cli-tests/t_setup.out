@@ -34,8 +34,8 @@ Use --force to automatically run destructive operations.
 Metadata directories created at "MNT/.fscrypt".
 
 # fscrypt setup filesystem (already set up)
-[ERROR] fscrypt setup: filesystem MNT: already setup for use
-                       with fscrypt
+[ERROR] fscrypt setup: filesystem MNT is already setup for
+                       use with fscrypt
 
 # no config file
 [ERROR] fscrypt setup: "FSCRYPT_CONF" doesn't exist

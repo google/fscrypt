@@ -74,7 +74,7 @@ func setupAction(c *cli.Context) error {
 			return newExitError(c, err)
 		}
 		if err := setupFilesystem(c.App.Writer, actions.LoginProtectorMountpoint); err != nil {
-			if errors.Cause(err) != filesystem.ErrAlreadySetup {
+			if _, ok := err.(*filesystem.ErrAlreadySetup); !ok {
 				return newExitError(c, err)
 			}
 			fmt.Fprintf(c.App.Writer,
@@ -660,17 +660,15 @@ func statusAction(c *cli.Context) error {
 		err = writeGlobalStatus(c.App.Writer)
 	case 1:
 		path := c.Args().Get(0)
-		ctx, mntErr := actions.NewContextFromMountpoint(path, nil)
 
-		switch errors.Cause(mntErr) {
-		case nil:
+		var ctx *actions.Context
+		ctx, err = actions.NewContextFromMountpoint(path, nil)
+		if err == nil {
 			// Case (2) - mountpoint status
 			err = writeFilesystemStatus(c.App.Writer, ctx)
-		case filesystem.ErrNotAMountpoint:
+		} else if _, ok := err.(*filesystem.ErrNotAMountpoint); ok {
 			// Case (3) - file or directory status
 			err = writePathStatus(c.App.Writer, path)
-		default:
-			err = mntErr
 		}
 	default:
 		return expectedArgsErr(c, 1, true)

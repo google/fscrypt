@@ -30,6 +30,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
@@ -75,10 +76,69 @@ func getFullName(c *cli.Context) string {
 	return c.App.HelpName
 }
 
+func suggestEnablingEncryption(mnt *filesystem.Mount) string {
+	kconfig := "CONFIG_FS_ENCRYPTION=y"
+	switch mnt.FilesystemType {
+	case "ext4":
+		// Recommend running tune2fs -O encrypt.  But be really careful;
+		// old kernels didn't support block_size != PAGE_SIZE, and old
+		// GRUB didn't support encryption.
+		var statfs unix.Statfs_t
+		if err := unix.Statfs(mnt.Path, &statfs); err != nil {
+			return ""
+		}
+		pagesize := int64(os.Getpagesize())
+		if statfs.Bsize != pagesize && !util.IsKernelVersionAtLeast(5, 5) {
+			return fmt.Sprintf(`This filesystem uses a block size
+			(%d) other than the system page size (%d). Ext4
+			encryption didn't support this case until kernel v5.5.
+			Do *not* enable encryption on this filesystem. Either
+			upgrade your kernel to v5.5 or later, or re-create this
+			filesystem using 'mkfs.ext4 -b %d -O encrypt %s'
+			(WARNING: that will erase all data on it).`,
+				statfs.Bsize, pagesize, pagesize, mnt.Device)
+		}
+		if !util.IsKernelVersionAtLeast(5, 1) {
+			kconfig = "CONFIG_EXT4_ENCRYPTION=y"
+		}
+		s := fmt.Sprintf(`To enable encryption support on this
+		filesystem, run:
+
+		> sudo tune2fs -O encrypt %q
+		`, mnt.Device)
+		if _, err := os.Stat(filepath.Join(mnt.Path, "boot/grub")); err == nil {
+			s += `
+			WARNING: you seem to have GRUB installed on this
+			filesystem. Before doing the above, make sure you are
+			using GRUB v2.04 or later; otherwise your system will
+			become unbootable.
+			`
+		}
+		s += fmt.Sprintf(`
+		Also ensure that your kernel has %s. See the documentation for
+		more details.`, kconfig)
+		return s
+	case "f2fs":
+		if !util.IsKernelVersionAtLeast(5, 1) {
+			kconfig = "CONFIG_F2FS_FS_ENCRYPTION=y"
+		}
+		return fmt.Sprintf(`To enable encryption support on this
+		filesystem, you'll need to run:
+
+		> sudo fsck.f2fs -O encrypt %q
+
+		Also ensure that your kernel has %s. See the documentation for
+		more details.`, mnt.Device, kconfig)
+	default:
+		return `See the documentation for how to enable encryption
+		support on this filesystem.`
+	}
+}
+
 // getErrorSuggestions returns a string containing suggestions about how to fix
 // an error. If no suggestion is necessary or available, return empty string.
 func getErrorSuggestions(err error) string {
-	switch err.(type) {
+	switch e := err.(type) {
 	case *actions.ErrBadConfigFile:
 		return `Either fix this file manually, or run "sudo fscrypt setup" to recreate it.`
 	case *actions.ErrLoginProtectorName:
@@ -87,6 +147,27 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf("Use %s to specify a protector name.", shortDisplay(nameFlag))
 	case *actions.ErrNoConfigFile:
 		return `Run "sudo fscrypt setup" to create this file.`
+	case *filesystem.ErrEncryptionNotEnabled:
+		return suggestEnablingEncryption(e.Mount)
+	case *filesystem.ErrEncryptionNotSupported:
+		switch e.Mount.FilesystemType {
+		case "ext4":
+			if !util.IsKernelVersionAtLeast(4, 1) {
+				return "ext4 encryption requires kernel v4.1 or later."
+			}
+		case "f2fs":
+			if !util.IsKernelVersionAtLeast(4, 2) {
+				return "f2fs encryption requires kernel v4.2 or later."
+			}
+		case "ubifs":
+			if !util.IsKernelVersionAtLeast(4, 10) {
+				return "ubifs encryption requires kernel v4.10 or later."
+			}
+		}
+		return ""
+	case *filesystem.ErrNotSetup:
+		return fmt.Sprintf(`Run "sudo fscrypt setup %s" to use fscrypt
+		        on this filesystem.`, e.Mount.Path)
 	case *keyring.ErrAccessUserKeyring:
 		return fmt.Sprintf(`You can only use %s to access the user
 			keyring of another user if you are running as root.`,
@@ -97,22 +178,12 @@ func getErrorSuggestions(err error) string {
 			pam_keyinit.so, or run "keyctl link @u @s".`
 	}
 	switch errors.Cause(err) {
-	case filesystem.ErrNotSetup:
-		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
 	case crypto.ErrMlockUlimit:
 		return `Too much memory was requested to be locked in RAM. The
 			current limit for this user can be checked with "ulimit
 			-l". The limit can be modified by either changing the
 			"memlock" item in /etc/security/limits.conf or by
 			changing the "LimitMEMLOCK" value in systemd.`
-	case metadata.ErrEncryptionNotSupported:
-		return `Encryption for this type of filesystem is not supported
-			on this kernel version.`
-	case metadata.ErrEncryptionNotEnabled:
-		return `Encryption is either disabled in the kernel config, or
-			needs to be enabled for this filesystem. See the
-			documentation on how to enable encryption on ext4
-			systems (and the risks of doing so).`
 	case keyring.ErrKeyFilesOpen:
 		return `Directory was incompletely locked because some files are
 			still open. These files remain accessible. Try killing

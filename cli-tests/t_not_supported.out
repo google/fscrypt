@@ -5,6 +5,5 @@
 Metadata directories created at "MNT/.fscrypt".
 
 # Try to encrypt a directory on tmpfs
-[ERROR] fscrypt encrypt: encryption not supported
-
-Encryption for this type of filesystem is not supported on this kernel version.
+[ERROR] fscrypt encrypt: This kernel doesn't support encryption on tmpfs
+                         filesystems.
