@@ -50,13 +50,9 @@ import (
 
 // Crypto error values
 var (
-	ErrBadAuth        = errors.New("key authentication check failed")
-	ErrNegativeLength = errors.New("keys cannot have negative lengths")
-	ErrRecoveryCode   = errors.New("invalid recovery code")
-	ErrGetrandomFail  = util.SystemError("getrandom() failed")
-	ErrKeyAlloc       = util.SystemError("could not allocate memory for key")
-	ErrKeyFree        = util.SystemError("could not free memory of key")
-	ErrKeyLock        = errors.New("could not lock key in memory")
+	ErrBadAuth      = errors.New("key authentication check failed")
+	ErrRecoveryCode = errors.New("invalid recovery code")
+	ErrMlockUlimit  = errors.New("could not lock key in memory")
 )
 
 // panicInputLength panics if "name" has invalid length (expected != actual)

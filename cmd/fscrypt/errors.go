@@ -92,7 +92,7 @@ func getErrorSuggestions(err error) string {
 	switch errors.Cause(err) {
 	case filesystem.ErrNotSetup:
 		return fmt.Sprintf(`Run "fscrypt setup %s" to use fscrypt on this filesystem.`, mountpointArg)
-	case crypto.ErrKeyLock:
+	case crypto.ErrMlockUlimit:
 		return `Too much memory was requested to be locked in RAM. The
 			current limit for this user can be checked with "ulimit
 			-l". The limit can be modified by either changing the
