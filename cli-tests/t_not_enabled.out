@@ -1,0 +1,39 @@
+
+# Disable encryption on DEV
+
+# Try to encrypt a directory when encryption is disabled
+[ERROR] fscrypt encrypt: get encryption policy MNT/dir:
+                         encryption not enabled
+
+Encryption is either disabled in the kernel config, or needs to be enabled for
+this filesystem. See the documentation on how to enable encryption on ext4
+systems (and the risks of doing so).
+
+# Try to unlock a directory when encryption is disabled
+[ERROR] fscrypt unlock: get encryption policy MNT/dir:
+                        encryption not enabled
+
+Encryption is either disabled in the kernel config, or needs to be enabled for
+this filesystem. See the documentation on how to enable encryption on ext4
+systems (and the risks of doing so).
+
+# Try to lock a directory when encryption is disabled
+[ERROR] fscrypt lock: get encryption policy MNT/dir:
+                      encryption not enabled
+
+Encryption is either disabled in the kernel config, or needs to be enabled for
+this filesystem. See the documentation on how to enable encryption on ext4
+systems (and the risks of doing so).
+
+# Enable encryption on DEV
+
+# Encrypt a directory when encryption was just enabled
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
