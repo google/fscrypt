@@ -23,7 +23,7 @@
 #include <security/pam_appl.h>
 
 // Conversation that will call back into Go code when appropriate.
-const struct pam_conv *goConv;
+extern const struct pam_conv *goConv;
 
 // CleaupFuncs are used to cleanup specific PAM data.
 typedef void (*CleanupFunc)(pam_handle_t *pamh, void *data, int error_status);
