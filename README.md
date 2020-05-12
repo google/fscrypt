@@ -71,9 +71,17 @@ the full architecture of fscrypt.
 Briefly, fscrypt deals with protectors and policies. Protectors represent some
 secret or information used to protect the confidentiality of your data. The
 three currently supported protector types are:
-1. Your login passphrase, through [PAM](http://www.linux-pam.org/Linux-PAM-html)
-2. A custom passphrase
-3. A raw key file
+
+1. Your login passphrase, through [PAM](http://www.linux-pam.org/Linux-PAM-html).
+   The included PAM module (`pam_fscrypt.so`) can automatically unlock login
+   protectors when you log in.  __IMPORTANT:__ before using a login protector,
+   follow [Setting up for login protectors](#setting-up-for-login-protectors).
+
+2. A custom passphrase.  This passphrase is hashed with
+   [Argon2id](https://en.wikipedia.org/wiki/Argon2), by default calibrated to
+   use all CPUs and take about 1 second.
+
+3. A raw key file.  See [Using a raw key protector](#using-a-raw-key-protector).
 
 These protectors are mutable, so the information can change without needing to
 update any of your encrypted directories.
@@ -142,7 +150,7 @@ simply run:
 go get github.com/google/fscrypt/cmd/fscrypt
 ```
 
-### Runtime Dependencies
+## Runtime Dependencies
 
 To run, fscrypt needs the following libraries:
 *   `libpam.so` (almost certainly already on your system)
@@ -185,7 +193,7 @@ If you configure fscrypt to use non-default features, other kernel
 prerequisites may be needed too.  See [Configuration
 file](#configuration-file).
 
-### Configuration file
+## Configuration file
 
 Running `sudo fscrypt setup` will create the configuration file
 `/etc/fscrypt.conf` if it doesn't already exist.  It's a JSON file
@@ -264,15 +272,65 @@ The fields are:
   setting and instead (re-)create your encrypted directories with
   `"policy_version": "2"`.
 
-### PAM configuration
+## Setting up for login protectors
 
-If you want any encrypted directories to be protected by your login
-passphrase and be automatically unlocked when you log in, you'll need
-to edit your [PAM configuration
-files](http://www.linux-pam.org/Linux-PAM-html/sag-configuration.html)
-to enable the PAM module (`pam_fscrypt`).
+If you want any encrypted directories to be protected by your login passphrase,
+you'll need to:
 
-#### On Ubuntu
+1. Secure your login passphrase (optional, but strongly recommended)
+2. Enable the PAM module (`pam_fscrypt.so`)
+
+If you installed `fscrypt` from source rather than from your distro's package
+manager, you may also need to allow `fscrypt` to check your login passphrase.
+
+### Securing your login passphrase
+
+Although `fscrypt` uses a strong passphrase hash algorithm, the security of
+login protectors is also limited by the strength of your system's passphrase
+hashing in `/etc/shadow`.  On most Linux distributions, `/etc/shadow` by default
+uses SHA-512 with 5000 rounds, which is much weaker than what `fscrypt` uses.
+
+To mitigate this, you should use a strong login passphrase.
+
+If using a strong login passphrase is annoying because it needs to be entered
+frequently to run `sudo`, consider increasing the `sudo` timeout.  That can be
+done by adding the following to `/etc/sudoers`:
+```
+Defaults timestamp_timeout=60
+```
+
+You should also increase the number of rounds that your system's passphrase
+hashing uses (though this doesn't increase security as much as choosing a strong
+passphrase).  To do this, find the line in `/etc/pam.d/passwd` that looks like:
+```
+password	required	pam_unix.so sha512 shadow nullok
+```
+
+Append `nrounds=1000000` (or another number of your choice; the goal is to make
+the passphrase hashing take about 1 second, similar to `fscrypt`'s default):
+```
+password	required	pam_unix.so sha512 shadow nullok nrounds=1000000
+```
+
+Then, change your login passphrase to a new, strong passphrase:
+```
+passwd
+```
+
+If you'd like to keep the same login passphrase (not recommended, as the old
+passphrase hash may still be recoverable from disk), then instead run
+`sudo passwd $USER` and enter your existing passphrase.  This re-hashes your
+existing passphrase with the new `nrounds`.
+
+### Enabling the PAM module
+
+To enable the PAM module `pam_fscrypt.so`, follow the directions for your Linux
+distro below.  Enabling the PAM module is needed for login passphrase-protected
+directories to be automatically unlocked when you log in, and for login
+passphrase-protected directories to remain accessible when you change your login
+passphrase.
+
+#### Enabling the PAM module on Ubuntu
 
 Both the official `fscrypt` package for Ubuntu and `sudo make install`
 will install a configuration file for [Ubuntu's PAM configuration
@@ -281,17 +339,17 @@ framework](https://wiki.ubuntu.com/PAMConfigFrameworkSpec) to
 defaults for the PAM module. To automatically apply these defaults,
 run `sudo pam-auth-update` and follow the on-screen instructions.
 
-#### On Arch Linux
+#### Enabling the PAM module on Arch Linux
 
 On Arch Linux, follow the recommendations at the [Arch Linux
 Wiki](https://wiki.archlinux.org/index.php/Fscrypt#Auto-unlocking_directories).
 
-We recommend using the Arch Linux package, either `fscrypt` (official)
-or `fscrypt-git` (AUR). If you instead install `fscrypt` manually
-using `sudo make install`, then in addition to the steps on the Wiki
-you'll also need to create `/etc/pam.d/fscrypt` as described below.
+We recommend using the Arch Linux package, either `fscrypt` (official) or
+`fscrypt-git` (AUR).  If you instead install `fscrypt` manually using `sudo make
+install`, then in addition to the steps on the Wiki you'll also need to [create
+`/etc/pam.d/fscrypt`](#allowing-fscrypt-to-check-your-login-passphrase).
 
-#### On other Linux distros
+#### Enabling the PAM module on other Linux distros
 
 On all other Linux distros, follow the general guidance below to edit
 your PAM configuration files.
@@ -326,13 +384,16 @@ locked data is inaccessible; this only needed for v1 encryption policies.
 All the types also support the `debug` option which prints additional
 debug information to the syslog.
 
-Finally, some Linux distros use restrictive settings in
-`/etc/pam.d/other` that prevent non-whitelisted programs from checking
-your login passphrase. This prevents `fscrypt` from creating any login
-passphrase-protected directories, even without auto-unlocking. To
-ensure that `fscrypt` will work properly (if you didn't install an
-official `fscrypt` package from your distro, which should have already
-handled this), also create a file `/etc/pam.d/fscrypt` containing:
+### Allowing `fscrypt` to check your login passphrase
+
+This step is only needed if you installed `fscrypt` from source code.
+
+Some Linux distros use restrictive settings in `/etc/pam.d/other` that prevent
+non-whitelisted programs from checking your login passphrase.  This prevents
+`fscrypt` from creating any login passphrase-protected directories, even without
+auto-unlocking.  To ensure that `fscrypt` will work properly (if you didn't
+install an official `fscrypt` package from your distro, which should have
+already handled this), also create a file `/etc/pam.d/fscrypt` containing:
 ```
 auth        required    pam_unix.so
 ```
@@ -469,6 +530,11 @@ Hello World
 ```
 
 ### Protecting a directory with your login passphrase
+
+First, ensure that you have properly [set up your system for login
+protectors](#setting-up-for-login-protectors).
+
+Then, you can protect directories with your login passphrase as follows:
 
 ```bash
 # Select your login passphrase as the desired source.
@@ -679,28 +745,33 @@ guidelines in `CONTRIBUTING.md`. We will try our best to help.
 
 #### I changed my login passphrase, now all my directories are inaccessible
 
-The PAM module provided by fscrypt (`pam_fscrypt.so`) should automatically
-detect changes to a user's login passphrase so that they can still access their
-encrypted directories. However, sometimes the login passphrase can become
-desynchronized from a user's login protector. This usually happens when the PAM
-passphrase is managed by an external system, if the PAM module is not installed,
-or if the PAM module is not properly configured.
+The PAM module `pam_fscrypt.so` should automatically detect changes to a user's
+login passphrase so that they can still access their encrypted directories.
+However, sometimes a user's login passphrase can become desynchronized from
+their login protector.  This can happen if their login passphrase is managed by
+an external system, if the PAM module is not installed, or if the PAM module is
+not properly configured.  See [Enabling the PAM
+module](#enabling-the-pam-module) for how to configure the PAM module.
 
-To fix your login protector, you first should find the appropriate protector ID
-by running `fscrypt status "/"`. Then, change the passphrase for this protector
-by running:
+To fix a user's login protector, find the corresponding protector ID by running
+`fscrypt status "/"`.  Then, change this protector's passphrase by running:
 ```
 fscrypt metadata change-passphrase --protector=/:ID
 ```
 
 #### Directories using my login passphrase are not automatically unlocking.
 
-Either the PAM module is not installed correctly, or your login passphrase
-changed and things got out of sync. Another reason that these directories might
-not unlock is if your session starts without password authentication. The most
-common case of this is public-key ssh login.
+First, directories won't unlock if your session starts without password
+authentication.  The most common case of this is public-key ssh login.  To
+trigger a password authentication event, run `su $USER -c exit`.
 
-To trigger a password authentication event, run `su $(whoami) -c exit`.
+If your session did start with password authentication, then either the PAM
+module is not correctly installed and configured, or your login passphrase
+changed and got out of sync with your login protector.  Ensure you have
+correctly [configured the PAM module](#enabling-the-pam-module).  Then, if
+necessary, [manually change your login protector's
+passphrase](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
+to get it back in sync with your actual login passphrase.
 
 #### Getting "encryption not enabled" on an ext4 filesystem.
 
