@@ -775,44 +775,52 @@ to get it back in sync with your actual login passphrase.
 
 #### Getting "encryption not enabled" on an ext4 filesystem.
 
-Getting this error on an ext4 filesystem usually means the filesystem has not
-been setup for encryption. The only other way to get this error is if filesystem
-encryption has been explicitly disabled in the kernel config.
+This is usually caused by your ext4 filesystem not having the `encrypt` feature
+flag enabled.  The `encrypt` feature flag allows the filesystem to contain
+encrypted files.  (It doesn't actually encrypt anything by itself.)
 
-__IMPORTANT:__ Before enabling encryption on an ext4 filesystem __ALL__ of the
-following should be true:
-  - Your filesystem is formatted as ext4. Other filesystems will have
-    different ways of enabling encryption.
-  - Your kernel page size (run `getconf PAGE_SIZE`) and your filesystem
-    block size (run `tune2fs -l /dev/device | grep 'Block size'`) are the same.
-  - You are ok with not being able to mount this filesystem with a v4.0
-    kernel or older.
-  - Either you are __NOT__ using GRUB to boot directly off this filesystem, or
-    you are using GRUB 2.04 or later.  This is necessary because old versions of
-    GRUB can't boot from ext4 filesystems that have the encryption feature
-    enabled, even if none of the boot files are encrypted themselves.  If, like
-    most people, you have a separate `/boot` partition, you are fine.  You are
-    also fine if you are using the GRUB Debian package `2.02-2` or later (*not*
-    a `2.02_beta*` version), including the version in Ubuntu 18.04 and later,
-    since the patch to support encryption was backported.
-    
-If any of the above is not true, __DO NOT ENABLE FILESYSTEM ENCRYPTION__.
+Before enabling `encrypt` on your ext4 filesystem, first ensure that all of the
+following are true for you:
 
-To turn on encryption for your filesystem, run
+* You only need to use your filesystem on kernels v4.1 and later.
+
+  (Kernels v4.0 and earlier can't mount ext4 filesystems that have the `encrypt`
+  feature flag.)
+
+* Either you only need to use your filesystem on kernels v5.5 and later, or your
+  kernel page size (run `getconf PAGE_SIZE`) and filesystem block size (run
+  `tune2fs -l /dev/device | grep 'Block size'`) are the same.
+
+  (Both values will almost always be 4096, but they may differ if your
+  filesystem is very small, if your system uses the PowerPC CPU architecture, or
+  if you overrode the default block size when you created the filesystem.  Only
+  kernels v5.5 and later support ext4 encryption in such cases.)
+
+* Either you aren't using GRUB to boot directly off the filesystem in question,
+  or you are using GRUB 2.04 or later.
+
+  (Old versions of GRUB can't boot from ext4 filesystems that have `encrypt`
+  enabled.  If, like most people, you have a separate `/boot` partition, you are
+  fine.  You are also fine if you are using the GRUB Debian package `2.02-2` or
+  later [*not* `2.02_beta*`], including the version in Ubuntu 18.04 and later,
+  since the patch to support `encrypt` was backported.)
+
+After verifying all of the above, enable `encrypt` by running:
 ```
 tune2fs -O encrypt /dev/device
 ```
 
-Note that this does not actually encrypt any files.  It just marks the
-filesystem as being allowed to contain encrypted files.
-
-To turn off encryption for your filesystem, first delete all encrypted files and
-directories, then run
+If you need to undo this, first delete all encrypted files and directories on
+the filesystem.  Then, run:
 ```
 fsck -fn /dev/device
 debugfs -w -R "feature -encrypt" /dev/device
 fsck -fn /dev/device
 ``` 
+
+If you've enabled `encrypt` but you still get the "encryption not enabled"
+error, then the problem is that ext4 encryption isn't enabled in your kernel
+config.  See [Runtime Dependencies](#runtime-dependencies) for how to enable it.
 
 #### Getting "Operation not permitted" when moving files into an encrypted directory.
 
