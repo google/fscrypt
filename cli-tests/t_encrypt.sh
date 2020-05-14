@@ -35,6 +35,9 @@ begin "Try to encrypt a nonempty directory"
 touch "$dir/file"
 _expect_failure "echo hunter2 | fscrypt encrypt --quiet '$dir'"
 show_status false
+_print_header "=> with trailing slash"
+_expect_failure "echo hunter2 | fscrypt encrypt --quiet '$dir/'"
+show_status false
 
 begin "Encrypt a directory as non-root user"
 chown "$TEST_USER" "$dir"

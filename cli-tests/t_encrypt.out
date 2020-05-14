@@ -13,12 +13,34 @@ ext4 filesystem "MNT" has 0 protectors and 0 policies
 Files cannot be encrypted in-place. Instead, encrypt a new directory, copy the
 files into it, and securely delete the original directory. For example:
 
-     mkdir MNT/dir.new
-     fscrypt encrypt MNT/dir.new
-     cp -a -T MNT/dir MNT/dir.new
-     find MNT/dir -type f -print0 | xargs -0 shred -n1 --remove=unlink
-     rm -rf MNT/dir
-     mv MNT/dir.new MNT/dir
+     mkdir "MNT/dir.new"
+     fscrypt encrypt "MNT/dir.new"
+     cp -a -T "MNT/dir" "MNT/dir.new"
+     find "MNT/dir" -type f -print0 | xargs -0 shred -n1 --remove=unlink
+     rm -rf "MNT/dir"
+     mv "MNT/dir.new" "MNT/dir"
+
+Caution: due to the nature of modern storage devices and filesystems, the
+original data may still be recoverable from disk. It's much better to encrypt
+your files from the start.
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
+
+# => with trailing slash
+[ERROR] fscrypt encrypt: Directory "MNT/dir/" cannot be
+                         encrypted because it is non-empty.
+
+Files cannot be encrypted in-place. Instead, encrypt a new directory, copy the
+files into it, and securely delete the original directory. For example:
+
+     mkdir "MNT/dir.new"
+     fscrypt encrypt "MNT/dir.new"
+     cp -a -T "MNT/dir" "MNT/dir.new"
+     find "MNT/dir" -type f -print0 | xargs -0 shred -n1 --remove=unlink
+     rm -rf "MNT/dir"
+     mv "MNT/dir.new" "MNT/dir"
 
 Caution: due to the nature of modern storage devices and filesystems, the
 original data may still be recoverable from disk. It's much better to encrypt

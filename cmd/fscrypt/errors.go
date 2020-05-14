@@ -179,18 +179,18 @@ func getErrorSuggestions(err error) string {
 
 		> fscrypt lock %q`, e.DirPath, e.DirPath)
 	case *ErrDirNotEmpty:
-		dir := e.DirPath
+		dir := filepath.Clean(e.DirPath)
 		newDir := dir + ".new"
 		return fmt.Sprintf(`Files cannot be encrypted in-place. Instead,
 		encrypt a new directory, copy the files into it, and securely
 		delete the original directory. For example:
 
-		> mkdir %s
-		> fscrypt encrypt %s
-		> cp -a -T %s %s
-		> find %s -type f -print0 | xargs -0 shred -n1 --remove=unlink
-		> rm -rf %s
-		> mv %s %s
+		> mkdir %q
+		> fscrypt encrypt %q
+		> cp -a -T %q %q
+		> find %q -type f -print0 | xargs -0 shred -n1 --remove=unlink
+		> rm -rf %q
+		> mv %q %q
 
 		Caution: due to the nature of modern storage devices and filesystems,
 		the original data may still be recoverable from disk. It's much better
