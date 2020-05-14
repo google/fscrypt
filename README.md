@@ -306,10 +306,10 @@ passphrase).  To do this, find the line in `/etc/pam.d/passwd` that looks like:
 password	required	pam_unix.so sha512 shadow nullok
 ```
 
-Append `nrounds=1000000` (or another number of your choice; the goal is to make
+Append `rounds=1000000` (or another number of your choice; the goal is to make
 the passphrase hashing take about 1 second, similar to `fscrypt`'s default):
 ```
-password	required	pam_unix.so sha512 shadow nullok nrounds=1000000
+password	required	pam_unix.so sha512 shadow nullok rounds=1000000
 ```
 
 Then, change your login passphrase to a new, strong passphrase:
@@ -320,7 +320,7 @@ passwd
 If you'd like to keep the same login passphrase (not recommended, as the old
 passphrase hash may still be recoverable from disk), then instead run
 `sudo passwd $USER` and enter your existing passphrase.  This re-hashes your
-existing passphrase with the new `nrounds`.
+existing passphrase with the new `rounds`.
 
 ### Enabling the PAM module
 
