@@ -21,6 +21,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/google/fscrypt/actions"
@@ -38,9 +39,18 @@ func createProtectorFromContext(ctx *actions.Context) (*actions.Protector, error
 	}
 	log.Printf("using source: %s", ctx.Config.Source.String())
 
-	if ctx.Config.Source == metadata.SourceType_pam_passphrase &&
-		userFlag.Value == "" && util.IsUserRoot() {
-		return nil, ErrSpecifyUser
+	if ctx.Config.Source == metadata.SourceType_pam_passphrase {
+		if userFlag.Value == "" && util.IsUserRoot() {
+			return nil, ErrSpecifyUser
+		}
+		if !quietFlag.Value {
+			fmt.Print(`
+IMPORTANT: Before continuing, ensure you have properly set up your system for
+           login protectors.  See
+           https://github.com/google/fscrypt#setting-up-for-login-protectors
+
+`)
+		}
 	}
 
 	name, err := promptForName(ctx)

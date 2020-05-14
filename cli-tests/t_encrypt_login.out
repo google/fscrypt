@@ -37,6 +37,11 @@ The following protector sources are available:
 2 - A custom passphrase (custom_passphrase)
 3 - A raw 256-bit key (raw_key)
 Enter the source number for the new protector [2 - custom_passphrase]: 1
+
+IMPORTANT: Before continuing, ensure you have properly set up your system for
+           login protectors.  See
+           https://github.com/google/fscrypt#setting-up-for-login-protectors
+
 Enter login passphrase for fscrypt-test-user: 
 Protector is on a different filesystem! Generate a recovery passphrase (recommended)? [Y/n] y
 See "MNT/dir/fscrypt_recovery_readme.txt" for important recovery instructions!
