@@ -6,14 +6,18 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
 [![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
-fscrypt is a high-level tool for the management of
-[Linux filesystem encryption](https://lwn.net/Articles/639427).
-This tool manages metadata, key generation, key wrapping, PAM integration, and
+`fscrypt` is a high-level tool for the management of [Linux filesystem
+encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
+`fscrypt` manages metadata, key generation, key wrapping, PAM integration, and
 provides a uniform interface for creating and modifying encrypted directories.
 For a small low-level tool that directly sets policies, see
-[fscryptctl](https://github.com/google/fscryptctl).
+[`fscryptctl`](https://github.com/google/fscryptctl).
 
-To use fscrypt, you must have a filesystem with encryption enabled and a
+Note that the kernel part of `fscrypt` (which is integrated into filesystems
+such as ext4) is also sometimes referred to as "fscrypt".  To avoid confusion,
+this documentation instead calls the kernel part "Linux filesystem encryption".
+
+To use `fscrypt`, you must have a filesystem with encryption enabled and a
 kernel that supports reading/writing from that filesystem. Currently,
 [ext4](https://en.wikipedia.org/wiki/Ext4),
 [F2FS](https://en.wikipedia.org/wiki/F2FS), and
@@ -26,11 +30,6 @@ may add support for native encryption in the future. Filesystems may
 additionally require certain kernel configuration options to be set to use
 native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 
-Most of the testing for fscrypt has been done with ext4 filesystems. However,
-the kernel uses a common userspace interface, so this tool should work with all
-existing and future filesystems which support encryption. If there is a problem
-using fscrypt with other filesystems, please open an issue.
-
 ### Other encryption solutions
 
 It is important to distinguish Linux filesystem encryption from two other
@@ -38,37 +37,38 @@ encryption solutions: [eCryptfs](https://en.wikipedia.org/wiki/ECryptfs) and
 [dm-crypt](https://en.wikipedia.org/wiki/Dm-crypt).
 
 Currently, dm-crypt encrypts an entire block device with a single master key.
-dm-crypt can be used with or without fscrypt. All filesystem data (including all
-filesystem metadata) is encrypted with this single key when using dm-crypt,
-while fscrypt only encrypts the filenames and file contents in a specified
-directory. Note that using both dm-crypt and fscrypt simultaneously will give
-the protections and benefits of both; however, this may cause a decrease in
-your performance, as file contents are encrypted twice.
+dm-crypt can be used with or without `fscrypt`. All filesystem data (including
+all filesystem metadata) is encrypted with this single key when using dm-crypt,
+while `fscrypt` only encrypts the filenames and file contents in a specified
+directory. Note that using both dm-crypt and `fscrypt` simultaneously will give
+the protections and benefits of both; however, this may cause a decrease in your
+performance, as file contents are encrypted twice.
 
 One example of a reasonable setup could involve using dm-crypt with a TPM or
-Secure boot key, while using fscrypt for the contents of a home directory. This
-would still encrypt the entire drive, but would also tie the encryption of a
-user's personal documents to their passphrase.
+Secure boot key, while using `fscrypt` for the contents of a home directory.
+This would still encrypt the entire drive, but would also tie the encryption of
+a user's personal documents to their passphrase.
 
 On the other hand, eCryptfs is another form of filesystem encryption on Linux;
 it encrypts a filesystem directory with some key or passphrase. eCryptfs sits on
 top of an existing filesystem. This makes eCryptfs an alternative choice if your
 filesystem or kernel does not support native filesystem encryption.
 
-Also note that fscrypt does not support or setup either eCryptfs or dm-crypt.
+Also note that `fscrypt` does not support or setup either eCryptfs or dm-crypt.
 For these tools, use
 [ecryptfs-utils](https://packages.debian.org/source/jessie/ecryptfs-utils) for
 eCryptfs or [cryptsetup](https://linux.die.net/man/8/cryptsetup) for dm-crypt.
 
 ## Features
 
-fscrypt is intended to improve upon the work in
+`fscrypt` is intended to improve upon the work in
 [e4crypt](http://man7.org/linux/man-pages/man8/e4crypt.8.html) by providing a
-more managed environment and handling more functionality in the
-background. fscrypt has a [design document](https://goo.gl/55cCrI) specifying
-the full architecture of fscrypt.
+more managed environment and handling more functionality in the background.
+`fscrypt` has a [design document](https://goo.gl/55cCrI) specifying its full
+architecture.  See also the [kernel documentation for Linux filesystem
+encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
 
-Briefly, fscrypt deals with protectors and policies. Protectors represent some
+Briefly, `fscrypt` deals with protectors and policies. Protectors represent some
 secret or information used to protect the confidentiality of your data. The
 three currently supported protector types are:
 
@@ -93,7 +93,7 @@ enough to get the policy key and access the data. Which protectors protect a
 policy can also be changed. This allows a user to change how a directory is
 protected without needing to reencrypt the directory's contents.
 
-Concretely, fscrypt contains the following functionality:
+Concretely, `fscrypt` contains the following functionality:
 *   `fscrypt setup` - Creates `/etc/fscrypt.conf` and the `/.fscrypt` directory
     * This is the only functionality which always requires root privileges
 *   `fscrypt setup MOUNTPOINT` - Gets a filesystem ready for use with fscrypt
@@ -105,7 +105,7 @@ Concretely, fscrypt contains the following functionality:
 *   `fscrypt metadata` - Manages policies or protectors directly
 
 The following functionality is planned:
-*   `fscrypt backup` - Manages backups of the fscrypt metadata
+*   `fscrypt backup` - Manages backups of the `fscrypt` metadata
 *   `fscrypt recovery` - Manages recovery keys for directories
 *   `fscrypt cleanup` - Scans filesystem for unused policies/protectors
 
@@ -114,7 +114,7 @@ information about each of the commands.
 
 ## Building and Installing
 
-fscrypt has a minimal set of build dependencies:
+`fscrypt` has a minimal set of build dependencies:
 *   [Go](https://golang.org/doc/install) 1.11 or higher. Older versions may work
     but they are not tested or supported.
 *   A C compiler (`gcc` or `clang`)
@@ -144,18 +144,18 @@ See the `Makefile` for instructions on how to customize the build (e.g. installi
 to a custom location, using different build flags, building a static binary,
 etc ...)
 
-Alternatively, if you only want to install the fscrypt binary to `$GOPATH/bin`,
-simply run:
+Alternatively, if you only want to install the `fscrypt` binary to
+`$GOPATH/bin`, simply run:
 ```shell
 go get github.com/google/fscrypt/cmd/fscrypt
 ```
 
 ## Runtime Dependencies
 
-To run, fscrypt needs the following libraries:
+To run, `fscrypt` needs the following libraries:
 *   `libpam.so` (almost certainly already on your system)
 
-In addition, fscrypt requires kernel support for encryption for your
+In addition, `fscrypt` requires kernel support for encryption for your
 filesystem, and for some filesystems that a feature flag has been
 enabled in the on-disk filesystem superblock:
 
@@ -189,7 +189,7 @@ Be careful when using encryption on removable media, since filesystems with the
 `encrypt` feature cannot be mounted on systems with kernel versions older than
 the minimums listed above -- even to access unencrypted files!
 
-If you configure fscrypt to use non-default features, other kernel
+If you configure `fscrypt` to use non-default features, other kernel
 prerequisites may be needed too.  See [Configuration
 file](#configuration-file).
 
@@ -354,7 +354,7 @@ install`, then in addition to the steps on the Wiki you'll also need to [create
 On all other Linux distros, follow the general guidance below to edit
 your PAM configuration files.
 
-The fscrypt PAM module implements the Auth, Session, and Password
+The `fscrypt` PAM module implements the Auth, Session, and Password
 [types](http://www.linux-pam.org/Linux-PAM-html/sag-configuration-file.html).
 
 The Password functionality of `pam_fscrypt.so` is used to automatically rewrap
@@ -378,11 +378,11 @@ session     optional    pam_fscrypt.so drop_caches lock_policies
 ```
 after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
 `lock_policies` option locks the directories protected with the user's login
-passphrase when the last session ends. The `drop_caches` option tells fscrypt to
-clear the filesystem caches when the last session closes, ensuring all the
-locked data is inaccessible; this only needed for v1 encryption policies.
-All the types also support the `debug` option which prints additional
-debug information to the syslog.
+passphrase when the last session ends. The `drop_caches` option tells `fscrypt`
+to clear the filesystem caches when the last session closes, ensuring all the
+locked data is inaccessible; this only needed for v1 encryption policies.  All
+the types also support the `debug` option which prints additional debug
+information to the syslog.
 
 ### Allowing `fscrypt` to check your login passphrase
 
@@ -400,12 +400,12 @@ auth        required    pam_unix.so
 
 ## Note about stability
 
-fscrypt follows [semantic versioning](http://semver.org). As such, all versions
-below `1.0.0` should be considered development versions. This means no
+`fscrypt` follows [semantic versioning](http://semver.org). As such, all
+versions below `1.0.0` should be considered development versions. This means no
 guarantees are make about the stability of APIs or formats of config files. As
-the on-disk metadata structures use
-[Protocol Buffers](https://github.com/google/protobuf), we don't expect to break
-backwards compatibility for metadata, but we give no guarantees.
+the on-disk metadata structures use [Protocol
+Buffers](https://github.com/google/protobuf), we don't expect to break backwards
+compatibility for metadata, but we give no guarantees.
 
 ## Example Usage
 
@@ -612,7 +612,7 @@ Passphrase for protector 7626382168311a9d successfully changed.
 
 ### Using a raw key protector
 
-fscrypt also supports protectors which use raw key files as the user-provided
+`fscrypt` also supports protectors which use raw key files as the user-provided
 secret. These key files must be exactly 32 bytes long and contain the raw binary
 data of the key. Obviously, make sure to store the key file securely (and not in
 the directory you are encrypting with it). If generating the keys on Linux make
@@ -663,7 +663,7 @@ Enter key file for protector "Skeleton": secret.key
 
 ### Using multiple protectors for a policy
 
-fscrypt supports the idea of protecting a single directory with multiple
+`fscrypt` supports the idea of protecting a single directory with multiple
 protectors. This means having access to any of the protectors is sufficient to
 decrypt the directory. This is useful for sharing data or setting up access
 control systems.
@@ -734,12 +734,13 @@ Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee27e646015
 
 ## Contributing
 
-We would love to accept your contributions to fscrypt. See the `CONTRIBUTING.md`
-file for more information about signing the CLA and submitting a pull request.
+We would love to accept your contributions to `fscrypt`. See the
+`CONTRIBUTING.md` file for more information about signing the CLA and submitting
+a pull request.
 
 ## Troubleshooting
 
-In general, if you are encountering issues with fscrypt,
+In general, if you are encountering issues with `fscrypt`,
 [open an issue](https://github.com/google/fscrypt/issues/new), following the
 guidelines in `CONTRIBUTING.md`. We will try our best to help.
 
