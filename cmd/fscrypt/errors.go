@@ -117,8 +117,8 @@ func suggestEnablingEncryption(mnt *filesystem.Mount) string {
 		if err := unix.Statfs(mnt.Path, &statfs); err != nil {
 			return ""
 		}
-		pagesize := int64(os.Getpagesize())
-		if statfs.Bsize != pagesize && !util.IsKernelVersionAtLeast(5, 5) {
+		pagesize := os.Getpagesize()
+		if int64(statfs.Bsize) != int64(pagesize) && !util.IsKernelVersionAtLeast(5, 5) {
 			return fmt.Sprintf(`This filesystem uses a block size
 			(%d) other than the system page size (%d). Ext4
 			encryption didn't support this case until kernel v5.5.
