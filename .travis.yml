@@ -46,6 +46,13 @@ jobs:
     - <<: *build
       go: 1.11.x
 
+    - name: Build and Unit Tests (32-bit)
+      before_install:
+        - sudo apt-get -y install gcc-multilib libpam0g-dev:i386
+      script:
+        - GO111MODULE=on go get github.com/google/fscrypt/cmd/fscrypt
+        - CGO_ENABLED=1 GOARCH=386 make
+
     - name: Integration Tests
       sudo: required
       before_install: sudo apt-get -y install e2fsprogs
