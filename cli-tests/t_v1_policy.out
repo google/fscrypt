@@ -42,7 +42,7 @@ desc2  No      custom protector "prot"
 
 Policy:   desc1
 Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
-Unlocked: Yes
+Unlocked: Partially (incompletely locked, or unlocked by another user)
 
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
@@ -115,7 +115,7 @@ Then re-run:
 
 Policy:   desc1
 Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
-Unlocked: Partially (incompletely locked)
+Unlocked: Partially (incompletely locked, or unlocked by another user)
 
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
