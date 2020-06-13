@@ -68,13 +68,12 @@ func policyUnlockedStatus(policy *actions.Policy, path string) string {
 	status := policy.GetProvisioningStatus()
 
 	// Due to a limitation in the old kernel API for fscrypt, for v1
-	// policies using the user keyring that are incompletely locked we'll
-	// get KeyAbsent, not KeyAbsentButFilesBusy as expected.  If we have a
-	// directory path, use a heuristic to try to detect whether it is still
-	// usable and thus the policy is actually incompletely locked.
+	// policies using the user keyring that are incompletely locked or are
+	// unlocked by another user, we'll get KeyAbsent.  If we have a
+	// directory path, use a heuristic to try to detect these cases.
 	if status == keyring.KeyAbsent && policy.NeedsUserKeyring() &&
 		path != "" && isDirUnlockedHeuristic(path) {
-		status = keyring.KeyAbsentButFilesBusy
+		return "Partially (incompletely locked, or unlocked by another user)"
 	}
 
 	switch status {
