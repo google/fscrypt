@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 . common.sh
 
 _setup_session_keyring
+trap _cleanup_user_keyrings EXIT
 
 dir="$MNT/dir"
 mkdir "$dir"

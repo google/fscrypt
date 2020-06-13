@@ -128,6 +128,18 @@ _user_do_and_expect_failure()
 	_expect_failure "_user_do '$1'"
 }
 
+# Clear the test user's user keyring and unlink it from root's user keyring, if
+# it is linked into it.
+_cleanup_user_keyrings()
+{
+	local ringid
+
+	ringid=$(_user_do "keyctl show @u" | awk '/keyring: _uid/{print $1}')
+
+	_user_do "keyctl clear $ringid"
+	keyctl unlink "$ringid" @u &> /dev/null || true
+}
+
 # Gives the test a new session keyring which contains the test user's keyring
 # but not root's keyring.  Also clears the test user's keyring.  This must be
 # called at the beginning of the test script as it may re-execute the script.
