@@ -130,25 +130,31 @@ Once all the dependencies are installed, you can get the repository by running:
 ```shell
 go get -d github.com/google/fscrypt/...
 ```
-Running `make` in `$GOPATH/src/github.com/google/fscrypt` builds the
-executable (`fscrypt`) and PAM module (`pam_fscrypt.so`) in the `bin/`
-directory. Use `make bin/fscrypt` or `make bin/pam_fscrypt.so`
-to build only one.
+Running `make` in `$GOPATH/src/github.com/google/fscrypt` builds the binary
+(`fscrypt`) and PAM module (`pam_fscrypt.so`) in the `bin/` directory.
 
-Running `sudo make install` installs `fscrypt` to `/usr/local/bin`,
-`pam_fscrypt.so` to `/usr/local/lib/security`, and `pam_fscrypt/config` to
-`/usr/local/share/pam-configs`. Use `make install-bin` to only install
-`fscrypt`. Use `make install-pam` to only install the pam files.
+Running `sudo make install` installs `fscrypt` into `/usr/local/bin`,
+`pam_fscrypt.so` into `/usr/local/lib/security`, and `pam_fscrypt/config` into
+`/usr/local/share/pam-configs`.
 
-See the `Makefile` for instructions on how to customize the build (e.g. installing
-to a custom location, using different build flags, building a static binary,
-etc ...)
+For Ubuntu, use `sudo make install PREFIX=/usr` to install into `/usr` instead
+of the default of `/usr/local`.  Ordinarily you shouldn't manually install
+software into `/usr`, since `/usr` is reserved for Ubuntu's own packages.
+However, Ubuntu only recognizes PAM configuration files in `/usr`, not in
+`/usr/local`.  This means that the PAM module will only work if you install into
+`/usr`.  Note: if you later decide to switch to using the Ubuntu package for
+`fscrypt`, you'll have to first manually run `sudo make uninstall PREFIX=/usr`.
+
+It is also possible to use `make install-bin` to only install the `fscrypt`
+binary, or `make install-pam` to only install the PAM files.
 
 Alternatively, if you only want to install the `fscrypt` binary to
 `$GOPATH/bin`, simply run:
 ```shell
 go get github.com/google/fscrypt/cmd/fscrypt
 ```
+
+See the `Makefile` for instructions on how to further customize the build.
 
 ## Runtime Dependencies
 
@@ -332,12 +338,16 @@ passphrase.
 
 #### Enabling the PAM module on Ubuntu
 
-Both the official `fscrypt` package for Ubuntu and `sudo make install`
-will install a configuration file for [Ubuntu's PAM configuration
+The official `fscrypt` package for Ubuntu will install a configuration file for
+[Ubuntu's PAM configuration
 framework](https://wiki.ubuntu.com/PAMConfigFrameworkSpec) to
-`/usr/share/pam-configs/fscrypt`. This file contains reasonable
-defaults for the PAM module. To automatically apply these defaults,
-run `sudo pam-auth-update` and follow the on-screen instructions.
+`/usr/share/pam-configs/fscrypt`.  This file contains reasonable defaults for
+the PAM module.  To automatically apply these defaults, run `sudo
+pam-auth-update` and follow the on-screen instructions.
+
+This file also gets installed if you build and install `fscrypt` from source,
+but only if you use `make install PREFIX=/usr` to install into `/usr` instead of
+the default of `/usr/local`.
 
 #### Enabling the PAM module on Arch Linux
 
