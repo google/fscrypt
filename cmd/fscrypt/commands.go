@@ -993,6 +993,9 @@ func addProtectorAction(c *cli.Context) error {
 	}
 	// Sanity check before unlocking everything
 	if err := policy.AddProtector(protector); errors.Cause(err) != actions.ErrLocked {
+		if err == nil {
+			err = errors.New("policy and protector are not locked")
+		}
 		return newExitError(c, err)
 	}
 
