@@ -1,0 +1,286 @@
+# fscrypt_bash_completion
+#
+# Copyright 2017 Google Inc.
+# Author: Henry-Joseph Audéoud (h.audeoud@gmail.com)
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+
+# Prefer completion script style COMPREPLY=($(...)) assignment.
+# shellcheck disable=SC2207
+true  # To apply shellcheck directive to all file
+
+
+# Output list of possible mount points
+_fscrypt_mountpoints()
+{
+    # shellcheck disable=SC2016
+    fscrypt status 2>/dev/null | \
+        command awk 'substr($0, 1, 1) == "/" && $5 == "Yes" { print $1 }'
+}
+
+
+# Complete with all possible mountpoints
+_fscrypt_complete_mountpoint()
+{
+    COMPREPLY=($(compgen -W "$(_fscrypt_mountpoints)" -- "${cur}"))
+}
+
+
+# Output list of possible policy or protector IDs
+# $1: the mount point on which policies are looked for.
+# $2: the section (policy or protector) to retrieve
+_fscrypt_status_section()
+{
+    local section=${2^^}
+    # shellcheck disable=SC2016
+    fscrypt status "$1" 2>/dev/null | \
+        command awk '/^[[:xdigit:]]{16}/ && section == "'"$section"'" { print $1; next; }
+                     { section = $1 }'
+}
+
+
+# Complete with policies or protectors
+_fscrypt_complete_policy_or_protector()
+{
+    local status_section="$1"
+    if [[ $cur = *:* ]]; then
+        # Complete with IDs of the given mountpoint
+        local mountpoint="${cur%:*}" id="${cur#*:}"
+        COMPREPLY=($(compgen \
+            -W "$(_fscrypt_status_section "${mountpoint}" "${status_section}")" \
+            -- "${id}"))
+    else
+        # Complete with mountpoints, with colon and without ending space
+        COMPREPLY=($(compgen -W "$(_fscrypt_mountpoints)" \
+                     -- "${cur}" | sed s/\$/:/))
+        compopt -o nospace
+    fi
+}
+
+
+# Complete with all arguments of that function
+_fscrypt_complete_word()
+{
+    COMPREPLY=($(compgen -W "$*" -- "${cur}"))
+}
+
+
+# Complete with all arguments of that function, plus global options
+_fscrypt_complete_option()
+{
+    local additional_opts=( "$@" )
+    # Add global options, always correct
+    additional_opts+=( --verbose --quiet --help )
+    COMPREPLY=($(compgen -W "${additional_opts[*]}" -- "${cur}"))
+}
+
+
+_fscrypt()
+{
+    # Initialize completion: compute some local variables to easily
+    # detect what is written on the command line.  -s is for splitting
+    # long options on `=`, and -n is for splitting them also on `:`
+    # (used in the protectors/policies `MOUNTPOINT:ID` forms).
+    #
+    # `split` is set by `_init_completion -s`, we must declare it local
+    # even if we don't use it, not to modify the environment.
+    # shellcheck disable=SC2034
+    local cur prev words cword split
+    _init_completion -s -n : || return
+
+    # Complete the options with argument here, if previous word were such
+    # an option.  It would be too difficult to check if they take place in
+    # the correct command (such as `fscrypt status # --key ...`)—and that
+    # is the command's job—so just complete them first.
+    case $prev in
+        --key)
+            # Any file is accepted
+            _filedir
+            return ;;
+        --name)
+            # New value, nothing to complete
+            return ;;
+        --policy|--protector|--unlock-with)
+            local p_or_p="${prev#--}"
+            [[ $p_or_p = unlock-with ]] && p_or_p=protector
+            _fscrypt_complete_policy_or_protector "${p_or_p}"
+            return ;;
+        --source)
+            # Complete with keywords
+            _fscrypt_complete_word \
+                pam_passphrase custom_passphrase raw_key
+            return ;;
+        --time)
+            # It's a time, hard to complete a number…
+            return ;;
+        --user)
+            # Complete with a user
+            COMPREPLY=($(compgen -u -- "${cur}"))
+            return ;;
+    esac
+
+    # Fetch positional arguments (i.e. subcommands)
+    local positional
+    positional=()
+    local iword
+    for ((iword = 1; iword < ${#words[@]} - 1; iword++)); do
+        [[ ${words[iword - 1]} == --@(key|name|policy|protector|unlock-with|source|time|user) ]] \
+            && continue  # Argument of previous option, skip
+        [[ ${words[iword]} == -* ]] && continue  # Option, skip
+        positional+=("${words[iword]}")
+    done
+
+    # If completing the first positional, complete with all possible commands
+    if [[ ${#positional[@]} == 0 ]]; then
+        if [[ $cur == -* ]]; then
+            _fscrypt_complete_option
+        else
+            _fscrypt_complete_word \
+                encrypt lock metadata purge setup status unlock
+        fi
+        return
+    fi
+
+    # Complete according to that provided
+    case ${positional[0]-} in
+        encrypt)  # Directory or option
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option \
+                    --policy= --unlock-with= --protector= --source= \
+                    --user= --name= --key= --skip-unlock --no-recovery
+            else
+                _filedir -d
+            fi ;;
+        lock)  # Directory or option
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option --user= --all-users
+            else
+                _filedir -d
+            fi ;;
+        purge)  # Mountpoint or options
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option --user= --force
+            else
+                _fscrypt_complete_mountpoint
+            fi ;;
+        setup)  # Mountpoint or options
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option --time= --force
+            else
+                _fscrypt_complete_mountpoint
+            fi ;;
+        status)  # Directory (only global options for this command)
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option
+            else
+                _filedir -d
+            fi ;;
+        unlock)  # Directory or option
+            if [[ $cur == -* ]]; then
+                _fscrypt_complete_option --unlock-with= --user= --key=
+            else
+                _filedir -d
+            fi ;;
+        metadata)
+            # This command has subcommands
+            if [[ ${#positional[@]} = 1 ]]; then
+                if [[ $cur = -* ]]; then
+                    _fscrypt_complete_option
+                else
+                    # Still no subcommand, complete with them
+                    _fscrypt_complete_word \
+                        add-protector-to-policy create change-passphrase \
+                        destroy dump remove-protector-from-policy
+                fi
+                return
+            fi
+            # We have a subcommand, complete according to it
+            case ${positional[1]-} in
+                add-protector-to-policy)  # Options only
+                    _fscrypt_complete_option \
+                        --protector= --policy= --unlock-with= --key=
+                    ;;
+                change-passphrase)  # Options only
+                    _fscrypt_complete_option --protector=
+                    ;;
+                destroy)  # Mountpoint or option
+                    if [[ $cur == -* ]]; then
+                        _fscrypt_complete_option \
+                            --protector= --policy= --force
+                    else
+                        _fscrypt_complete_mountpoint
+                    fi ;;
+                dump)  # Options only
+                    _fscrypt_complete_option --protector= --policy=
+                    ;;
+                remove-protector-from-policy)  # Options only
+                    _fscrypt_complete_option \
+                        --protector= --policy= --force
+                    ;;
+                create)
+                    # This subcommand has subsubcommands
+                    if [[ ${#positional[@]} = 2 ]]; then
+                        if [[ $cur = -* ]]; then
+                            _fscrypt_complete_option
+                        else
+                            # Still no subcommand, complete with them
+                            _fscrypt_complete_word protector policy
+                        fi
+                        return
+                    fi
+                    # We have a subsubcommand, complete according to it
+                    case ${positional[2]-} in
+                        policy)  # Mountpoint or option
+                            if [[ $cur = -* ]]; then
+                                _fscrypt_complete_option --protector= --key=
+                            else
+                                _fscrypt_complete_mountpoint
+                            fi ;;
+                        protector)  # Mountpoint or option
+                            if [[ $cur = -* ]]; then
+                                _fscrypt_complete_option \
+                                    --source= --name= --key= --user=
+                            else
+                                _fscrypt_complete_mountpoint
+                            fi ;;
+                        *)
+                            # Unrecognized subsubcommand…  Suppose a new
+                            # unknown subsubcommand and complete with
+                            # global options only
+                            _fscrypt_complete_option
+                            ;;
+                    esac
+                    ;;
+                *)
+                    # Unrecognized subcommand…  Suppose a new unknown
+                    # subcommand and complete with global options only
+                    _fscrypt_complete_option
+                    ;;
+             esac
+            ;;
+        *)
+            # Unrecognized command…  Suppose a new unknown command and
+            # complete with global options only
+            _fscrypt_complete_option
+            ;;
+    esac
+
+    # When the sole offered completion is --*=, do not put a space after
+    # the equal sign as we wait for the argument value.
+    [[ ${#COMPREPLY[@]} == 1 ]] && [[ ${COMPREPLY[0]} == "--"*"=" ]] \
+        && compopt -o nospace
+} &&
+    complete -F _fscrypt fscrypt
+
+# ex: filetype=bash
