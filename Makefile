@@ -110,6 +110,7 @@ lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
 	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	misspell -source=text $(FILES)
+	shellcheck -s bash cmd/fscrypt/fscrypt_bash_completion
 	( cd cli-tests && shellcheck -x *.sh)
 
 clean:
@@ -158,8 +159,8 @@ coverage.out: $(BIN)/gocovmerge $(COVERAGE_FILES)
 	@go test -coverpkg=./... -covermode=count -coverprofile=$@ -p 1 ./$* 2> /dev/null
 
 ###### Installation Commands (require sudo) #####
-.PHONY: install install-bin install-pam uninstall
-install: install-bin install-pam
+.PHONY: install install-bin install-pam uninstall install-completion
+install: install-bin install-pam install-completion
 
 PREFIX := /usr/local
 BINDIR := $(PREFIX)/bin
@@ -181,10 +182,16 @@ install-pam: $(PAM_MODULE)
 	install -d $(DESTDIR)$(PAM_CONFIG_DIR)
 	install $(PAM_CONFIG) $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME)
 
+COMPLETION_INSTALL_DIR := $(PREFIX)/share/bash-completion/completions
+
+install-completion: cmd/fscrypt/fscrypt_bash_completion
+	install -Dm644 $< $(DESTDIR)$(COMPLETION_INSTALL_DIR)/fscrypt
+
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(NAME) \
 	      $(DESTDIR)$(PAM_INSTALL_PATH) \
-	      $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME)
+	      $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME) \
+	      $(DESTDIR)$(COMPLETION_INSTALL_DIR)/fscrypt
 
 #### Tool Building Commands ####
 TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
