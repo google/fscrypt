@@ -25,6 +25,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -532,8 +533,25 @@ func lockAction(c *cli.Context) error {
 	return nil
 }
 
-// isDirUnlockedHeuristic returns true if we can create a subdirectory of the
-// given directory and therefore it is definitely still unlocked.  It returns
+func isPossibleNoKeyName(filename string) bool {
+	// No-key names are at least 22 bytes long, since they are
+	// base64-encoded and ciphertext filenames are at least 16 bytes.
+	if len(filename) < 22 {
+		return false
+	}
+	// No-key names contain only base64 characters and underscore.
+	validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,_"
+	for _, char := range filename {
+		if !strings.ContainsRune(validChars, char) {
+			return false
+		}
+	}
+	return true
+}
+
+// isDirUnlockedHeuristic returns true if the directory is definitely still
+// unlocked.  This is the case if we can create a subdirectory or if the
+// directory contains filenames that aren't valid no-key names.  It returns
 // false if the directory is probably locked (though it could also be unlocked).
 //
 // This is only useful if the directory's policy uses the user keyring, since
@@ -543,6 +561,21 @@ func isDirUnlockedHeuristic(dirPath string) bool {
 	if err := os.Mkdir(subdirPath, 0700); err == nil {
 		os.Remove(subdirPath)
 		return true
+	}
+	dir, err := os.Open(dirPath)
+	if err != nil {
+		return false
+	}
+	defer dir.Close()
+
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return false
+	}
+	for _, name := range names {
+		if !isPossibleNoKeyName(name) {
+			return true
+		}
 	}
 	return false
 }
