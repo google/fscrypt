@@ -117,7 +117,7 @@ _user_do()
 {
 	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
 
-	su "$TEST_USER" --command="$1"
+	su "$TEST_USER" --shell=/bin/bash --command="export PATH='$PATH'; $1"
 }
 
 # Runs the given shell command as the test user and expects it to fail.
