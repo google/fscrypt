@@ -1,6 +1,6 @@
 language: go
 sudo: false
-dist: bionic
+dist: focal
 arch:
   - amd64
   - ppc64le
@@ -65,6 +65,14 @@ jobs:
       script:
         - make coverage.out
         - goveralls -coverprofile=coverage.out -service=travis-ci
+
+    - name: Command-line interface tests
+      sudo: required
+      before_install:
+        - sudo apt-get -y install e2fsprogs expect keyutils
+      script:
+        - GO111MODULE=on go get github.com/google/fscrypt/cmd/fscrypt
+        - make cli-test
 
     - stage: deploy
       name: Release Binaries
