@@ -86,9 +86,6 @@ func (p passphraseReader) Read(buf []byte) (int, error) {
 // passphrase into a key. If we are not reading from a terminal, just read into
 // the passphrase into the key normally.
 func getPassphraseKey(prompt string) (*crypto.Key, error) {
-	if !quietFlag.Value {
-		fmt.Print(prompt)
-	}
 
 	// Only disable echo if stdin is actually a terminal.
 	if terminal.IsTerminal(stdinFd) {
@@ -100,6 +97,10 @@ func getPassphraseKey(prompt string) (*crypto.Key, error) {
 			terminal.Restore(stdinFd, state)
 			fmt.Println() // To align input
 		}()
+	}
+
+	if !quietFlag.Value {
+		fmt.Print(prompt)
 	}
 
 	return crypto.NewKeyFromReader(passphraseReader{})
