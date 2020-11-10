@@ -30,7 +30,38 @@ may add support for native encryption in the future. Filesystems may
 additionally require certain kernel configuration options to be set to use
 native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 
-### Other encryption solutions
+## Table of Contents
+
+- [Other encryption solutions](#other-encryption-solutions)
+- [Features](#features)
+- [Building and Installing](#building-and-installing)
+- [Runtime Dependencies](#runtime-dependencies)
+- [Configuration file](#configuration-file)
+- [Setting up for login protectors](#setting-up-for-login-protectors)
+  - [Securing your login passphrase](#securing-your-login-passphrase)
+  - [Enabling the PAM module](#enabling-the-pam-module)
+    - [Enabling the PAM module on Ubuntu](#enabling-the-pam-module-on-ubuntu)
+	- [Enabling the PAM module on Arch Linux](#enabling-the-pam-module-on-arch-linux)
+	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
+  - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
+- [Note about stability](#note-about-stability)
+- [Example Usage](#example-usage)
+  - [Setting up fscrypt on a directory](#setting-up-fscrypt-on-a-directory)
+  - [Locking and unlocking a directory](#locking-and-unlocking-a-directory)
+  - [Protecting a directory with your login passphrase](#protecting-a-directory-with-your-login-passphrase)
+  - [Changing a custom passphrase](#changing-a-custom-passphrase)
+  - [Using a raw key protector](#using-a-raw-key-protector)
+  - [Using multiple protectors for a policy](#using-multiple-protectors-for-a-policy)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+  - [I changed my login passphrase, now all my directories are inaccessible](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
+  - [Directories using my login passphrase are not automatically unlocking.](#directories-using-my-login-passphrase-are-not-automatically-unlocking)
+  - [Getting "encryption not enabled" on an ext4 filesystem.](#getting-encryption-not-enabled-on-an-ext4-filesystem)
+  - [Getting "Operation not permitted" when moving files into an encrypted directory.](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
+  - [Can't log in with ssh even when user's encrypted home directory is unlocked](#cant-log-in-with-ssh-even-when-users-encrypted-home-directory-is-unlocked)
+- [Legal](#legal)
+
+## Other encryption solutions
 
 It is important to distinguish Linux filesystem encryption from two other
 encryption solutions: [eCryptfs](https://en.wikipedia.org/wiki/ECryptfs) and
