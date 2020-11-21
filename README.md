@@ -1,6 +1,6 @@
 # fscrypt [![GitHub version](https://badge.fury.io/go/github.com%2Fgoogle%2Ffscrypt.svg)](https://github.com/google/fscrypt/releases)
 
-[![Build Status](https://travis-ci.org/google/fscrypt.svg?branch=master)](https://travis-ci.org/google/fscrypt)
+[![Build Status](https://github.com/google/fscrypt/workflows/ci/badge.svg)](https://github.com/google/fscrypt/actions?query=workflow%3ACI+branch%3Amaster)
 [![Coverage Status](https://coveralls.io/repos/github/google/fscrypt/badge.svg?branch=master)](https://coveralls.io/github/google/fscrypt?branch=master)
 [![GoDoc](https://godoc.org/github.com/google/fscrypt?status.svg)](https://godoc.org/github.com/google/fscrypt)
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)

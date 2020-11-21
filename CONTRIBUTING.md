@@ -55,9 +55,9 @@ use GitHub pull requests for this purpose. Consult
 [GitHub Help](https://help.github.com/articles/about-pull-requests/) for more
 information on using pull requests.
 
-On every pull request, [Travis CI](https://travis-ci.org/google/fscrypt) runs
-unit tests, integration tests, code formatters, and linters. To pass these
-checks you should make sure that in your submission:
+On every pull request, [GitHub
+Actions](https://github.com/google/fscrypt/actions) runs tests, code formatters,
+and linters. To pass these checks you should make sure that in your submission:
 - `make` properly builds `fscrypt` and `pam_fscrypt.so`.
 - All tests, including [integration tests](#running-integration-tests) and
   [command-line interface (CLI)
