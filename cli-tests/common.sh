@@ -164,3 +164,9 @@ _setup_session_keyring()
 	# Clear the test user's keyring.
 	_user_do "keyctl clear @u"
 }
+
+# Wraps the 'expect' command to force subprocesses to have 80-column output.
+expect()
+{
+	command expect -c 'set stty_init "cols 80"' -f -
+}
