@@ -205,7 +205,7 @@ func shouldUseDirectKeyFlag(options *EncryptionOptions) bool {
 	if options.Contents != options.Filenames {
 		return false
 	}
-	// Whitelist the modes that take a 24+ byte IV (enough room for the per-file nonce)
+	// Currently only Adiantum supports DIRECT_KEY.
 	return options.Contents == EncryptionOptions_Adiantum
 }
 

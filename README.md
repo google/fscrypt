@@ -430,11 +430,12 @@ information to the syslog.
 This step is only needed if you installed `fscrypt` from source code.
 
 Some Linux distros use restrictive settings in `/etc/pam.d/other` that prevent
-non-whitelisted programs from checking your login passphrase.  This prevents
-`fscrypt` from creating any login passphrase-protected directories, even without
-auto-unlocking.  To ensure that `fscrypt` will work properly (if you didn't
-install an official `fscrypt` package from your distro, which should have
-already handled this), also create a file `/etc/pam.d/fscrypt` containing:
+programs from checking your login passphrase unless a per-program PAM
+configuration file grants access.  This prevents `fscrypt` from creating any
+login passphrase-protected directories, even without auto-unlocking.  To ensure
+that `fscrypt` will work properly (if you didn't install an official `fscrypt`
+package from your distro, which should have already handled this), also create a
+file `/etc/pam.d/fscrypt` containing:
 ```
 auth        required    pam_unix.so
 ```
