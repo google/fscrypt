@@ -30,7 +30,9 @@ jobs:
       with:
         go-version: ${{ matrix.go }}
     - name: Install dependencies
-      run: sudo apt-get install -y libpam0g-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpam0g-dev
     - name: Build
       run: GO111MODULE=on make
 
@@ -55,7 +57,9 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-go@v2
     - name: Install dependencies
-      run: sudo apt-get install -y libpam0g-dev e2fsprogs keyutils
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpam0g-dev e2fsprogs keyutils
     - name: Run integration tests
       run: |
         make test-setup
@@ -105,7 +109,9 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-go@v2
     - name: Install dependencies
-      run: sudo apt-get install -y libpam0g-dev e2fsprogs expect keyutils
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libpam0g-dev e2fsprogs expect keyutils
     - name: Run command-line interface tests
       run: make cli-test
 
@@ -117,6 +123,7 @@ jobs:
     - uses: actions/setup-go@v2
     - name: Install dependencies
       run: |
+        sudo apt-get update
         sudo apt-get install -y libpam0g-dev shellcheck
         make tools
     - name: Generate
