@@ -1,6 +1,6 @@
 Name: fscrypt PAM passphrase support
 Default: yes
-Priority: 0
+Priority: 100
 Auth-Type: Additional
 Auth-Final:
 	optional	PAM_INSTALL_PATH
