@@ -425,6 +425,15 @@ locked data is inaccessible; this only needed for v1 encryption policies.  All
 the types also support the `debug` option which prints additional debug
 information to the syslog.
 
+Note that in order for encrypted home directories to work correctly,
+`pam_fscrypt.so` must be placed _before_ any other PAM Session modules which
+rely on access to the home directory, or start processes which access your
+home directory during the duration of your session. Particularly, systems
+which use `systemd-logind` for managing jobs and cgroups in user sessions
+should order `pam_fscrypt.so` ahead of `pam_systemd.so` to avoid disrupting
+user jobs that need access to directories protected with your login
+passphrase.
+
 ### Allowing `fscrypt` to check your login passphrase
 
 This step is only needed if you installed `fscrypt` from source code.
