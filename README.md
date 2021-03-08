@@ -104,9 +104,10 @@ secret or information used to protect the confidentiality of your data. The
 three currently supported protector types are:
 
 1. Your login passphrase, through [PAM](http://www.linux-pam.org/Linux-PAM-html).
-   The included PAM module (`pam_fscrypt.so`) can automatically unlock login
-   protectors when you log in.  __IMPORTANT:__ before using a login protector,
-   follow [Setting up for login protectors](#setting-up-for-login-protectors).
+   The included PAM module (`pam_fscrypt.so`) can automatically unlock
+   directories protected by your login passphrase when you log in, and lock them
+   when you log out.  __IMPORTANT:__ before using a login protector, follow
+   [Setting up for login protectors](#setting-up-for-login-protectors).
 
 2. A custom passphrase.  This passphrase is hashed with
    [Argon2id](https://en.wikipedia.org/wiki/Argon2), by default calibrated to
@@ -363,9 +364,9 @@ existing passphrase with the new `rounds`.
 
 To enable the PAM module `pam_fscrypt.so`, follow the directions for your Linux
 distro below.  Enabling the PAM module is needed for login passphrase-protected
-directories to be automatically unlocked when you log in, and for login
-passphrase-protected directories to remain accessible when you change your login
-passphrase.
+directories to be automatically unlocked when you log in (and be automatically
+locked when you log out), and for login passphrase-protected directories to
+remain accessible when you change your login passphrase.
 
 #### Enabling the PAM module on Ubuntu
 
@@ -407,8 +408,8 @@ password    optional    pam_fscrypt.so
 after `pam_unix.so` in `/etc/pam.d/common-password` or similar.
 
 The Auth and Session functionality of `pam_fscrypt.so` are used to automatically
-unlock directories when logging in as a user. An easy way to get this working is
-to add the line:
+unlock directories when logging in as a user, and lock them when logging out.
+An easy way to get this working is to add the line:
 ```
 auth        optional    pam_fscrypt.so
 ```
