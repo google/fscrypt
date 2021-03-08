@@ -47,7 +47,10 @@ const (
 	authtokLabel = "fscrypt_authtok"
 	// These flags are used to toggle behavior of the PAM module.
 	debugFlag = "debug"
-	lockFlag  = "lock_policies"
+
+	// This option is accepted for compatibility with existing config files,
+	// but now we lock policies unconditionally and this option is a no-op.
+	lockPoliciesFlag = "lock_policies"
 
 	// This option is accepted for compatibility with existing config files,
 	// but it no longer does anything.  pam_fscrypt now drops caches if and
@@ -218,19 +221,21 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 		return err
 	}
 
+	if args[lockPoliciesFlag] {
+		log.Print("ignoring deprecated 'lock_policies' option (now the default)")
+	}
+
 	if args[dropCachesFlag] {
 		log.Print("ignoring deprecated 'drop_caches' option (now auto-detected)")
 	}
 
-	needDropCaches := false
-	var errLock, errCache error
 	// Don't automatically drop privileges, since we may need them to
 	// deprovision policies or to drop caches.
-	if args[lockFlag] {
-		log.Print("locking polices protected with login protector")
-		needDropCaches, errLock = lockLoginPolicies(handle)
-	}
 
+	log.Print("locking policies protected with login protector")
+	needDropCaches, errLock := lockLoginPolicies(handle)
+
+	var errCache error
 	if needDropCaches {
 		log.Print("dropping appropriate filesystem caches at session close")
 		errCache = security.DropFilesystemCache()

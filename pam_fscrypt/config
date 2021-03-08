@@ -7,7 +7,7 @@ Auth-Final:
 Session-Type: Additional
 Session-Interactive-Only: yes
 Session-Final:
-	optional	PAM_INSTALL_PATH lock_policies
+	optional	PAM_INSTALL_PATH
 Password-Type: Additional
 Password-Final:
 	optional	PAM_INSTALL_PATH

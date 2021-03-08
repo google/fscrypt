@@ -415,12 +415,12 @@ auth        optional    pam_fscrypt.so
 after `pam_unix.so` in `/etc/pam.d/common-auth` or similar, and to add the
 line:
 ```
-session     optional    pam_fscrypt.so lock_policies
+session     optional    pam_fscrypt.so
 ```
-after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
-`lock_policies` option locks the directories protected with the user's login
-passphrase when the last session ends.  All the types also support the `debug`
-option which prints additional debug information to the syslog.
+after `pam_unix.so` in `/etc/pam.d/common-session` or similar.
+
+To make `pam_fscrypt.so` print debugging messages to the system log, add the
+`debug` option.  All hook types accept this option.
 
 ### Allowing `fscrypt` to check your login passphrase
 
