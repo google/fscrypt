@@ -415,15 +415,12 @@ auth        optional    pam_fscrypt.so
 after `pam_unix.so` in `/etc/pam.d/common-auth` or similar, and to add the
 line:
 ```
-session     optional    pam_fscrypt.so drop_caches lock_policies
+session     optional    pam_fscrypt.so lock_policies
 ```
 after `pam_unix.so` in `/etc/pam.d/common-session` or similar. The
 `lock_policies` option locks the directories protected with the user's login
-passphrase when the last session ends. The `drop_caches` option tells `fscrypt`
-to clear the filesystem caches when the last session closes, ensuring all the
-locked data is inaccessible; this only needed for v1 encryption policies.  All
-the types also support the `debug` option which prints additional debug
-information to the syslog.
+passphrase when the last session ends.  All the types also support the `debug`
+option which prints additional debug information to the syslog.
 
 ### Allowing `fscrypt` to check your login passphrase
 
