@@ -40,7 +40,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 - [Setting up for login protectors](#setting-up-for-login-protectors)
   - [Securing your login passphrase](#securing-your-login-passphrase)
   - [Enabling the PAM module](#enabling-the-pam-module)
-    - [Enabling the PAM module on Ubuntu](#enabling-the-pam-module-on-ubuntu)
+    - [Enabling the PAM module on Debian or Ubuntu](#enabling-the-pam-module-on-debian-or-ubuntu)
 	- [Enabling the PAM module on Arch Linux](#enabling-the-pam-module-on-arch-linux)
 	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
   - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
@@ -169,13 +169,14 @@ Running `sudo make install` installs `fscrypt` into `/usr/local/bin`,
 `pam_fscrypt.so` into `/usr/local/lib/security`, and `pam_fscrypt/config` into
 `/usr/local/share/pam-configs`.
 
-For Ubuntu, use `sudo make install PREFIX=/usr` to install into `/usr` instead
-of the default of `/usr/local`.  Ordinarily you shouldn't manually install
-software into `/usr`, since `/usr` is reserved for Ubuntu's own packages.
-However, Ubuntu only recognizes PAM configuration files in `/usr`, not in
-`/usr/local`.  This means that the PAM module will only work if you install into
-`/usr`.  Note: if you later decide to switch to using the Ubuntu package for
-`fscrypt`, you'll have to first manually run `sudo make uninstall PREFIX=/usr`.
+On Debian (and Debian derivatives such as Ubuntu), use `sudo make install
+PREFIX=/usr` to install into `/usr` instead of the default of `/usr/local`.
+Ordinarily you shouldn't manually install software into `/usr`, since `/usr` is
+reserved for Debian's own packages.  However, Debian's PAM configuration
+framework only recognizes configuration files in `/usr`, not in `/usr/local`.
+Therefore, the PAM module will only work if you install into `/usr`.  Note: if
+you later decide to switch to using the Debian package `libpam-fscrypt`, you'll
+have to first manually run `sudo make uninstall PREFIX=/usr`.
 
 It is also possible to use `make install-bin` to only install the `fscrypt`
 binary, or `make install-pam` to only install the PAM files.
@@ -368,18 +369,18 @@ directories to be automatically unlocked when you log in (and be automatically
 locked when you log out), and for login passphrase-protected directories to
 remain accessible when you change your login passphrase.
 
-#### Enabling the PAM module on Ubuntu
+#### Enabling the PAM module on Debian or Ubuntu
 
-The official `fscrypt` package for Ubuntu will install a configuration file for
-[Ubuntu's PAM configuration
+The official `libpam-fscrypt` package for Debian (and Debian derivatives such as
+Ubuntu) will install a configuration file for [Debian's PAM configuration
 framework](https://wiki.ubuntu.com/PAMConfigFrameworkSpec) to
 `/usr/share/pam-configs/fscrypt`.  This file contains reasonable defaults for
-the PAM module.  To automatically apply these defaults, run `sudo
-pam-auth-update` and follow the on-screen instructions.
+the PAM module.  To automatically apply these defaults, run
+`sudo pam-auth-update` and follow the on-screen instructions.
 
 This file also gets installed if you build and install `fscrypt` from source,
-but only if you use `make install PREFIX=/usr` to install into `/usr` instead of
-the default of `/usr/local`.
+but it is only installed to the correct location if you use `make install
+PREFIX=/usr` to install into `/usr` instead of the default of `/usr/local`.
 
 #### Enabling the PAM module on Arch Linux
 
@@ -418,7 +419,10 @@ line:
 ```
 session     optional    pam_fscrypt.so
 ```
-after `pam_unix.so` in `/etc/pam.d/common-session` or similar.
+after `pam_unix.so` in `/etc/pam.d/common-session` or similar, but before
+`pam_systemd.so` or any other module that accesses the user's home directory or
+which starts processes that access the user's home directory during their
+session.
 
 To make `pam_fscrypt.so` print debugging messages to the system log, add the
 `debug` option.  All hook types accept this option.
