@@ -47,8 +47,16 @@ const (
 	authtokLabel = "fscrypt_authtok"
 	// These flags are used to toggle behavior of the PAM module.
 	debugFlag = "debug"
-	lockFlag  = "lock_policies"
-	cacheFlag = "drop_caches"
+
+	// This option is accepted for compatibility with existing config files,
+	// but now we lock policies unconditionally and this option is a no-op.
+	lockPoliciesFlag = "lock_policies"
+
+	// This option is accepted for compatibility with existing config files,
+	// but it no longer does anything.  pam_fscrypt now drops caches if and
+	// only if it is needed.  (Usually it is not needed anymore, as the
+	// FS_IOC_REMOVE_ENCRYPTION_KEY ioctl handles this automatically.)
+	dropCachesFlag = "drop_caches"
 )
 
 var (
@@ -213,15 +221,22 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 		return err
 	}
 
-	var errLock, errCache error
-	// Don't automatically drop privileges, since we may need them to
-	// deprovision policies or to drop caches.
-	if args[lockFlag] {
-		log.Print("locking polices protected with login protector")
-		errLock = lockLoginPolicies(handle)
+	if args[lockPoliciesFlag] {
+		log.Print("ignoring deprecated 'lock_policies' option (now the default)")
 	}
 
-	if args[cacheFlag] {
+	if args[dropCachesFlag] {
+		log.Print("ignoring deprecated 'drop_caches' option (now auto-detected)")
+	}
+
+	// Don't automatically drop privileges, since we may need them to
+	// deprovision policies or to drop caches.
+
+	log.Print("locking policies protected with login protector")
+	needDropCaches, errLock := lockLoginPolicies(handle)
+
+	var errCache error
+	if needDropCaches {
 		log.Print("dropping appropriate filesystem caches at session close")
 		errCache = security.DropFilesystemCache()
 	}
@@ -232,11 +247,14 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	return errCache
 }
 
-// lockLoginPolicies deprovisions all policy keys that are protected by
-// the user's login protector.
-func lockLoginPolicies(handle *pam.Handle) error {
+// lockLoginPolicies deprovisions all policy keys that are protected by the
+// user's login protector.  It returns true if dropping filesystem caches will
+// be needed afterwards to completely lock the relevant directories.
+func lockLoginPolicies(handle *pam.Handle) (bool, error) {
+	needDropCaches := false
+
 	if err := handle.StartAsPamUser(); err != nil {
-		return err
+		return needDropCaches, err
 	}
 	defer handle.StopAsPamUser()
 
@@ -244,16 +262,16 @@ func lockLoginPolicies(handle *pam.Handle) error {
 	protector, err := loginProtector(handle)
 	if err != nil {
 		log.Printf("nothing to lock: %s", err)
-		return nil
+		return needDropCaches, nil
 	}
 	policies := policiesUsingProtector(protector)
 	if len(policies) == 0 {
 		log.Print("no policies to lock")
-		return nil
+		return needDropCaches, nil
 	}
 
 	if err = setupUserKeyringIfNeeded(handle, policies); err != nil {
-		return errors.Wrapf(err, "setting up user keyring")
+		return needDropCaches, errors.Wrapf(err, "setting up user keyring")
 	}
 
 	// We will try to deprovision all of the policies.
@@ -263,12 +281,15 @@ func lockLoginPolicies(handle *pam.Handle) error {
 				policy.Descriptor(), handle.PamUser.Username)
 			continue
 		}
+		if policy.NeedsUserKeyring() {
+			needDropCaches = true
+		}
 		if err := beginProvisioningOp(handle, policy); err != nil {
-			return err
+			return needDropCaches, err
 		}
 		deprovisionErr := policy.Deprovision(false)
 		if err := endProvisioningOp(handle, policy); err != nil {
-			return err
+			return needDropCaches, err
 		}
 		if deprovisionErr != nil {
 			log.Printf("deprovisioning policy %s: %s", policy.Descriptor(), deprovisionErr)
@@ -276,7 +297,7 @@ func lockLoginPolicies(handle *pam.Handle) error {
 		}
 		log.Printf("policy %s deprovisioned by %v", policy.Descriptor(), handle.PamUser.Username)
 	}
-	return nil
+	return needDropCaches, nil
 }
 
 // Chauthtok rewraps the login protector when the passphrase changes.
