@@ -64,12 +64,8 @@ jobs:
       run: |
         make test-setup
         keyctl link @u @s
-        make coverage.out
+        make test
         make test-teardown
-    - name: Report coverage
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        path-to-profile: coverage.out
 
   # This isn't working currently because qemu user-mode emulation doesn't
   # support passing through the keyctl() system call and the fscrypt ioctls.
