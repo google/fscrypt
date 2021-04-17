@@ -28,6 +28,7 @@ PAM_NAME := pam_$(NAME)
 # BINDIR: Where to install the fscrypt binary.        Default: $(PREFIX)/bin
 # PAM_MODULE_DIR: Where to install pam_fscrypt.so.    Default: $(PREFIX)/lib/security
 # PAM_CONFIG_DIR: Where to install Ubuntu PAM config. Default: $(PREFIX)/share/pam-configs
+#   If the empty string, then the Ubuntu PAM config will not be installed.
 #
 # MOUNT: The filesystem where our tests are run.    Default: /mnt/fscrypt_mount
 #   Ex: make test-setup MOUNT=/foo/bar
@@ -177,10 +178,11 @@ PAM_CONFIG_DIR := $(PREFIX)/share/pam-configs
 install-pam: $(PAM_MODULE)
 	install -d $(DESTDIR)$(PAM_MODULE_DIR)
 	install $(PAM_MODULE) $(DESTDIR)$(PAM_MODULE_DIR)
-
+ifdef PAM_CONFIG_DIR
 	m4 --define=PAM_INSTALL_PATH=$(PAM_INSTALL_PATH) < $(PAM_NAME)/config > $(PAM_CONFIG)
 	install -d $(DESTDIR)$(PAM_CONFIG_DIR)
 	install $(PAM_CONFIG) $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME)
+endif
 
 COMPLETION_INSTALL_DIR := $(PREFIX)/share/bash-completion/completions
 
@@ -190,8 +192,10 @@ install-completion: cmd/fscrypt/fscrypt_bash_completion
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/$(NAME) \
 	      $(DESTDIR)$(PAM_INSTALL_PATH) \
-	      $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME) \
 	      $(DESTDIR)$(COMPLETION_INSTALL_DIR)/fscrypt
+ifdef PAM_CONFIG_DIR
+	rm -f $(DESTDIR)$(PAM_CONFIG_DIR)/$(NAME)
+endif
 
 #### Tool Building Commands ####
 TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
