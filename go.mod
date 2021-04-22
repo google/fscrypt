@@ -10,7 +10,8 @@ require (
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529
 	golang.org/x/lint v0.0.0-20190930215403-16217165b5de
-	golang.org/x/sys v0.0.0-20191127021746-63cb32ae39b2
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
+	golang.org/x/term v0.0.0-20210422114643-f5beecf764ed
 	golang.org/x/tools v0.0.0-20191025023517-2077df36852e
 	honnef.co/go/tools v0.0.1-2019.2.3
 )
