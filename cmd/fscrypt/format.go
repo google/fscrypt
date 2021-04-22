@@ -29,7 +29,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/urfave/cli"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/google/fscrypt/util"
 )
@@ -64,7 +64,7 @@ func init() {
 	flagPaddingLength = maxShortDisplay + 2*indentLength
 
 	// We use the width of the terminal unless we cannot get the width.
-	width, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		lineLength = fallbackLineLength
 	} else {

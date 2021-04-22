@@ -28,7 +28,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/crypto"
@@ -88,13 +88,13 @@ func (p passphraseReader) Read(buf []byte) (int, error) {
 func getPassphraseKey(prompt string) (*crypto.Key, error) {
 
 	// Only disable echo if stdin is actually a terminal.
-	if terminal.IsTerminal(stdinFd) {
-		state, err := terminal.MakeRaw(stdinFd)
+	if term.IsTerminal(stdinFd) {
+		state, err := term.MakeRaw(stdinFd)
 		if err != nil {
 			return nil, err
 		}
 		defer func() {
-			terminal.Restore(stdinFd, state)
+			term.Restore(stdinFd, state)
 			fmt.Println() // To align input
 		}()
 	}
