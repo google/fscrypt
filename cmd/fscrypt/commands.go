@@ -804,8 +804,8 @@ func createProtectorAction(c *cli.Context) error {
 var createPolicy = cli.Command{
 	Name:      "policy",
 	ArgsUsage: fmt.Sprintf("%s %s", mountpointArg, shortDisplay(protectorFlag)),
-	Usage:     "create a new protector on a filesystem",
-	Description: fmt.Sprintf(`This command creates a new protector on %s
+	Usage:     "create a new policy on a filesystem",
+	Description: fmt.Sprintf(`This command creates a new policy on %s
 		that has not (yet) been applied to any directory. After
 		creation, the user can use %s with "fscrypt encrypt" to encrypt
 		a directory with this new policy. As all policies must be
