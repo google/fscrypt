@@ -96,7 +96,7 @@ $(BIN)/$(NAME): $(GO_FILES) $(C_FILES)
 	go build $(GO_FLAGS) -o $@ ./cmd/$(NAME)
 
 $(PAM_MODULE): $(GO_FILES) $(C_FILES)
-	go build -buildmode=c-shared $(GO_FLAGS) -o $@ ./$(PAM_NAME)
+	go build $(GO_FLAGS) -buildmode=c-shared -o $@ ./$(PAM_NAME)
 	rm -f $(BIN)/$(PAM_NAME).h
 
 gen: $(BIN)/protoc $(BIN)/protoc-gen-go $(PROTO_FILES)
