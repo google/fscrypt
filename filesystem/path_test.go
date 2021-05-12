@@ -23,6 +23,8 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/google/fscrypt/util"
 )
 
 func TestDeviceNumber(t *testing.T) {
@@ -56,6 +58,9 @@ func TestDeviceNumber(t *testing.T) {
 }
 
 func TestHaveReadAccessTo(t *testing.T) {
+	if util.IsUserRoot() {
+		t.Skip("This test cannot be run as root")
+	}
 	file, err := ioutil.TempFile("", "fscrypt_test")
 	if err != nil {
 		t.Fatal(err)
