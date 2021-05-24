@@ -276,6 +276,9 @@ func timeHashingCosts(costs *metadata.HashingCosts) (time.Duration, error) {
 	}
 	end := cpuTimeInNanoseconds()
 
+	// This uses a lot of memory, run the garbage collector
+	runtime.GC()
+
 	return time.Duration((end - begin) / costs.Parallelism), nil
 }
 
