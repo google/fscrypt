@@ -242,7 +242,7 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 
 // memoryBytesLimit returns the maximum amount of memory we will use for
 // passphrase hashing. This will never be more than a reasonable maximum (for
-// compatibility) or half the available system RAM.
+// compatibility) or an 8th the available system RAM.
 func memoryBytesLimit() int64 {
 	// The sysinfo syscall only fails if given a bad address
 	var info unix.Sysinfo_t
@@ -250,7 +250,7 @@ func memoryBytesLimit() int64 {
 	util.NeverError(err)
 
 	totalRAMBytes := int64(info.Totalram)
-	return util.MinInt64(totalRAMBytes/2, maxMemoryBytes)
+	return util.MinInt64(totalRAMBytes/8, maxMemoryBytes)
 }
 
 // betweenCosts returns a cost between a and b. Specifically, it returns the
@@ -275,6 +275,9 @@ func timeHashingCosts(costs *metadata.HashingCosts) (time.Duration, error) {
 		hash.Wipe()
 	}
 	end := cpuTimeInNanoseconds()
+
+	// This uses a lot of memory, run the garbage collector
+	runtime.GC()
 
 	return time.Duration((end - begin) / costs.Parallelism), nil
 }
