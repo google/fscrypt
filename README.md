@@ -789,12 +789,14 @@ guidelines in `CONTRIBUTING.md`. We will try our best to help.
 
 #### I changed my login passphrase, now all my directories are inaccessible
 
-The PAM module `pam_fscrypt.so` should automatically detect changes to a user's
-login passphrase so that they can still access their encrypted directories.
-However, sometimes a user's login passphrase can become desynchronized from
-their login protector.  This can happen if their login passphrase is managed by
-an external system, if the PAM module is not installed, or if the PAM module is
-not properly configured.  See [Enabling the PAM
+Usually, the PAM module `pam_fscrypt.so` will automatically detect changes to a
+user's login passphrase and update the user's `fscrypt` login protector so that
+they retain access their login-passphrase protected directories.  However,
+sometimes a user's login passphrase can become desynchronized from their
+`fscrypt` login protector.  This can happen if `root` assigns the user a new
+passphrase without providing the old one, if the user's login passphrase is
+managed by an external system such as LDAP, if the PAM module is not installed,
+or if the PAM module is not properly configured.  See [Enabling the PAM
 module](#enabling-the-pam-module) for how to configure the PAM module.
 
 To fix a user's login protector, find the corresponding protector ID by running
