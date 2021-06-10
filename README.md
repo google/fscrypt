@@ -57,7 +57,8 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
   - [Directories using my login passphrase are not automatically unlocking.](#directories-using-my-login-passphrase-are-not-automatically-unlocking)
   - [Getting "encryption not enabled" on an ext4 filesystem.](#getting-encryption-not-enabled-on-an-ext4-filesystem)
   - [Getting "Operation not permitted" when moving files into an encrypted directory.](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
-  - [Can't log in with ssh even when user's encrypted home directory is unlocked](#cant-log-in-with-ssh-even-when-users-encrypted-home-directory-is-unlocked)
+  - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
+  - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
 - [Legal](#legal)
 
 ## Other encryption solutions
@@ -296,19 +297,18 @@ The fields are:
       kernel v5.4 or later, but are preferable to version "1" if you
       don't mind this restriction.
 
-* "use\_fs\_keyring\_for\_v1\_policies" specifies whether to add keys
-  for v1 encryption policies to the filesystem keyring, rather than to
-  user keyrings.  This can solve [issues with processes being unable
-  to access encrypted files](#cant-log-in-with-ssh-even-when-users-encrypted-home-directory-is-unlocked).
-  However, it requires kernel v5.4 or later, and it makes unlocking
-  and locking encrypted directories require root.
+* "use\_fs\_keyring\_for\_v1\_policies" specifies whether to add keys for v1
+  encryption policies to the filesystem keyrings, rather than to user keyrings.
+  This can solve [issues with processes being unable to access unlocked
+  encrypted files](#some-processes-cant-access-unlocked-encrypted-files).
+  However, it requires kernel v5.4 or later, and it makes unlocking and locking
+  encrypted directories require root.  (The PAM module will still work.)
 
-  The purpose of this setting is to allow people to take advantage of
-  some of the improvements in Linux v5.4 on encrypted directories that
-  are also compatible with older kernels.  If you don't need
-  compatibility with older kernels, it's better to not use this
-  setting and instead (re-)create your encrypted directories with
-  `"policy_version": "2"`.
+  The purpose of this setting is to allow people to take advantage of some of
+  the improvements in Linux v5.4 on encrypted directories that are also
+  compatible with older kernels.  If you don't need compatibility with older
+  kernels, it's better to not use this setting and instead (re-)create your
+  encrypted directories with `"policy_version": "2"`.
 
 ## Setting up for login protectors
 
@@ -894,58 +894,94 @@ shred -u file
 However, `shred` isn't guaranteed to be effective on all filesystems and storage
 devices.
 
-#### Can't log in with ssh even when user's encrypted home directory is unlocked
+#### Some processes can't access unlocked encrypted files.
 
-This is caused by a limitation in the original design of Linux
-filesystem encryption which made it difficult to ensure that all
-processes can access unlocked encrypted files.  This issue can also
-manifest in other ways such as Docker containers being unable to
-access encrypted files, or NetworkManager being unable to access
-certificates if they are located in an encrypted directory.
+This issue is caused by a limitation in the original design of Linux filesystem
+encryption which made it difficult to ensure that all processes can access
+unlocked encrypted files.  This issue can manifest in many ways, such as:
 
-The recommended way to fix this is by creating your encrypted
-directories using v2 encryption policies rather than v1.  This
-requires Linux v5.4 or later and `fscrypt` v0.2.6 or later.  If these
-prerequisites are met, enable v2 policies for new directories by
-setting `"policy_version": "2"` in `/etc/fscrypt.conf`.  For example:
+* SSH to a user with an encrypted home directory not working, even when that
+  directory is already unlocked
 
-```
-	"options": {
-		"padding": "32",
-		"contents": "AES_256_XTS",
-		"filenames": "AES_256_CTS",
-		"policy_version": "2"
-	},
-```
+* Docker containers being unable to access encrypted files that were unlocked
+  from outside the container
 
-This only affects new directories.  If you want to upgrade an existing
-encrypted directory to use a v2 policy, you'll need to re-create it by
-using `fscrypt encrypt` to encrypt a new empty directory, copying your
-files into it, and replacing the original directory with it.
+* NetworkManager being unable to access certificates stored in the user's
+  already-unlocked encrypted home directory
 
-In `fscrypt` v0.2.7 and later, the `fscrypt setup` command
-automatically sets `"policy_version": "2"` when creating
-`/etc/fscrypt.conf` if kernel support is present.
+* Other system services being unable to access already-unlocked encrypted files
 
-__IMPORTANT:__ directories that use v2 encryption policies are
-unusable on Linux v5.3 and earlier.  If this will be a problem for you
-(for example, if your encrypted directories are on removable storage
-that needs to work on computers with both old and new kernels), you'll
-need to use v1 policies instead.  In this case, you can enable a
-fallback option to make `fscrypt` use the filesystem keyring for v1
-policies:
+* `sudo` sessions being unable to access already-unlocked encrypted files
 
-```
-	"use_fs_keyring_for_v1_policies": true
-```
+* A user being unable to access encrypted files that were unlocked by root
 
-This fallback option only has an effect if the kernel supports using
-the filesystem keyring.  This option is also useful if you simply
-don't want to re-create your old, v1 directories.  However, this
-option makes manually unlocking and locking encrypted directories
-start to require root.  (The PAM module will still work.)  E.g.,
-you'll need to run `sudo fscrypt unlock`, not `fscrypt unlock`.  Most
-people should just use v2 policies instead.
+If an OS-level error is shown, it is "Required key not available".
+
+To fix this issue, first run `fscrypt status $dir`, where `$dir` is your
+encrypted directory.  If the output contains `policy_version:2`, then your issue
+is something else, so stop reading now.  If the output contains
+`policy_version:1` or doesn't contain any mention of `policy_version`, then
+you'll need to upgrade your directory(s) to policy version 2.  To do this:
+
+1. Upgrade to Linux kernel v5.4 or later.
+
+2. Upgrade to `fscrypt` v0.2.7 or later.
+
+3. Run `sudo fscrypt setup --force`.
+
+4. Re-encrypt your encrypted directory(s).  Since files cannot be (re-)encrypted
+   in-place, this requires replacing them with new directories.  For example:
+   ```
+     fscrypt unlock dir  # if not already unlocked
+     mkdir dir.new
+     fscrypt encrypt dir.new
+     cp -a -T dir dir.new
+     find dir -type f -print0 | xargs -0 shred -n1 --remove=unlink
+     rm -rf dir
+     mv dir.new dir
+   ```
+
+   You don't need to create a new protector.  I.e., when `fscrypt encrypt` asks
+   for a protector, just choose the one you were using before.
+
+5. `fscrypt status` on your directory(s) should now show `policy_version:2`,
+   and the issue should be gone.
+
+Note that once your directories are using policy version 2, they will only be
+usable with Linux kernel v5.4 and later and `fscrypt` v0.2.6 and later.  So be
+careful not to downgrade your software past those versions.
+
+This issue can also be fixed by setting `"use_fs_keyring_for_v1_policies": true`
+in `/etc/fscrypt.conf`, as described in [Configuration
+file](#configuration-file).  This avoids needing to upgrade directories to
+policy version 2.  However, this has some limitations, and the same kernel and
+`fscrypt` prerequisites still apply for this option to take effect.  It is
+recommended to upgrade your directories to policy version 2 instead.
+
+#### Users can access other users' unlocked encrypted files.
+
+This is working as intended.  When an encrypted directory is unlocked (or
+locked), it is unlocked (or locked) for all users.  Encryption is not access
+control; the Linux kernel already has many access control mechanisms, such as
+the standard UNIX file permissions, that can be used to control access to files.
+
+Setting the mode of your encrypted directory to `0700` will prevent non-root
+users from accessing it while it is unlocked.  In `fscrypt` v0.2.5 and later,
+`fscrypt encrypt` sets this mode automatically.  This doesn't prevent root from
+accessing it; however, root has many other ways to get access to it anyway.
+
+Having the locked/unlocked status of directories be global instead of per-user
+may seem unintuitive, but it is actually the only logical way.  The encryption
+is done by the filesystem, so in reality the filesystem either has the key or it
+doesn't.  And once it has the key, any additional checks of whether particular
+users "have" the key would be OS-level access control checks (not cryptography)
+that are redundant with existing OS-level access control mechanisms.
+
+The original design of Linux filesystem encryption actually did put the keys
+into per-user keyrings.  However, this caused a [massive number of
+problems](#some-processes-cant-access-unlocked-encrypted-files), as it's
+actually very common that encrypted files need to be accessed by processes
+running under different user IDs -- even if it may not be immediately apparent.
 
 ## Legal
 
