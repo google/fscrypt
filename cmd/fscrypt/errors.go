@@ -106,6 +106,12 @@ func getFullName(c *cli.Context) string {
 	return c.App.HelpName
 }
 
+func isGrubInstalledOnFilesystem(mnt *filesystem.Mount) bool {
+	dir := filepath.Join(mnt.Path, "boot/grub")
+	grubDirMount, _ := filesystem.FindMount(dir)
+	return grubDirMount == mnt
+}
+
 func suggestEnablingEncryption(mnt *filesystem.Mount) string {
 	kconfig := "CONFIG_FS_ENCRYPTION=y"
 	switch mnt.FilesystemType {
@@ -136,7 +142,7 @@ func suggestEnablingEncryption(mnt *filesystem.Mount) string {
 
 		> sudo tune2fs -O encrypt %q
 		`, mnt.Device)
-		if _, err := os.Stat(filepath.Join(mnt.Path, "boot/grub")); err == nil {
+		if isGrubInstalledOnFilesystem(mnt) {
 			s += `
 			WARNING: you seem to have GRUB installed on this
 			filesystem. Before doing the above, make sure you are
