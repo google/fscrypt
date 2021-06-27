@@ -56,6 +56,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
   - [I changed my login passphrase, now all my directories are inaccessible](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
   - [Directories using my login passphrase are not automatically unlocking.](#directories-using-my-login-passphrase-are-not-automatically-unlocking)
   - [Getting "encryption not enabled" on an ext4 filesystem.](#getting-encryption-not-enabled-on-an-ext4-filesystem)
+  - [Getting "user keyring not linked into session keyring".](#getting-user-keyring-not-linked-into-session-keyring)
   - [Getting "Operation not permitted" when moving files into an encrypted directory.](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
   - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
   - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
@@ -867,6 +868,13 @@ fsck -fn /dev/device
 If you've enabled `encrypt` but you still get the "encryption not enabled"
 error, then the problem is that ext4 encryption isn't enabled in your kernel
 config.  See [Runtime Dependencies](#runtime-dependencies) for how to enable it.
+
+#### Getting "user keyring not linked into session keyring".
+
+Some older versions of Ubuntu didn't link the user keyring into the session
+keyring, which caused problems with `fscrypt`.
+
+To avoid this issue, upgrade to Ubuntu 20.04 or later.
 
 #### Getting "Operation not permitted" when moving files into an encrypted directory.
 
