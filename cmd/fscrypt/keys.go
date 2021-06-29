@@ -22,6 +22,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -178,6 +180,19 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			// Only use prefixes with passphrase protectors.
 			if prefix != "" {
 				return nil, ErrNotPassphrase
+			}
+			if keyFileFlag.Value == "" { // Reading from STDIN
+				in := bufio.NewReader(os.Stdin)
+				buf := make([]byte, 0, 32)
+				for i := 1; i <= 32; i++ {
+					c, err := in.ReadByte()
+					buf = append(buf, c)
+					if err == io.EOF {
+						break
+					}
+				}
+				key := bytes.NewReader(buf)
+				return crypto.NewFixedLengthKeyFromReader(key, metadata.InternalKeyLen)
 			}
 			prompt := fmt.Sprintf("Enter key file for protector %q: ", info.Name())
 			// Raw keys use a file containing the key data.
