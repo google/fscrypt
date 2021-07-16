@@ -58,6 +58,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
   - [Getting "encryption not enabled" on an ext4 filesystem.](#getting-encryption-not-enabled-on-an-ext4-filesystem)
   - [Getting "user keyring not linked into session keyring".](#getting-user-keyring-not-linked-into-session-keyring)
   - [Getting "Operation not permitted" when moving files into an encrypted directory.](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
+  - [Getting "Package not installed" when trying to use an encrypted directory.](#getting-package-not-installed-when-trying-to-use-an-encrypted-directory)
   - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
   - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
 - [Legal](#legal)
@@ -901,6 +902,22 @@ shred -u file
 
 However, `shred` isn't guaranteed to be effective on all filesystems and storage
 devices.
+
+#### Getting "Package not installed" when trying to use an encrypted directory.
+
+Trying to create or open an encrypted file will fail with `ENOPKG` ("Package not
+installed") when the kernel doesn't support one or more of the cryptographic
+algorithms used by the file or its directory.  Note that `fscrypt encrypt` and
+`fscrypt unlock` will still succeed; it's only using the directory afterwards
+that will fail.
+
+The kernel will always support the algorithms that `fscrypt` uses by default.
+However, if you changed the contents and/or filenames encryption algorithms in
+[`/etc/fscrypt.conf`](#configuration-file), then you may run into this issue.
+To fix it, enable the needed `CONFIG_CRYPTO_*` options in your Linux kernel
+configuration.  See the [kernel
+documentation](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html#encryption-modes-and-usage)
+for details about which option(s) are required for each encryption mode.
 
 #### Some processes can't access unlocked encrypted files.
 
