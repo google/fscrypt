@@ -108,6 +108,10 @@ filter_test_output()
 	# Filter any other paths in TMPDIR.
 	sedscript+="s@$TMPDIR@TMPDIR@g;"
 
+	# At some point, 'bash -c COMMAND' started showing error messages as
+	# "bash: line 1: " instead of just "bash: ".  Filter out the "line 1: ".
+	sedscript+="s@^bash: line 1: @bash: @;"
+
 	sed -e "$sedscript" "$raw_output"
 }
 
