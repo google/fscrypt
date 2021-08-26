@@ -940,7 +940,7 @@ unlocked encrypted files.  This issue can manifest in many ways, such as:
 
 * A user being unable to access encrypted files that were unlocked by root
 
-If an OS-level error is shown, it is "Required key not available".
+If an OS-level error is shown, it is `ENOKEY` ("Required key not available").
 
 To fix this issue, first run `fscrypt status $dir`, where `$dir` is your
 encrypted directory.  If the output contains `policy_version:2`, then your issue
@@ -990,10 +990,9 @@ locked), it is unlocked (or locked) for all users.  Encryption is not access
 control; the Linux kernel already has many access control mechanisms, such as
 the standard UNIX file permissions, that can be used to control access to files.
 
-Setting the mode of your encrypted directory to `0700` will prevent non-root
-users from accessing it while it is unlocked.  In `fscrypt` v0.2.5 and later,
-`fscrypt encrypt` sets this mode automatically.  This doesn't prevent root from
-accessing it; however, root has many other ways to get access to it anyway.
+Setting the mode of your encrypted directory to `0700` will prevent users other
+than the directory's owner and `root` from accessing it while it is unlocked.
+In `fscrypt` v0.2.5 and later, `fscrypt encrypt` sets this mode automatically.
 
 Having the locked/unlocked status of directories be global instead of per-user
 may seem unintuitive, but it is actually the only logical way.  The encryption
@@ -1001,6 +1000,12 @@ is done by the filesystem, so in reality the filesystem either has the key or it
 doesn't.  And once it has the key, any additional checks of whether particular
 users "have" the key would be OS-level access control checks (not cryptography)
 that are redundant with existing OS-level access control mechanisms.
+
+Similarly, any attempt of the filesystem encryption feature to prevent `root`
+from accessing unlocked encrypted files would be pointless.  On Linux systems,
+`root` is usually all-powerful and can always get access to files in ways that
+cannot be prevented, e.g. `setuid()` and `ptrace()`.  The only reliable way to
+limit what `root` can do is via a mandatory access control system, e.g. SELinux.
 
 The original design of Linux filesystem encryption actually did put the keys
 into per-user keyrings.  However, this caused a [massive number of
