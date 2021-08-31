@@ -61,6 +61,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
   - [Getting "Package not installed" when trying to use an encrypted directory.](#getting-package-not-installed-when-trying-to-use-an-encrypted-directory)
   - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
   - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
+  - [The reported size of encrypted symlinks is wrong.](#the-reported-size-of-encrypted-symlinks-is-wrong)
 - [Legal](#legal)
 
 ## Other encryption solutions
@@ -1012,6 +1013,21 @@ into per-user keyrings.  However, this caused a [massive number of
 problems](#some-processes-cant-access-unlocked-encrypted-files), as it's
 actually very common that encrypted files need to be accessed by processes
 running under different user IDs -- even if it may not be immediately apparent.
+
+#### The reported size of encrypted symlinks is wrong.
+
+Traditionally, filesystems didn't conform to POSIX when reporting the size of
+encrypted symlinks, as they gave the size of the ciphertext symlink target
+rather than the size of the plaintext target.  This would make the reported size
+of symlinks appear to be slightly too large when queried using ``lstat()`` or
+similar system calls.  Most programs don't care about this, but in rare cases
+programs can depend on the filesystem reporting symlink sizes correctly.
+
+This bug has been fixed in Linux kernel v5.15 and later.  Now, filesystems
+always report the correct symlink size.
+
+If the kernel can't be upgraded, the only workaround for this bug is to update
+any affected programs to not depend on symlink sizes being reported correctly.
 
 ## Legal
 
