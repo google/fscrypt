@@ -43,6 +43,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 	- [Enabling the PAM module on Arch Linux](#enabling-the-pam-module-on-arch-linux)
 	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
   - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
+- [Backup, restore, and recovery](#backup-restore-and-recovery)
 - [Example Usage](#example-usage)
   - [Setting up fscrypt on a directory](#setting-up-fscrypt-on-a-directory)
   - [Locking and unlocking a directory](#locking-and-unlocking-a-directory)
@@ -60,6 +61,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
   - [Getting "Package not installed" when trying to use an encrypted directory.](#getting-package-not-installed-when-trying-to-use-an-encrypted-directory)
   - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
   - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
+  - [Getting "Required key not available" when backing up locked encrypted files](#getting-required-key-not-available-when-backing-up-locked-encrypted-files)
   - [The reported size of encrypted symlinks is wrong.](#the-reported-size-of-encrypted-symlinks-is-wrong)
 - [Legal](#legal)
 
@@ -437,6 +439,61 @@ file `/etc/pam.d/fscrypt` containing:
 ```
 auth        required    pam_unix.so
 ```
+
+## Backup, restore, and recovery
+
+Encrypted files and directories can't be backed up while they are "locked", i.e.
+while they appear in encrypted form.  They can only be backed up while they are
+unlocked, in which case they can be backed up like any other files.  Note that
+since the encryption is transparent, the files won't be encrypted in the backup
+(unless the backup applies its own encryption).
+
+For the same reason (and several others), an encrypted directory can't be
+directly "moved" to another filesystem.  However, it is possible to create a new
+encrypted directory on the destination filesystem using `fscrypt encrypt`, then
+copy the contents of the source directory into it.
+
+For directories protected by a `custom_passphrase` or `raw_key` protector, all
+metadata needed to unlock the directory (excluding the actual passphrase or raw
+key, of course) is located in the `.fscrypt` directory at the root of the
+filesystem that contains the encrypted directory.  For example, if you have an
+encrypted directory `/home/$USER/private` that is protected by a custom
+passphrase, all `fscrypt` metadata needed to unlock the directory with that
+custom passphrase will be located in `/home/.fscrypt` if you are using a
+dedicated `/home` filesystem or in `/.fscrypt` if you aren't.  If desired, you
+can back up the `fscrypt` metadata by making a copy of this directory, although
+this isn't too important since this metadata is located on the same filesystem
+as the encrypted directory(s).
+
+`pam_passphrase` (login passphrase) protectors are a bit different as they are
+always stored on the root filesystem, in `/.fscrypt`.  This ties them to the
+specific system and ensures that each user has only a single login protector.
+Therefore, encrypted directories on a non-root filesystem **can't be unlocked
+via a login protector if the operating system is reinstalled or if the disk is
+connected to another system** -- even if the new system uses the same login
+passphrase for the user.
+
+Because of this, `fscrypt encrypt` will offer to generate a recovery passphrase
+when creating a login passphrase-protected directory on a non-root filesystem.
+The recovery passphrase is simply a `custom_passphrase` protector with a
+randomly generated high-entropy passphrase.  It is strongly recommended to
+accept the prompt to generate the recovery passphrase, then store the recovery
+passphrase in a secure location.  Then, if ever needed, you can use `fscrypt
+unlock` to unlock the directory with the recovery passphrase (by choosing the
+recovery protector instead of the login protector).
+
+Alternative approaches to supporting recovery of login passphrase-protected
+directories include the following:
+
+* Manually adding your own recovery protector, using
+  `fscrypt metadata add-protector-to-policy`.
+
+* Backing up and restoring the `/.fscrypt` directory on the root filesystem.
+  Note that after restore, if the UUID of the root filesystem changed, you will
+  need to manually fix the UUID in any `.fscrypt/protectors/*.link` files on
+  other filesystems.
+
+The auto-generated recovery passphrases should be enough for most users, though.
 
 ## Example Usage
 
@@ -998,6 +1055,11 @@ into per-user keyrings.  However, this caused a [massive number of
 problems](#some-processes-cant-access-unlocked-encrypted-files), as it's
 actually very common that encrypted files need to be accessed by processes
 running under different user IDs -- even if it may not be immediately apparent.
+
+#### Getting "Required key not available" when backing up locked encrypted files
+
+Encrypted files can't be backed up while locked; you need to unlock them first.
+For details, see [Backup, restore, and recovery](#backup-restore-and-recovery).
 
 #### The reported size of encrypted symlinks is wrong.
 
