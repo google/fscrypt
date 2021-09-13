@@ -44,6 +44,7 @@ native encryption.  See [Runtime dependencies](#runtime-dependencies).
 	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
   - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
 - [Backup, restore, and recovery](#backup-restore-and-recovery)
+- [Encrypting existing files](#encrypting-existing-files)
 - [Example usage](#example-usage)
   - [Setting up fscrypt on a directory](#setting-up-fscrypt-on-a-directory)
   - [Locking and unlocking a directory](#locking-and-unlocking-a-directory)
@@ -495,6 +496,57 @@ directories include the following:
 
 The auto-generated recovery passphrases should be enough for most users, though.
 
+## Encrypting existing files
+
+`fscrypt` isn't designed to encrypt existing files, as this presents significant
+technical challenges and usually is impossible to do securely.  Therefore,
+`fscrypt encrypt` only works on empty directories.
+
+Of course, it is still possible to create an encrypted directory, copy files
+into it, and delete the original files.  The `mv` command will even work, as it
+will fall back to a copy and delete ([except on older
+kernels](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)).
+However, beware that due to the characteristics of filesystems and storage
+devices, this may not properly protect the files, as their original contents may
+still be forensically recoverable from disk even after being deleted.  It's
+**much** better to encrypt files from the very beginning.
+
+There are only a few cases where copying files into an encrypted directory can
+really make sense, such as:
+
+* The source files are located on an in-memory filesystem such as `tmpfs`.
+
+* The confidentiality of the source files isn't important, e.g. they are
+  system default files and the user hasn't added any personal files yet.
+
+* The source files are protected by a different `fscrypt` policy, the old and
+  new policies are protected by only the same protector(s), and the old policy
+  uses similar strength encryption.
+
+If one of the above doesn't apply, then it's probably too late to securely
+encrypt your existing files.
+
+As a best-effort attempt, you can use the `shred` program to try to erase the
+original files.  Here are the recommended commands for "best-effort" encryption
+of an existing directory named "dir":
+
+```bash
+mkdir dir.new
+fscrypt encrypt dir.new
+cp -a -T dir dir.new
+find dir -type f -print0 | xargs -0 shred -n1 --remove=unlink
+rm -rf dir
+mv dir.new dir
+```
+
+However, beware that `shred` isn't guaranteed to be effective on all storage
+devices and filesystems.  For example, if you're using an SSD, "overwrites" of
+data typically go to new flash blocks, so they aren't really overwrites.
+
+Note: for reasons similar to the above, changed or removed `fscrypt` protectors
+aren't guaranteed to be forensically unrecoverable from disk either.  Thus, the
+use of weak or default passphrases should be avoided, even if changed later.
+
 ## Example usage
 
 All these examples assume there is an ext4 filesystem which supports
@@ -922,29 +974,20 @@ To avoid this issue, upgrade to Ubuntu 20.04 or later.
 
 #### Getting "Operation not permitted" when moving files into an encrypted directory
 
-This occurs when the kernel version is older than v5.1 and the source files are
-on the same filesystem and are either unencrypted or are in a different
-encrypted directory hierarchy.
+Originally, filesystems didn't return the correct error code when attempting to
+rename unencrypted files (or files with a different encryption policy) into an
+encrypted directory.  Specifically, they returned `EPERM` instead of `EXDEV`,
+which caused `mv` to fail rather than fall back to a copy as expected.
 
-Solution: copy the files instead, e.g. with `cp`.
+This bug was fixed in version 5.1 of the mainline Linux kernel, as well as in
+versions 4.4 and later of the LTS (Long Term Support) branches of the Linux
+kernel; specifically v4.19.155, 4.14.204, and v4.9.242, and v4.4.242.
 
-`mv` works on kernels v5.1 and later, since those kernels return the correct
-error code to make `mv` fall back to a copy itself.
+If the kernel can't be upgraded, this bug can be worked around by explicitly
+copying the files instead, e.g. with `cp`.
 
-__HOWEVER:__ in either case, it is important to realize that the original files
-may remain recoverable from free space on the disk after they are deleted.  It's
-much better to keep all files encrypted from the very beginning.
-
-As a last resort, the `shred` program may be used to try to overwrite the
-original files, e.g.:
-
-```shell
-cp file encrypted_dir/
-shred -u file
-```
-
-However, `shred` isn't guaranteed to be effective on all filesystems and storage
-devices.
+__IMPORTANT:__ Encrypting existing files can be insecure.  Before doing so, read
+[Encrypting existing files](#encrypting-existing-files).
 
 #### Getting "Package not installed" when trying to use an encrypted directory
 
