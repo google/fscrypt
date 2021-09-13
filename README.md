@@ -27,14 +27,14 @@ encryption. Ext4 has supported Linux filesystem encryption
 [added support in v4.10](https://lwn.net/Articles/707900). Other filesystems
 may add support for native encryption in the future. Filesystems may
 additionally require certain kernel configuration options to be set to use
-native encryption.  See [Runtime Dependencies](#runtime-dependencies).
+native encryption.  See [Runtime dependencies](#runtime-dependencies).
 
-## Table of Contents
+## Table of contents
 
 - [Other encryption solutions](#other-encryption-solutions)
 - [Features](#features)
-- [Building and Installing](#building-and-installing)
-- [Runtime Dependencies](#runtime-dependencies)
+- [Building and installing](#building-and-installing)
+- [Runtime dependencies](#runtime-dependencies)
 - [Configuration file](#configuration-file)
 - [Setting up for login protectors](#setting-up-for-login-protectors)
   - [Securing your login passphrase](#securing-your-login-passphrase)
@@ -44,7 +44,7 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
   - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
 - [Backup, restore, and recovery](#backup-restore-and-recovery)
-- [Example Usage](#example-usage)
+- [Example usage](#example-usage)
   - [Setting up fscrypt on a directory](#setting-up-fscrypt-on-a-directory)
   - [Locking and unlocking a directory](#locking-and-unlocking-a-directory)
   - [Protecting a directory with your login passphrase](#protecting-a-directory-with-your-login-passphrase)
@@ -54,15 +54,15 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 - [Contributing](#contributing)
 - [Troubleshooting](#troubleshooting)
   - [I changed my login passphrase, now all my directories are inaccessible](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
-  - [Directories using my login passphrase are not automatically unlocking.](#directories-using-my-login-passphrase-are-not-automatically-unlocking)
-  - [Getting "encryption not enabled" on an ext4 filesystem.](#getting-encryption-not-enabled-on-an-ext4-filesystem)
-  - [Getting "user keyring not linked into session keyring".](#getting-user-keyring-not-linked-into-session-keyring)
-  - [Getting "Operation not permitted" when moving files into an encrypted directory.](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
-  - [Getting "Package not installed" when trying to use an encrypted directory.](#getting-package-not-installed-when-trying-to-use-an-encrypted-directory)
-  - [Some processes can't access unlocked encrypted files.](#some-processes-cant-access-unlocked-encrypted-files)
-  - [Users can access other users' unlocked encrypted files.](#users-can-access-other-users-unlocked-encrypted-files)
+  - [Directories using my login passphrase are not automatically unlocking](#directories-using-my-login-passphrase-are-not-automatically-unlocking)
+  - [Getting "encryption not enabled" on an ext4 filesystem](#getting-encryption-not-enabled-on-an-ext4-filesystem)
+  - [Getting "user keyring not linked into session keyring"](#getting-user-keyring-not-linked-into-session-keyring)
+  - [Getting "Operation not permitted" when moving files into an encrypted directory](#getting-operation-not-permitted-when-moving-files-into-an-encrypted-directory)
+  - [Getting "Package not installed" when trying to use an encrypted directory](#getting-package-not-installed-when-trying-to-use-an-encrypted-directory)
+  - [Some processes can't access unlocked encrypted files](#some-processes-cant-access-unlocked-encrypted-files)
+  - [Users can access other users' unlocked encrypted files](#users-can-access-other-users-unlocked-encrypted-files)
   - [Getting "Required key not available" when backing up locked encrypted files](#getting-required-key-not-available-when-backing-up-locked-encrypted-files)
-  - [The reported size of encrypted symlinks is wrong.](#the-reported-size-of-encrypted-symlinks-is-wrong)
+  - [The reported size of encrypted symlinks is wrong](#the-reported-size-of-encrypted-symlinks-is-wrong)
 - [Legal](#legal)
 
 ## Other encryption solutions
@@ -143,7 +143,7 @@ Concretely, `fscrypt` contains the following functionality:
 See the example usage section below or run `fscrypt COMMAND --help` for more
 information about each of the commands.
 
-## Building and Installing
+## Building and installing
 
 `fscrypt` has a minimal set of build dependencies:
 *   [Go](https://golang.org/doc/install) 1.11 or higher. Older versions may work
@@ -188,7 +188,7 @@ go get github.com/google/fscrypt/cmd/fscrypt
 
 See the `Makefile` for instructions on how to further customize the build.
 
-## Runtime Dependencies
+## Runtime dependencies
 
 To run, `fscrypt` needs the following libraries:
 *   `libpam.so` (almost certainly already on your system)
@@ -495,7 +495,7 @@ directories include the following:
 
 The auto-generated recovery passphrases should be enough for most users, though.
 
-## Example Usage
+## Example usage
 
 All these examples assume there is an ext4 filesystem which supports
 encryption mounted at `/mnt/disk`.  See
@@ -549,7 +549,7 @@ POLICY                            UNLOCKED  PROTECTORS
 16382f282d7b29ee27e6460151d03382  Yes       7626382168311a9d
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> sudo fscrypt setup --quiet --force
 >>>>> fscrypt setup /mnt/disk --quiet
@@ -611,7 +611,7 @@ PROTECTOR         LINKED  DESCRIPTION
 Hello World
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> fscrypt lock /mnt/disk/dir1 --quiet
 >>>>> echo "hunter2" | fscrypt unlock /mnt/disk/dir1 --quiet
@@ -665,7 +665,7 @@ PROTECTOR         LINKED  DESCRIPTION
 6891f0a901f0065e  No      login protector for joerichey
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> mkdir /mnt/disk/dir2
 >>>>> echo "password" | fscrypt encrypt /mnt/disk/dir2 --source=pam_passphrase --quiet
@@ -693,7 +693,7 @@ Confirm passphrase:
 Passphrase for protector 7626382168311a9d successfully changed.
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> printf "hunter2\nhunter3" | fscrypt metadata change-passphrase --protector=/mnt/disk:7626382168311a9d --quiet
 ```
@@ -743,7 +743,7 @@ Enter key file for protector "Skeleton": secret.key
 "/mnt/disk/dir3" is now encrypted, unlocked, and ready for use.
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> head --bytes=32 /dev/urandom > secret.key
 >>>>> fscrypt encrypt /mnt/disk/dir3 --key=secret.key --source=raw_key --name=Skeleton
@@ -814,7 +814,7 @@ Stop protecting policy 16382f282d7b29ee27e6460151d03382 with protector 2c75f519b
 Protector 2c75f519b9c9959d no longer protecting policy 16382f282d7b29ee27e6460151d03382.
 ```
 
-#### Quiet Version
+#### Quiet version
 ```bash
 >>>>> echo "hunter2" | fscrypt metadata add-protector-to-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382 --key=secret.key --quiet
 >>>>> fscrypt metadata remove-protector-from-policy --protector=/mnt/disk:2c75f519b9c9959d --policy=/mnt/disk:16382f282d7b29ee27e6460151d03382 --quiet --force
@@ -850,7 +850,7 @@ To fix a user's login protector, find the corresponding protector ID by running
 fscrypt metadata change-passphrase --protector=/:ID
 ```
 
-#### Directories using my login passphrase are not automatically unlocking.
+#### Directories using my login passphrase are not automatically unlocking
 
 First, directories won't unlock if your session starts without password
 authentication.  The most common case of this is public-key ssh login.  To
@@ -864,7 +864,7 @@ necessary, [manually change your login protector's
 passphrase](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
 to get it back in sync with your actual login passphrase.
 
-#### Getting "encryption not enabled" on an ext4 filesystem.
+#### Getting "encryption not enabled" on an ext4 filesystem
 
 This is usually caused by your ext4 filesystem not having the `encrypt` feature
 flag enabled.  The `encrypt` feature flag allows the filesystem to contain
@@ -911,16 +911,16 @@ fsck -fn /dev/device
 
 If you've enabled `encrypt` but you still get the "encryption not enabled"
 error, then the problem is that ext4 encryption isn't enabled in your kernel
-config.  See [Runtime Dependencies](#runtime-dependencies) for how to enable it.
+config.  See [Runtime dependencies](#runtime-dependencies) for how to enable it.
 
-#### Getting "user keyring not linked into session keyring".
+#### Getting "user keyring not linked into session keyring"
 
 Some older versions of Ubuntu didn't link the user keyring into the session
 keyring, which caused problems with `fscrypt`.
 
 To avoid this issue, upgrade to Ubuntu 20.04 or later.
 
-#### Getting "Operation not permitted" when moving files into an encrypted directory.
+#### Getting "Operation not permitted" when moving files into an encrypted directory
 
 This occurs when the kernel version is older than v5.1 and the source files are
 on the same filesystem and are either unencrypted or are in a different
@@ -946,7 +946,7 @@ shred -u file
 However, `shred` isn't guaranteed to be effective on all filesystems and storage
 devices.
 
-#### Getting "Package not installed" when trying to use an encrypted directory.
+#### Getting "Package not installed" when trying to use an encrypted directory
 
 Trying to create or open an encrypted file will fail with `ENOPKG` ("Package not
 installed") when the kernel doesn't support one or more of the cryptographic
@@ -962,7 +962,7 @@ configuration.  See the [kernel
 documentation](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html#encryption-modes-and-usage)
 for details about which option(s) are required for each encryption mode.
 
-#### Some processes can't access unlocked encrypted files.
+#### Some processes can't access unlocked encrypted files
 
 This issue is caused by a limitation in the original design of Linux filesystem
 encryption which made it difficult to ensure that all processes can access
@@ -1026,7 +1026,7 @@ policy version 2.  However, this has some limitations, and the same kernel and
 `fscrypt` prerequisites still apply for this option to take effect.  It is
 recommended to upgrade your directories to policy version 2 instead.
 
-#### Users can access other users' unlocked encrypted files.
+#### Users can access other users' unlocked encrypted files
 
 This is working as intended.  When an encrypted directory is unlocked (or
 locked), it is unlocked (or locked) for all users.  Encryption is not access
@@ -1061,7 +1061,7 @@ running under different user IDs -- even if it may not be immediately apparent.
 Encrypted files can't be backed up while locked; you need to unlock them first.
 For details, see [Backup, restore, and recovery](#backup-restore-and-recovery).
 
-#### The reported size of encrypted symlinks is wrong.
+#### The reported size of encrypted symlinks is wrong
 
 Traditionally, filesystems didn't conform to POSIX when reporting the size of
 encrypted symlinks, as they gave the size of the ciphertext symlink target
