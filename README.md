@@ -43,7 +43,6 @@ native encryption.  See [Runtime Dependencies](#runtime-dependencies).
 	- [Enabling the PAM module on Arch Linux](#enabling-the-pam-module-on-arch-linux)
 	- [Enabling the PAM module on other Linux distros](#enabling-the-pam-module-on-other-linux-distros)
   - [Allowing `fscrypt` to check your login passphrase](#allowing-fscrypt-to-check-your-login-passphrase)
-- [Note about stability](#note-about-stability)
 - [Example Usage](#example-usage)
   - [Setting up fscrypt on a directory](#setting-up-fscrypt-on-a-directory)
   - [Locking and unlocking a directory](#locking-and-unlocking-a-directory)
@@ -438,15 +437,6 @@ file `/etc/pam.d/fscrypt` containing:
 ```
 auth        required    pam_unix.so
 ```
-
-## Note about stability
-
-`fscrypt` follows [semantic versioning](http://semver.org). As such, all
-versions below `1.0.0` should be considered development versions. This means no
-guarantees are make about the stability of APIs or formats of config files. As
-the on-disk metadata structures use [Protocol
-Buffers](https://github.com/google/protobuf), we don't expect to break backwards
-compatibility for metadata, but we give no guarantees.
 
 ## Example Usage
 
