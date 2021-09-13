@@ -139,11 +139,6 @@ Concretely, `fscrypt` contains the following functionality:
 *   `fscrypt status [PATH]` - Gets detailed info about filesystems or paths
 *   `fscrypt metadata` - Manages policies or protectors directly
 
-The following functionality is planned:
-*   `fscrypt backup` - Manages backups of the `fscrypt` metadata
-*   `fscrypt recovery` - Manages recovery keys for directories
-*   `fscrypt cleanup` - Scans filesystem for unused policies/protectors
-
 See the example usage section below or run `fscrypt COMMAND --help` for more
 information about each of the commands.
 
