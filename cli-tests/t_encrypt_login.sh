@@ -50,8 +50,6 @@ expect "Enter the source number for the new protector"
 send "1\r"
 expect "Enter login passphrase"
 send "TEST_USER_PASS\r"
-expect "Protector is on a different filesystem! Generate a recovery passphrase (recommended)?"
-send "y\r"
 expect eof
 EOF
 show_status true

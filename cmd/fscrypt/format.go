@@ -65,7 +65,7 @@ func init() {
 
 	// We use the width of the terminal unless we cannot get the width.
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
+	if err != nil || width <= 0 {
 		lineLength = fallbackLineLength
 	} else {
 		lineLength = util.MinInt(width, maxLineLength)

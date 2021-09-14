@@ -174,7 +174,7 @@ var (
 	}
 	noRecoveryFlag = &boolFlag{
 		Name:  "no-recovery",
-		Usage: `Don't ask to generate a recovery passphrase.`,
+		Usage: `Don't generate a recovery passphrase.`,
 	}
 )
 
