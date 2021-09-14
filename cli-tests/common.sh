@@ -30,7 +30,6 @@ fi
 # Prints an error message, then fails the test by exiting with failure status.
 _fail()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
 	echo 1>&2 "ERROR: $1"
 	exit 1
 }
@@ -38,7 +37,6 @@ _fail()
 # Runs a shell command and expects that it fails.
 _expect_failure()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
 	if eval "$1"; then
 		_fail "command unexpectedly succeeded: \"$1\""
 	fi
@@ -47,7 +45,6 @@ _expect_failure()
 # Prints a message to mark the beginning of the next part of the test.
 _print_header()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
 	echo
 	echo "# $1"
 }
@@ -58,8 +55,6 @@ _reset_filesystems()
 {
 	local mnt
 
-	[ $# -ne 0 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	for mnt in "$MNT" "$MNT_ROOT"; do
 		rm -rf "${mnt:?}"/* "${mnt:?}"/.fscrypt/{policies,protectors}/*
 	done
@@ -69,8 +64,6 @@ _reset_filesystems()
 _get_enabled_fs_count()
 {
 	local count
-
-	[ $# -ne 0 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
 
 	count=$(fscrypt status | awk '/filesystems supporting encryption/ { print $4 }')
 	if [ -z "$count" ]; then
@@ -84,8 +77,6 @@ _get_setup_fs_count()
 {
 	local count
 
-	[ $# -ne 0 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	count=$(fscrypt status | awk '/filesystems with fscrypt metadata/ { print $5 }')
 	if [ -z "$count" ]; then
 		_fail "fscrypt metadata status line not found"
@@ -96,8 +87,6 @@ _get_setup_fs_count()
 # Removes all fscrypt metadata from the given filesystem.
 _rm_metadata()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	rm -r "${1:?}/.fscrypt"
 }
 
@@ -105,8 +94,6 @@ _rm_metadata()
 # If the command fails, prints its output and fails the test.
 _run_noisy_command()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	if ! eval "$1" &> "$TMPDIR/out"; then
 		_fail "Command failed: '$1'.  Output was: $(cat "$TMPDIR/out")"
 	fi
@@ -115,16 +102,12 @@ _run_noisy_command()
 # Runs the given shell command as the test user.
 _user_do()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	su "$TEST_USER" --shell=/bin/bash --command="export PATH='$PATH'; $1"
 }
 
 # Runs the given shell command as the test user and expects it to fail.
 _user_do_and_expect_failure()
 {
-	[ $# -ne 1 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	_expect_failure "_user_do '$1'"
 }
 
@@ -145,8 +128,6 @@ _cleanup_user_keyrings()
 # called at the beginning of the test script as it may re-execute the script.
 _setup_session_keyring()
 {
-	[ $# -ne 0 ] && _fail "wrong argument count to ${FUNCNAME[0]}"
-
 	# This *should* just use 'keyctl new_session', but that doesn't work if
 	# the session keyring is owned by a user other than root.  So instead we
 	# have to use 'keyctl session' and re-execute the script.
