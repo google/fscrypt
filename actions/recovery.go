@@ -86,7 +86,8 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 // file.  This file should initially be located in the encrypted directory
 // protected by the passphrase itself.  It's up to the user to store the
 // passphrase in a different location if they actually need it.
-func WriteRecoveryInstructions(recoveryPassphrase *crypto.Key, path string) error {
+func WriteRecoveryInstructions(recoveryPassphrase *crypto.Key, recoveryProtector *Protector,
+	policy *Policy, path string) error {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
@@ -101,9 +102,22 @@ It did this because you chose to protect this directory with your login
 passphrase, but this directory is not on the root filesystem.
 
 Copy this passphrase to a safe place if you want to still be able to unlock this
-directory if you re-install your system or connect this storage media to a
-different system (which would result in your login protector being lost).
-`, recoveryPassphrase.Data())
+directory if you re-install the operating system or connect this storage media
+to a different system (which would result in your login protector being lost).
+
+To unlock this directory using this recovery passphrase, run 'fscrypt unlock'
+and select the protector named %q.
+
+If you want to disable recovery passphrase generation (not recommended),
+re-create this directory and pass the --no-recovery option to 'fscrypt encrypt'.
+Alternatively, you can remove this recovery passphrase protector using:
+
+    fscrypt metadata remove-protector-from-policy --force --protector=%s:%s --policy=%s:%s
+
+It is safe to keep it around though, as the recovery passphrase is high-entropy.
+`, recoveryPassphrase.Data(), recoveryProtector.data.Name,
+		recoveryProtector.Context.Mount.Path, recoveryProtector.data.ProtectorDescriptor,
+		policy.Context.Mount.Path, policy.data.KeyDescriptor)
 	if _, err = file.WriteString(str); err != nil {
 		return err
 	}

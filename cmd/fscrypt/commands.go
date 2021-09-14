@@ -175,6 +175,26 @@ func validateKeyringPrereqs(ctx *actions.Context, policy *actions.Policy) error 
 	return nil
 }
 
+func writeRecoveryInstructions(recoveryPassphrase *crypto.Key, recoveryProtector *actions.Protector,
+	policy *actions.Policy, dirPath string) error {
+	if recoveryPassphrase == nil {
+		return nil
+	}
+	recoveryFile := filepath.Join(dirPath, "fscrypt_recovery_readme.txt")
+	if err := actions.WriteRecoveryInstructions(recoveryPassphrase, recoveryProtector,
+		policy, recoveryFile); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf(`See %q for important recovery instructions.
+	It is *strongly recommended* to record the recovery passphrase in a
+	secure location; otherwise you will lose access to this directory if you
+	reinstall the operating system or move this filesystem to another
+	system.`, recoveryFile)
+	hdr := "IMPORTANT: "
+	fmt.Print("\n" + hdr + wrapText(msg, len(hdr)) + "\n\n")
+	return nil
+}
+
 // encryptPath sets up encryption on path and provisions the policy to the
 // keyring unless --skip-unlock is used. On failure, an error is returned, any
 // metadata creation is reverted, and the directory is unmodified.
@@ -193,6 +213,7 @@ func encryptPath(path string) (err error) {
 
 	var policy *actions.Policy
 	var recoveryPassphrase *crypto.Key
+	var recoveryProtector *actions.Protector
 	if policyFlag.Value != "" {
 		log.Printf("getting policy for %q", path)
 
@@ -241,17 +262,8 @@ func encryptPath(path string) (err error) {
 			}
 		}()
 
-		// Ask to generate a recovery passphrase if the protector is on
-		// a different filesystem from the policy.  In practice, this
-		// happens for login passphrase-protected directories that
-		// aren't on the root filesystem, since login protectors are
-		// always stored on the root filesystem.
-		var needRecovery bool
+		// Generate a recovery passphrase if needed.
 		if ctx.Mount != protector.Context.Mount && !noRecoveryFlag.Value {
-			needRecovery, err = askQuestion("Protector is on a different filesystem! Generate a recovery passphrase (recommended)?", true)
-		}
-		if needRecovery {
-			var recoveryProtector *actions.Protector
 			if recoveryPassphrase, recoveryProtector, err = actions.AddRecoveryPassphrase(
 				policy, filepath.Base(path)); err != nil {
 				return
@@ -286,14 +298,7 @@ func encryptPath(path string) (err error) {
 	if err = policy.Apply(path); err != nil {
 		return
 	}
-	if recoveryPassphrase != nil {
-		recoveryFile := filepath.Join(path, "fscrypt_recovery_readme.txt")
-		if err = actions.WriteRecoveryInstructions(recoveryPassphrase, recoveryFile); err != nil {
-			return
-		}
-		fmt.Printf("See %q for important recovery instructions!\n", recoveryFile)
-	}
-	return
+	return writeRecoveryInstructions(recoveryPassphrase, recoveryProtector, policy, path)
 }
 
 // checkEncryptable returns an error if the path cannot be encrypted.

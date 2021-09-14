@@ -1,6 +1,12 @@
 
 # Encrypt with login protector
-See "MNT/dir/fscrypt_recovery_readme.txt" for important recovery instructions!
+
+IMPORTANT: See "MNT/dir/fscrypt_recovery_readme.txt" for
+           important recovery instructions. It is *strongly recommended* to
+           record the recovery passphrase in a secure location; otherwise you
+           will lose access to this directory if you reinstall the operating
+           system or move this filesystem to another system.
+
 ext4 filesystem "MNT" has 2 protectors and 1 policy
 
 PROTECTOR         LINKED                              DESCRIPTION
@@ -43,8 +49,13 @@ IMPORTANT: Before continuing, ensure you have properly set up your system for
            https://github.com/google/fscrypt#setting-up-for-login-protectors
 
 Enter login passphrase for fscrypt-test-user: 
-Protector is on a different filesystem! Generate a recovery passphrase (recommended)? [Y/n] y
-See "MNT/dir/fscrypt_recovery_readme.txt" for important recovery instructions!
+
+IMPORTANT: See "MNT/dir/fscrypt_recovery_readme.txt" for
+           important recovery instructions. It is *strongly recommended* to
+           record the recovery passphrase in a secure location; otherwise you
+           will lose access to this directory if you reinstall the operating
+           system or move this filesystem to another system.
+
 "MNT/dir" is now encrypted, unlocked, and ready for use.
 ext4 filesystem "MNT" has 2 protectors and 1 policy
 
@@ -70,7 +81,13 @@ desc10  Yes (MNT_ROOT)  login protector for fscrypt-test-user
 desc11  No                                  custom protector "Recovery passphrase for dir"
 
 # Encrypt with login protector as root
-See "MNT/dir/fscrypt_recovery_readme.txt" for important recovery instructions!
+
+IMPORTANT: See "MNT/dir/fscrypt_recovery_readme.txt" for
+           important recovery instructions. It is *strongly recommended* to
+           record the recovery passphrase in a secure location; otherwise you
+           will lose access to this directory if you reinstall the operating
+           system or move this filesystem to another system.
+
 ext4 filesystem "MNT" has 2 protectors and 1 policy
 
 PROTECTOR         LINKED                              DESCRIPTION

@@ -474,14 +474,19 @@ via a login protector if the operating system is reinstalled or if the disk is
 connected to another system** -- even if the new system uses the same login
 passphrase for the user.
 
-Because of this, `fscrypt encrypt` will offer to generate a recovery passphrase
-when creating a login passphrase-protected directory on a non-root filesystem.
-The recovery passphrase is simply a `custom_passphrase` protector with a
-randomly generated high-entropy passphrase.  It is strongly recommended to
-accept the prompt to generate the recovery passphrase, then store the recovery
-passphrase in a secure location.  Then, if ever needed, you can use `fscrypt
-unlock` to unlock the directory with the recovery passphrase (by choosing the
-recovery protector instead of the login protector).
+Because of this, `fscrypt encrypt` will automatically generate a recovery
+passphrase when creating a login passphrase-protected directory on a non-root
+filesystem.  The recovery passphrase is simply a `custom_passphrase` protector
+with a randomly generated high-entropy passphrase.  Initially, the recovery
+passphrase is stored in a file in the encrypted directory itself; therefore, to
+use it you **must** record it in another secure location.  It is strongly
+recommended to do this.  Then, if ever needed, you can use `fscrypt unlock` to
+unlock the directory with the recovery passphrase (by choosing the recovery
+protector instead of the login protector).
+
+If you really want to disable the generation of a recovery passphrase, use the
+`--no-recovery` option.  Only do this if you really know what you are doing and
+are prepared for potential data loss.
 
 Alternative approaches to supporting recovery of login passphrase-protected
 directories include the following:
@@ -493,7 +498,7 @@ directories include the following:
   Note that after restoring the `/.fscrypt` directory, unlocking the login
   protectors will require the passphrases they had at the time the backup was
   made **even if they were changed later**, so make sure to remember these
-  passphrase(s) or store them in a secure location.  Also note that if the UUID
+  passphrase(s) or record them in a secure location.  Also note that if the UUID
   of the root filesystem changed, you will need to manually fix the UUID in any
   `.fscrypt/protectors/*.link` files on other filesystems.
 
