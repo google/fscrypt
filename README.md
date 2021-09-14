@@ -490,9 +490,12 @@ directories include the following:
   `fscrypt metadata add-protector-to-policy`.
 
 * Backing up and restoring the `/.fscrypt` directory on the root filesystem.
-  Note that after restore, if the UUID of the root filesystem changed, you will
-  need to manually fix the UUID in any `.fscrypt/protectors/*.link` files on
-  other filesystems.
+  Note that after restoring the `/.fscrypt` directory, unlocking the login
+  protectors will require the passphrases they had at the time the backup was
+  made **even if they were changed later**, so make sure to remember these
+  passphrase(s) or store them in a secure location.  Also note that if the UUID
+  of the root filesystem changed, you will need to manually fix the UUID in any
+  `.fscrypt/protectors/*.link` files on other filesystems.
 
 The auto-generated recovery passphrases should be enough for most users, though.
 
