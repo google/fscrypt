@@ -539,8 +539,10 @@ func isPossibleNoKeyName(filename string) bool {
 	if len(filename) < 22 {
 		return false
 	}
-	// No-key names contain only base64 characters and underscore.
-	validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+,_"
+	// On the latest kernels, no-key names contain only base64url characters
+	// (A-Z, a-z, 0-9, -, and _).  On older kernels, the + and , characters
+	// were used too.  Allow all of these characters.
+	validChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_+,"
 	for _, char := range filename {
 		if !strings.ContainsRune(validChars, char) {
 			return false
