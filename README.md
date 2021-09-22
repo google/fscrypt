@@ -984,7 +984,7 @@ which caused `mv` to fail rather than fall back to a copy as expected.
 
 This bug was fixed in version 5.1 of the mainline Linux kernel, as well as in
 versions 4.4 and later of the LTS (Long Term Support) branches of the Linux
-kernel; specifically v4.19.155, 4.14.204, and v4.9.242, and v4.4.242.
+kernel; specifically v4.19.155, 4.14.204, v4.9.242, and v4.4.242.
 
 If the kernel can't be upgraded, this bug can be worked around by explicitly
 copying the files instead, e.g. with `cp`.
@@ -1109,15 +1109,16 @@ For details, see [Backup, restore, and recovery](#backup-restore-and-recovery).
 
 #### The reported size of encrypted symlinks is wrong
 
-Traditionally, filesystems didn't conform to POSIX when reporting the size of
+Originally, filesystems didn't conform to POSIX when reporting the size of
 encrypted symlinks, as they gave the size of the ciphertext symlink target
 rather than the size of the plaintext target.  This would make the reported size
 of symlinks appear to be slightly too large when queried using ``lstat()`` or
 similar system calls.  Most programs don't care about this, but in rare cases
 programs can depend on the filesystem reporting symlink sizes correctly.
 
-This bug has been fixed in Linux kernel v5.15 and later.  Now, filesystems
-always report the correct symlink size.
+This bug was fixed in version 5.15 of the mainline Linux kernel, as well as in
+versions 4.19 and later of the LTS (Long Term Support) branches of the Linux
+kernel; specifically v5.10.63, v5.4.145, and v4.19.207.
 
 If the kernel can't be upgraded, the only workaround for this bug is to update
 any affected programs to not depend on symlink sizes being reported correctly.
