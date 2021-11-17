@@ -49,7 +49,8 @@ var testConfigString = `{
 		"filenames": "AES_256_CTS",
 		"policy_version": "1"
 	},
-	"use_fs_keyring_for_v1_policies": false
+	"use_fs_keyring_for_v1_policies": false,
+	"metadata_dir": ""
 }
 `
 
@@ -103,6 +104,9 @@ func TestOptionalFields(t *testing.T) {
 	}
 	if cfg.GetUseFsKeyringForV1Policies() {
 		t.Error("use_fs_keyring_for_v1_policies should be false, but was true")
+	}
+	if cfg.GetMetadataDir() != "" {
+		t.Errorf("metadata_dir should be empty, but was %s", cfg.GetMetadataDir())
 	}
 	if cfg.Options.PolicyVersion != 0 {
 		t.Errorf("policy version should be 0, but was %d", cfg.Options.PolicyVersion)

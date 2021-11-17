@@ -1,0 +1,19 @@
+
+# fscrypt setup filesystem
+Metadata directories created at "MNT_ROOT/fscrypt_metadata/.fscrypt".
+
+# fscrypt encrypt directory
+policies
+protectors
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Lock directory
+"MNT/dir" is now locked.

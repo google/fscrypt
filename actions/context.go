@@ -72,6 +72,7 @@ func NewContextFromPath(path string, targetUser *user.User) (*Context, error) {
 	if ctx.Mount, err = filesystem.FindMount(path); err != nil {
 		return nil, err
 	}
+	ctx.Mount.MetadataPath = ctx.Config.MetadataDir
 
 	log.Printf("%s is on %s filesystem %q (%s)", path,
 		ctx.Mount.FilesystemType, ctx.Mount.Path, ctx.Mount.Device)
@@ -90,6 +91,7 @@ func NewContextFromMountpoint(mountpoint string, targetUser *user.User) (*Contex
 	if ctx.Mount, err = filesystem.GetMount(mountpoint); err != nil {
 		return nil, err
 	}
+	ctx.Mount.MetadataPath = ctx.Config.MetadataDir
 
 	log.Printf("found %s filesystem %q (%s)", ctx.Mount.FilesystemType,
 		ctx.Mount.Path, ctx.Mount.Device)

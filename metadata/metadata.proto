@@ -99,6 +99,7 @@ message Config {
   HashingCosts hash_costs = 2;
   EncryptionOptions options = 4;
   bool use_fs_keyring_for_v1_policies = 5;
+  string metadata_dir = 6;
 
   // reserve the removed field 'string compatibility = 3;'
   reserved 3;

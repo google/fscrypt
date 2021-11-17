@@ -253,6 +253,7 @@ that looks like the following:
 		"policy_version": "2"
 	},
 	"use_fs_keyring_for_v1_policies": false
+	"metadata_dir": ""
 }
 ```
 
@@ -309,6 +310,10 @@ The fields are:
   compatible with older kernels.  If you don't need compatibility with older
   kernels, it's better to not use this setting and instead (re-)create your
   encrypted directories with `"policy_version": "2"`.
+
+* "metadata_dir" specifies a path to store the fscrypt metadata directory
+  (.fscrypt). This is useful if you want to put this outside
+  of any filesystem or directory configured for encryption.
 
 ## Setting up for login protectors
 
@@ -456,15 +461,18 @@ copy the contents of the source directory into it.
 
 For directories protected by a `custom_passphrase` or `raw_key` protector, all
 metadata needed to unlock the directory (excluding the actual passphrase or raw
-key, of course) is located in the `.fscrypt` directory at the root of the
-filesystem that contains the encrypted directory.  For example, if you have an
-encrypted directory `/home/$USER/private` that is protected by a custom
+key, of course) is located by default in the `.fscrypt` directory at the root
+of the filesystem that contains the encrypted directory.  For example, if you
+have an encrypted directory `/home/$USER/private` that is protected by a custom
 passphrase, all `fscrypt` metadata needed to unlock the directory with that
-custom passphrase will be located in `/home/.fscrypt` if you are using a
-dedicated `/home` filesystem or in `/.fscrypt` if you aren't.  If desired, you
-can back up the `fscrypt` metadata by making a copy of this directory, although
-this isn't too important since this metadata is located on the same filesystem
-as the encrypted directory(s).
+custom passphrase will be located by default in `/home/.fscrypt` if you are
+using a dedicated `/home` filesystem or in `/.fscrypt` if you aren't.
+Alternately, you can specify a different location for fscrypt metadata by
+setting the `"metadata_dir"` field in the [Configuration
+file](#configuration-file).
+If desired, you can back up the `fscrypt` metadata by making a copy of this
+directory, although this isn't too important since this metadata is located on
+the same filesystem as the encrypted directory(s).
 
 `pam_passphrase` (login passphrase) protectors are a bit different as they are
 always stored on the root filesystem, in `/.fscrypt`.  This ties them to the

@@ -148,6 +148,8 @@ var SortDescriptorsByLastMtime = false
 //			 "/", meaning that the entire filesystem is mounted, but
 //			 it can differ for bind mounts.
 //	ReadOnly       - True if this is a read-only mount
+//	MetadataPath   - Absolute path to store metadata information, if
+//			 different from mountpoint.
 //
 // In order to use a Mount to store fscrypt metadata, some directories must be
 // setup first. Specifically, the directories created look like:
@@ -176,6 +178,7 @@ type Mount struct {
 	DeviceNumber   DeviceNumber
 	Subtree        string
 	ReadOnly       bool
+	MetadataPath   string
 }
 
 // PathSorter allows mounts to be sorted by Path.
@@ -211,7 +214,12 @@ func (m *Mount) String() string {
 
 // BaseDir returns the path to the base fscrypt directory for this filesystem.
 func (m *Mount) BaseDir() string {
-	rawBaseDir := filepath.Join(m.Path, baseDirName)
+	rawBaseDir := ""
+	if m.MetadataPath != "" {
+		rawBaseDir = filepath.Join(m.MetadataPath, baseDirName)
+	} else {
+		rawBaseDir = filepath.Join(m.Path, baseDirName)
+	}
 	// We allow the base directory to be a symlink, but some callers need
 	// the real path, so dereference the symlink here if needed. Since the
 	// directory the symlink points to may not exist yet, we have to read
