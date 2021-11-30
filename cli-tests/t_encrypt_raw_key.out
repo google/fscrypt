@@ -1,5 +1,5 @@
 
-# Encrypt with raw_key protector
+# Encrypt with raw_key protector from file
 ext4 filesystem "MNT" has 1 protector and 1 policy
 
 PROTECTOR         LINKED  DESCRIPTION
@@ -17,9 +17,53 @@ Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      raw key protector "prot"
 
-# Try to encrypt with raw_key protector, using wrong key length
+# Encrypt with raw_key protector from stdin
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc6  No      raw key protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc7  Yes       desc6
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc7
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc6  No      raw key protector "prot"
+
+# Try to encrypt with raw_key protector from file, using wrong key length
 [ERROR] fscrypt encrypt: TMPDIR/raw_key: key file must be 32 bytes
 ext4 filesystem "MNT" has 0 protectors and 0 policies
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
+
+# Try to encrypt with raw_key protector from stdin, using wrong key length
+[ERROR] fscrypt encrypt: unexpected EOF
+ext4 filesystem "MNT" has 0 protectors and 0 policies
+
+[ERROR] fscrypt status: file or directory "MNT/dir" is not
+                        encrypted
+
+# Encrypt with raw_key protector from file, unlock from stdin
+"MNT/dir" is now locked.
+ext4 filesystem "MNT" has 1 protector and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc11  No      raw key protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc12  Yes       desc11
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc12
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Unlocked: Yes
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc11  No      raw key protector "prot"

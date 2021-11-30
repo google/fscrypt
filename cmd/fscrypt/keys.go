@@ -22,6 +22,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"log"
@@ -106,6 +107,33 @@ func getPassphraseKey(prompt string) (*crypto.Key, error) {
 	return crypto.NewKeyFromReader(passphraseReader{})
 }
 
+func makeRawKey(info actions.ProtectorInfo) (*crypto.Key, error) {
+	// When running non-interactively and no key was provided,
+	// try to read it from stdin
+	if keyFileFlag.Value == "" && !term.IsTerminal(stdinFd) {
+		return crypto.NewFixedLengthKeyFromReader(bufio.NewReader(os.Stdin),
+			metadata.InternalKeyLen)
+	}
+
+	prompt := fmt.Sprintf("Enter key file for protector %q: ", info.Name())
+	// Raw keys use a file containing the key data.
+	file, err := promptForKeyFile(prompt)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if fileInfo.Size() != metadata.InternalKeyLen {
+		return nil, errors.Wrap(ErrKeyFileLength, file.Name())
+	}
+	return crypto.NewFixedLengthKeyFromReader(file, metadata.InternalKeyLen)
+}
+
 // makeKeyFunc creates an actions.KeyFunc. This function customizes the KeyFunc
 // to whether or not it supports retrying, whether it confirms the passphrase,
 // and custom prefix for printing (if any).
@@ -179,23 +207,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			if prefix != "" {
 				return nil, ErrNotPassphrase
 			}
-			prompt := fmt.Sprintf("Enter key file for protector %q: ", info.Name())
-			// Raw keys use a file containing the key data.
-			file, err := promptForKeyFile(prompt)
-			if err != nil {
-				return nil, err
-			}
-			defer file.Close()
-
-			fileInfo, err := file.Stat()
-			if err != nil {
-				return nil, err
-			}
-
-			if fileInfo.Size() != metadata.InternalKeyLen {
-				return nil, errors.Wrap(ErrKeyFileLength, file.Name())
-			}
-			return crypto.NewFixedLengthKeyFromReader(file, metadata.InternalKeyLen)
+			return makeRawKey(info)
 
 		default:
 			return nil, ErrInvalidSource
