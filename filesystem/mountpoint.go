@@ -191,7 +191,8 @@ func addUncontainedSubtreesRecursive(dst map[string]bool,
 // Then, we choose one of these trees which contains (exactly or via path
 // prefix) *all* mnt.Subtree.  We then return the root of this tree.  In both
 // the above examples, this algorithm returns the first Mount.
-func findMainMount(filesystemMounts []*Mount) *Mount {
+func findMainMount(filesystemMounts []*Mount, lookuppath string) *Mount {
+	metadataPath := ""
 	// Index this filesystem's mounts by path.  Note: paths are unique here,
 	// since non-last mounts were already excluded earlier.
 	//
@@ -240,6 +241,14 @@ func findMainMount(filesystemMounts []*Mount) *Mount {
 		uncontainedSubtrees := make(map[string]bool)
 		addUncontainedSubtreesRecursive(uncontainedSubtrees, mntNode, allUncontainedSubtrees)
 		if len(uncontainedSubtrees) != len(allUncontainedSubtrees) {
+			if mnt.Subtree == "/"+baseDirName && !allSubtrees["/"] {
+				metadataPath = mnt.Path
+			} else if len(lookuppath) > 0 &&
+				(mainMount == nil || mainMount.ReadOnly ||
+					(strings.HasPrefix(lookuppath, mnt.Path) &&
+						(len(lookuppath) == len(mnt.Path) || lookuppath[len(mnt.Path)] == '/'))) {
+				mainMount = mnt
+			}
 			continue
 		}
 		// If there's more than one eligible mount, they should have the
@@ -250,15 +259,25 @@ func findMainMount(filesystemMounts []*Mount) *Mount {
 			return nil
 		}
 		// Prefer a read-write mount to a read-only one.
-		if mainMount == nil || mainMount.ReadOnly {
+		if filepath.Base(mnt.Path) != baseDirName &&
+			(mainMount == nil || mainMount.ReadOnly ||
+				(len(lookuppath) > 0 && strings.HasPrefix(lookuppath, mnt.Path) &&
+					(len(lookuppath) == len(mnt.Path) || lookuppath[len(mnt.Path)] == '/'))) {
 			mainMount = mnt
 		}
+
+		if filepath.Base(mnt.Path) == baseDirName {
+			metadataPath = mnt.Path
+		}
+	}
+	if mainMount != nil {
+		mainMount.MetadataPath = metadataPath
 	}
 	return mainMount
 }
 
 // This is separate from loadMountInfo() only for unit testing.
-func readMountInfo(r io.Reader) error {
+func readMountInfo(r io.Reader, path string) error {
 	mountsByPath := make(map[string]*Mount)
 	mountsByDevice = make(map[DeviceNumber]*Mount)
 
@@ -292,21 +311,21 @@ func readMountInfo(r io.Reader) error {
 			append(allMountsByDevice[mnt.DeviceNumber], mnt)
 	}
 	for deviceNumber, filesystemMounts := range allMountsByDevice {
-		mountsByDevice[deviceNumber] = findMainMount(filesystemMounts)
+		mountsByDevice[deviceNumber] = findMainMount(filesystemMounts, path)
 	}
 	return nil
 }
 
 // loadMountInfo populates the Mount mappings by parsing /proc/self/mountinfo.
 // It returns an error if the Mount mappings cannot be populated.
-func loadMountInfo() error {
+func loadMountInfo(path string) error {
 	if !mountsInitialized {
 		file, err := os.Open("/proc/self/mountinfo")
 		if err != nil {
 			return err
 		}
 		defer file.Close()
-		if err := readMountInfo(file); err != nil {
+		if err := readMountInfo(file, path); err != nil {
 			return err
 		}
 		mountsInitialized = true
@@ -324,7 +343,7 @@ func filesystemLacksMainMountError(deviceNumber DeviceNumber) error {
 func AllFilesystems() ([]*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := loadMountInfo(); err != nil {
+	if err := loadMountInfo(""); err != nil {
 		return nil, err
 	}
 
@@ -345,7 +364,7 @@ func UpdateMountInfo() error {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	mountsInitialized = false
-	return loadMountInfo()
+	return loadMountInfo("")
 }
 
 // FindMount returns the main Mount object for the filesystem which contains the
@@ -355,7 +374,7 @@ func UpdateMountInfo() error {
 func FindMount(path string) (*Mount, error) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := loadMountInfo(); err != nil {
+	if err := loadMountInfo(path); err != nil {
 		return nil, err
 	}
 	deviceNumber, err := getNumberOfContainingDevice(path)
@@ -431,7 +450,7 @@ func getMountFromLink(link string) (*Mount, error) {
 	// Lookup mountpoints for device in global store
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
-	if err := loadMountInfo(); err != nil {
+	if err := loadMountInfo(searchPath); err != nil {
 		return nil, err
 	}
 	mnt, ok := mountsByDevice[deviceNumber]
