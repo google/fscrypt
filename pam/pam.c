@@ -93,7 +93,7 @@ void freeArray(pam_handle_t* pamh, void** array, int error_status) {
 
 void* copyIntoSecret(void* data) {
   size_t size = strlen(data) + 1;  // include null terminator
-  void* copy = malloc(size);
+  void* copy = calloc(1, size);    // initialize to avoid a compiler warning
   mlock(copy, size);
   memcpy(copy, data, size);
   return copy;
