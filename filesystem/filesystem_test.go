@@ -324,7 +324,7 @@ func getTwoSetupMounts(t *testing.T) (realMnt, fakeMnt *Mount, err error) {
 	if err = os.MkdirAll(fakeMountpoint, basePermissions); err != nil {
 		return
 	}
-	fakeMnt = &Mount{Path: fakeMountpoint}
+	fakeMnt = &Mount{Path: fakeMountpoint, FilesystemType: realMnt.FilesystemType}
 	err = fakeMnt.Setup()
 	return
 }

@@ -9,8 +9,8 @@ _print_header "Mount tmpfs"
 umount "$MNT"
 mount tmpfs -t tmpfs -o size=128m "$MNT"
 
-_print_header "Create fscrypt metadata on tmpfs"
-fscrypt setup "$MNT"
+_print_header "Try to create fscrypt metadata on tmpfs"
+_expect_failure "fscrypt setup '$MNT'"
 
 _print_header "Try to encrypt a directory on tmpfs"
 mkdir "$MNT/dir"

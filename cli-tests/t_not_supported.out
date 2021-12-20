@@ -1,8 +1,8 @@
 
 # Mount tmpfs
 
-# Create fscrypt metadata on tmpfs
-Metadata directories created at "MNT/.fscrypt".
+# Try to create fscrypt metadata on tmpfs
+[ERROR] fscrypt setup: filesystem type tmpfs is not supported for fscrypt setup
 
 # Try to encrypt a directory on tmpfs
 [ERROR] fscrypt encrypt: This kernel doesn't support encryption on tmpfs
