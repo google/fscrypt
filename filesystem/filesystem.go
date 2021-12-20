@@ -112,6 +112,17 @@ func (err *ErrNotSetup) Error() string {
 	return fmt.Sprintf("filesystem %s is not setup for use with fscrypt", err.Mount.Path)
 }
 
+// ErrSetupNotSupported indicates that the given filesystem type is not
+// supported for fscrypt setup.
+type ErrSetupNotSupported struct {
+	Mount *Mount
+}
+
+func (err *ErrSetupNotSupported) Error() string {
+	return fmt.Sprintf("filesystem type %s is not supported for fscrypt setup",
+		err.Mount.FilesystemType)
+}
+
 // ErrPolicyNotFound indicates that the policy metadata was not found.
 type ErrPolicyNotFound struct {
 	Descriptor string
@@ -299,15 +310,46 @@ func (m *Mount) EncryptionSupportError(err error) error {
 	return err
 }
 
-// CheckSupport returns an error if this filesystem does not support filesystem
-// encryption.
+// isFscryptSetupAllowed decides whether the given filesystem is allowed to be
+// set up for fscrypt, without actually accessing it.  This basically checks
+// whether the filesystem type is one of the types that supports encryption, or
+// at least is in some stage of planning for encrption support in the future.
+//
+// We need this list so that we can skip filesystems that are irrelevant for
+// fscrypt without having to look for the fscrypt metadata directories on them,
+// which can trigger errors, long delays, or side effects on some filesystems.
+//
+// Unfortunately, this means that if a completely new filesystem adds encryption
+// support, then it will need to be manually added to this list.  But it seems
+// to be a worthwhile tradeoff to avoid the above issues.
+func (m *Mount) isFscryptSetupAllowed() bool {
+	if m.Path == "/" {
+		// The root filesystem is always allowed, since it's where login
+		// protectors are stored.
+		return true
+	}
+	switch m.FilesystemType {
+	case "ext4", "f2fs", "ubifs", "btrfs", "ceph", "xfs":
+		return true
+	default:
+		return false
+	}
+}
+
+// CheckSupport returns an error if this filesystem does not support encryption.
 func (m *Mount) CheckSupport() error {
+	if !m.isFscryptSetupAllowed() {
+		return &ErrEncryptionNotSupported{m}
+	}
 	return m.EncryptionSupportError(metadata.CheckSupport(m.Path))
 }
 
 // CheckSetup returns an error if all the fscrypt metadata directories do not
 // exist. Will log any unexpected errors or incorrect permissions.
 func (m *Mount) CheckSetup() error {
+	if !m.isFscryptSetupAllowed() {
+		return &ErrNotSetup{m}
+	}
 	// Run all the checks so we will always get all the warnings
 	baseGood := isDirCheckPerm(m.BaseDir(), basePermissions)
 	policyGood := isDirCheckPerm(m.PolicyDir(), dirPermissions)
@@ -344,6 +386,9 @@ func (m *Mount) makeDirectories() error {
 func (m *Mount) Setup() error {
 	if m.CheckSetup() == nil {
 		return &ErrAlreadySetup{m}
+	}
+	if !m.isFscryptSetupAllowed() {
+		return &ErrSetupNotSupported{m}
 	}
 	// We build the directories under a temp Mount and then move into place.
 	temp, err := m.tempMount()
