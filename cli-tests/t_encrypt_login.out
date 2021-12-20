@@ -111,6 +111,8 @@ PROTECTOR         LINKED                              DESCRIPTION
 desc19  Yes (MNT_ROOT)  login protector for fscrypt-test-user
 desc20  No                                  custom protector "Recovery passphrase for dir"
 
+Protector is owned by fscrypt-test-user:fscrypt-test-user
+
 # Encrypt with login protector with --no-recovery
 ext4 filesystem "MNT" has 1 protector and 1 policy
 

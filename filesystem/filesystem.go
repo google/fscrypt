@@ -37,6 +37,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -47,6 +48,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // ErrAlreadySetup indicates that a filesystem is already setup for fscrypt.
@@ -392,7 +394,7 @@ func syncDirectory(dirPath string) error {
 
 // writeDataAtomic writes the data to the path such that the data is either
 // written to stable storage or an error is returned.
-func (m *Mount) writeDataAtomic(path string, data []byte) error {
+func (m *Mount) writeDataAtomic(path string, data []byte, owner *user.User) error {
 	// Write the data to a temporary file, sync it, then rename into place
 	// so that the operation will be atomic.
 	dirPath := filepath.Dir(path)
@@ -406,6 +408,14 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 	if err = tempFile.Chmod(filePermissions); err != nil {
 		tempFile.Close()
 		return err
+	}
+	if owner != nil {
+		if err = util.Chown(tempFile, owner); err != nil {
+			log.Printf("could not set owner of %q to %v: %v",
+				path, owner.Username, err)
+			tempFile.Close()
+			return err
+		}
 	}
 	if _, err = tempFile.Write(data); err != nil {
 		tempFile.Close()
@@ -428,7 +438,7 @@ func (m *Mount) writeDataAtomic(path string, data []byte) error {
 
 // addMetadata writes the metadata structure to the file with the specified
 // path. This will overwrite any existing data. The operation is atomic.
-func (m *Mount) addMetadata(path string, md metadata.Metadata) error {
+func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User) error {
 	if err := md.CheckValidity(); err != nil {
 		return errors.Wrap(err, "provided metadata is invalid")
 	}
@@ -439,7 +449,7 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata) error {
 	}
 
 	log.Printf("writing metadata to %q", path)
-	return m.writeDataAtomic(path, data)
+	return m.writeDataAtomic(path, data, owner)
 }
 
 // getMetadata reads the metadata structure from the file with the specified
@@ -480,7 +490,8 @@ func (m *Mount) removeMetadata(path string) error {
 // will fail with ErrLinkedProtector if a linked protector with this descriptor
 // already exists on the filesystem.
 func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
-	if err := m.CheckSetup(); err != nil {
+	var err error
+	if err = m.CheckSetup(); err != nil {
 		return err
 	}
 	if isRegularFile(m.linkedProtectorPath(data.ProtectorDescriptor)) {
@@ -488,7 +499,15 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 			data.ProtectorDescriptor, m.Path)
 	}
 	path := m.protectorPath(data.ProtectorDescriptor)
-	return m.addMetadata(path, data)
+
+	var owner *user.User
+	if data.Source == metadata.SourceType_pam_passphrase && util.IsUserRoot() {
+		owner, err = util.UserFromUID(data.Uid)
+		if err != nil {
+			return err
+		}
+	}
+	return m.addMetadata(path, data, owner)
 }
 
 // AddLinkedProtector adds a link in this filesystem to the protector metadata
@@ -528,7 +547,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	return true, m.writeDataAtomic(linkPath, []byte(newLink))
+	return true, m.writeDataAtomic(linkPath, []byte(newLink), nil)
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
@@ -609,7 +628,7 @@ func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
 		return err
 	}
 
-	return m.addMetadata(m.PolicyPath(data.KeyDescriptor), data)
+	return m.addMetadata(m.PolicyPath(data.KeyDescriptor), data, nil)
 }
 
 // GetPolicy looks up the policy metadata by descriptor.
