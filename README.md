@@ -916,13 +916,27 @@ First, directories won't unlock if your session starts without password
 authentication.  The most common case of this is public-key ssh login.  To
 trigger a password authentication event, run `su $USER -c exit`.
 
-If your session did start with password authentication, then either the PAM
-module is not correctly installed and configured, or your login passphrase
-changed and got out of sync with your login protector.  Ensure you have
-correctly [configured the PAM module](#enabling-the-pam-module).  Then, if
-necessary, [manually change your login protector's
-passphrase](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
-to get it back in sync with your actual login passphrase.
+If your session did start with password authentication, then the following may
+be causing the issue:
+
+* The PAM module might not be configured correctly.  Ensure you have correctly
+  [configured the PAM module](#enabling-the-pam-module).
+
+* If your login passphrase recently changed, then it might have gotten out of
+  sync with your login protector.  To fix this, [manually change your login
+  protector's
+  passphrase](#i-changed-my-login-passphrase-now-all-my-directories-are-inaccessible)
+  to get it back in sync with your actual login passphrase.
+
+* Due to a [bug in sshd](https://bugzilla.mindrot.org/show_bug.cgi?id=2548),
+  encrypted directories won't auto-unlock when logging in with ssh using the
+  `ChallengeResponseAuthentication` ssh authentication method, which is also
+  called `KbdInteractiveAuthentication`.  This ssh authentication method
+  implements password authentication by default, so it might appear similar to
+  `PasswordAuthentication`.  However, only `PasswordAuthentication` works with
+  `fscrypt`.  To avoid this issue, make sure that your `/etc/ssh/sshd_config`
+  file contains `PasswordAuthentication yes`, `UsePAM yes`, and either
+  `ChallengeResponseAuthentication no` or `KbdInteractiveAuthentication no`.
 
 #### Getting "encryption not enabled" on an ext4 filesystem
 
