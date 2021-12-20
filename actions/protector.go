@@ -260,6 +260,16 @@ func (protector *Protector) Unlock(keyFn KeyFunc) (err error) {
 	return
 }
 
+// RawKey returns the internal key of an unlocked protector.
+func (protector *Protector) InternalKey() *crypto.Key {
+	return protector.key
+}
+
+// UnlockFromRawKey unlocks the protector directly from the internal key.
+func (protector *Protector) UnlockFromInternalKey(key *crypto.Key) {
+	protector.key = key
+}
+
 // Lock wipes a Protector's internal Key. It should always be called after using
 // an unlocked Protector. This is often done with a defer statement. There is
 // no effect if called multiple times.

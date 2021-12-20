@@ -43,8 +43,6 @@ import (
 
 const (
 	moduleName = "pam_fscrypt"
-	// authtokLabel tags the AUTHTOK in the PAM data.
-	authtokLabel = "fscrypt_authtok"
 	// These flags are used to toggle behavior of the PAM module.
 	debugFlag = "debug"
 
@@ -76,18 +74,31 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 	defer handle.StopAsPamUser()
 
 	// If this user doesn't have a login protector, no unlocking is needed.
-	if _, err := loginProtector(handle); err != nil {
+	protector, err := loginProtector(handle)
+	if err != nil {
 		log.Printf("no protector, no need for AUTHTOK: %s", err)
 		return nil
 	}
 
-	log.Print("copying AUTHTOK for use in the session open")
-	authtok, err := handle.GetItem(pam.Authtok)
-	if err != nil {
-		return errors.Wrap(err, "could not get AUTHTOK")
+	log.Print("unlocking user's login protector")
+	keyFn := func(_ actions.ProtectorInfo, retry bool) (*crypto.Key, error) {
+		if retry {
+			return nil, pam.ErrPassphrase
+		}
+		authtok, err := handle.GetItem(pam.Authtok)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not get AUTHTOK")
+		}
+		return crypto.NewKeyFromCString(authtok)
 	}
-	err = handle.SetSecret(authtokLabel, authtok)
-	return errors.Wrap(err, "could not set AUTHTOK data")
+	if err := protector.Unlock(keyFn); err != nil {
+		return errors.Wrap(err, "could not unlock login protector")
+	}
+	handle.StopAsPamUser()
+	if err := keyring.SaveProtectorKey(protector.InternalKey(), handle.PamUser); err != nil {
+		return errors.Wrap(err, "could not save protector key")
+	}
+	return nil
 }
 
 func beginProvisioningOp(handle *pam.Handle, policy *actions.Policy) error {
@@ -129,12 +140,15 @@ func setupUserKeyringIfNeeded(handle *pam.Handle, policies []*actions.Policy) er
 
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
-	// We will always clear the AUTHTOK data
-	defer handle.ClearData(authtokLabel)
+	// We will always delete the saved protector key
+	defer keyring.DeleteSavedProtectorKey(handle.PamUser)
 	// Increment the count as we add a session
 	if _, err := AdjustCount(handle, +1); err != nil {
 		return err
 	}
+
+	protectorKey, protectorKeyErr := keyring.RestoreProtectorKey(handle.PamUser)
+	defer protectorKey.Wipe()
 
 	if err := handle.StartAsPamUser(); err != nil {
 		return err
@@ -157,29 +171,12 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 		return errors.Wrapf(err, "setting up user keyring")
 	}
 
-	log.Printf("unlocking %d policies protected with AUTHTOK", len(policies))
-	keyFn := func(_ actions.ProtectorInfo, retry bool) (*crypto.Key, error) {
-		if retry {
-			// Login passphrase and login protector have diverged.
-			// We could prompt the user for the old passphrase and
-			// rewrap, but we currently don't.
-			return nil, pam.ErrPassphrase
-		}
+	log.Printf("unlocking %d policies protected by login protector", len(policies))
 
-		authtok, err := handle.GetSecret(authtokLabel)
-		if err != nil {
-			// pam_sm_authenticate was not run before the session is
-			// opened. This can happen when a user does something
-			// like "sudo su <user>". We could prompt for the
-			// login passphrase here, but we currently don't.
-			return nil, errors.Wrap(err, "AUTHTOK data missing")
-		}
-
-		return crypto.NewKeyFromCString(authtok)
+	if protectorKeyErr != nil {
+		return protectorKeyErr
 	}
-	if err := protector.Unlock(keyFn); err != nil {
-		return errors.Wrapf(err, "unlocking protector %s", protector.Descriptor())
-	}
+	protector.UnlockFromInternalKey(protectorKey)
 	defer protector.Lock()
 
 	// We don't stop provisioning polices on error, we try all of them.

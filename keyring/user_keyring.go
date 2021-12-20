@@ -32,6 +32,7 @@ import (
 	"log"
 
 	"github.com/google/fscrypt/crypto"
+	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/security"
 	"github.com/google/fscrypt/util"
 )
@@ -179,6 +180,80 @@ func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
 		}
 	}
 	return targetKeyring, nil
+}
+
+func protectorKeyDescription(user *user.User) string {
+	return fmt.Sprintf("fscrypt-protector-key.uid.%s", user.Uid)
+}
+
+func SaveProtectorKey(key *crypto.Key, user *user.User) error {
+	runtime.LockOSThread() // ensure the thread keyring doesn't change
+	defer runtime.UnlockOSThread()
+
+	keyringID, err := userKeyringIDLookup(0)
+	if err != nil {
+		return errors.Wrap(err, "could not find root user keyring")
+	}
+
+	description := protectorKeyDescription(user)
+	_, err = unix.AddKey("user", description, key.Data(), keyringID)
+	if err != nil {
+		return err
+	}
+	log.Printf("saved protector key for %s", user.Username)
+	return nil
+}
+
+func RestoreProtectorKey(user *user.User) (*crypto.Key, error) {
+	runtime.LockOSThread() // ensure the thread keyring doesn't change
+	defer runtime.UnlockOSThread()
+
+	keyringID, err := userKeyringIDLookup(0)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not find root user keyring")
+	}
+
+	description := protectorKeyDescription(user)
+	keyID, err := unix.KeyctlSearch(keyringID, "user", description, 0)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not find saved protector key")
+	}
+
+	key, err := crypto.NewBlankKey(metadata.InternalKeyLen)
+	if err != nil {
+		return nil, err
+	}
+	ret, err := unix.KeyctlBuffer(unix.KEYCTL_READ, keyID, key.Data(), key.Len())
+	if err != nil {
+		return nil, errors.Wrap(err, "could not read saved protector key")
+	}
+	if ret != metadata.InternalKeyLen {
+		return nil, errors.New("bad saved protector key")
+	}
+	log.Printf("loaded saved protector key for %s", user.Username)
+	return key, nil
+}
+
+func DeleteSavedProtectorKey(user *user.User) error {
+	runtime.LockOSThread() // ensure the thread keyring doesn't change
+	defer runtime.UnlockOSThread()
+
+	keyringID, err := userKeyringIDLookup(0)
+	if err != nil {
+		return nil
+	}
+
+	description := protectorKeyDescription(user)
+	keyID, err := unix.KeyctlSearch(keyringID, "user", description, 0)
+	if err != nil {
+		return nil
+	}
+
+	if _, err := unix.KeyctlInt(unix.KEYCTL_UNLINK, keyID, keyringID, 0, 0); err != nil {
+		return errors.Wrap(err, "could not delete saved protector key")
+	}
+	log.Printf("deleted saved protector key for %s", user.Username)
+	return nil
 }
 
 func userKeyringIDLookup(uid int) (keyringID int, err error) {
