@@ -121,14 +121,26 @@ func AtoiOrPanic(input string) int {
 	return i
 }
 
+// UserFromUID returns the User corresponding to the given user id.
+func UserFromUID(uid int64) (*user.User, error) {
+	return user.LookupId(strconv.FormatInt(uid, 10))
+}
+
 // EffectiveUser returns the user entry corresponding to the effective user.
 func EffectiveUser() (*user.User, error) {
-	return user.LookupId(strconv.Itoa(os.Geteuid()))
+	return UserFromUID(int64(os.Geteuid()))
 }
 
 // IsUserRoot checks if the effective user is root.
 func IsUserRoot() bool {
 	return os.Geteuid() == 0
+}
+
+// Chown changes the owner of a File to a User.
+func Chown(file *os.File, user *user.User) error {
+	uid := AtoiOrPanic(user.Uid)
+	gid := AtoiOrPanic(user.Gid)
+	return file.Chown(uid, gid)
 }
 
 // IsKernelVersionAtLeast returns true if the Linux kernel version is at least
