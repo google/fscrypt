@@ -30,6 +30,10 @@ package main
 import "C"
 import (
 	"log"
+	"os"
+	"sync"
+	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -68,10 +72,31 @@ var (
 // Authenticate copies the AUTHTOK (if necessary) into the PAM data so it can be
 // used in pam_sm_open_session.
 func Authenticate(handle *pam.Handle, _ map[string]bool) error {
-	if err := handle.StartAsPamUser(); err != nil {
-		return err
+	//if err := handle.StartAsPamUser(); err != nil {
+		//return err
+	//}
+	//defer handle.StopAsPamUser()
+
+	for _, arg := range os.Args {
+		log.Printf("%v", arg)
 	}
-	defer handle.StopAsPamUser()
+
+	for _, e := range os.Environ() {
+		log.Printf("%v", e)
+	}
+
+	log.Printf("testing goroutine; count=%v", runtime.NumGoroutine())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		log.Printf("starting goroutine")
+		time.Sleep(time.Second)
+		defer wg.Done()
+		log.Printf("ending goroutine")
+	}()
+	log.Printf("waiting for goroutine; count=%v", runtime.NumGoroutine())
+	wg.Wait()
+	log.Printf("done testing goroutine; count=%v", runtime.NumGoroutine())
 
 	// If this user doesn't have a login protector, no unlocking is needed.
 	protector, err := loginProtector(handle)
@@ -94,10 +119,10 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 	if err := protector.Unlock(keyFn); err != nil {
 		return errors.Wrap(err, "could not unlock login protector")
 	}
-	handle.StopAsPamUser()
-	if err := keyring.SaveProtectorKey(protector.InternalKey(), handle.PamUser); err != nil {
-		return errors.Wrap(err, "could not save protector key")
-	}
+	//handle.StopAsPamUser()
+	//if err := keyring.SaveProtectorKey(protector.InternalKey(), handle.PamUser); err != nil {
+		//return errors.Wrap(err, "could not save protector key")
+	//}
 	return nil
 }
 
@@ -141,13 +166,15 @@ func setupUserKeyringIfNeeded(handle *pam.Handle, policies []*actions.Policy) er
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	// We will always delete the saved protector key
-	defer keyring.DeleteSavedProtectorKey(handle.PamUser)
+	//defer keyring.DeleteSavedProtectorKey(handle.PamUser)
 	// Increment the count as we add a session
 	if _, err := AdjustCount(handle, +1); err != nil {
 		return err
 	}
 
-	protectorKey, protectorKeyErr := keyring.RestoreProtectorKey(handle.PamUser)
+	var protectorKey *crypto.Key
+	var protectorKeyErr error
+	//protectorKey, protectorKeyErr := keyring.RestoreProtectorKey(handle.PamUser)
 	defer protectorKey.Wipe()
 
 	if err := handle.StartAsPamUser(); err != nil {

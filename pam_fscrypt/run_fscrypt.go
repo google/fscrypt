@@ -112,14 +112,14 @@ func parseArgs(argc C.int, argv **C.char) map[string]bool {
 // syslog if the "debug" argument is passed) and returns a writer to the error
 // syslog.
 func setupLogging(args map[string]bool) io.Writer {
-	log.SetFlags(0) // Syslog already includes time data itself
-	log.SetOutput(ioutil.Discard)
-	if args[debugFlag] {
-		debugWriter, err := syslog.New(syslog.LOG_DEBUG, moduleName)
-		if err == nil {
-			log.SetOutput(debugWriter)
-		}
-	}
+	//log.SetFlags(0) // Syslog already includes time data itself
+	//log.SetOutput(ioutil.Discard)
+	//if args[debugFlag] {
+		//debugWriter, err := syslog.New(syslog.LOG_DEBUG, moduleName)
+		//if err == nil {
+			//log.SetOutput(debugWriter)
+		//}
+	//}
 
 	errorWriter, err := syslog.New(syslog.LOG_ERR, moduleName)
 	if err != nil {

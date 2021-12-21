@@ -64,7 +64,7 @@ CFLAGS := -O2 -Wall
 # Pass CFLAGS to each cgo invocation.
 export CGO_CFLAGS = $(CFLAGS)
 # By default, we strip the binary to reduce size.
-GO_LINK_FLAGS := -s -w
+GO_LINK_FLAGS :=
 
 # Flag to embed the version (pulled from tags) into the binary.
 TAG_VERSION := $(shell git describe --tags)

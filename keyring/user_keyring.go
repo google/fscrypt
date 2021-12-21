@@ -66,8 +66,8 @@ const KeyType = "logon"
 // userAddKey puts the provided policy key into the user keyring for the
 // specified user with the provided description, and type logon.
 func userAddKey(key *crypto.Key, description string, targetUser *user.User) error {
-	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
-	defer runtime.UnlockOSThread()
+	//runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	//defer runtime.UnlockOSThread()
 
 	// Create our payload (containing an FscryptKey)
 	payload, err := crypto.NewBlankKey(int(unsafe.Sizeof(unix.FscryptKey{})))
@@ -147,8 +147,8 @@ func userFindKey(description string, targetUser *user.User) (int, int, error) {
 // checkSession is true, an error is returned if a normal user requests their
 // user keyring, but it is not in the current session keyring.
 func UserKeyringID(targetUser *user.User, checkSession bool) (int, error) {
-	runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
-	defer runtime.UnlockOSThread()
+	//runtime.LockOSThread() // ensure target user keyring remains possessed in thread keyring
+	//defer runtime.UnlockOSThread()
 
 	uid := util.AtoiOrPanic(targetUser.Uid)
 	targetKeyring, err := userKeyringIDLookup(uid)
@@ -187,8 +187,6 @@ func protectorKeyDescription(user *user.User) string {
 }
 
 func SaveProtectorKey(key *crypto.Key, user *user.User) error {
-	runtime.LockOSThread() // ensure the thread keyring doesn't change
-	defer runtime.UnlockOSThread()
 
 	keyringID, err := userKeyringIDLookup(0)
 	if err != nil {
@@ -205,8 +203,6 @@ func SaveProtectorKey(key *crypto.Key, user *user.User) error {
 }
 
 func RestoreProtectorKey(user *user.User) (*crypto.Key, error) {
-	runtime.LockOSThread() // ensure the thread keyring doesn't change
-	defer runtime.UnlockOSThread()
 
 	keyringID, err := userKeyringIDLookup(0)
 	if err != nil {
@@ -235,8 +231,6 @@ func RestoreProtectorKey(user *user.User) (*crypto.Key, error) {
 }
 
 func DeleteSavedProtectorKey(user *user.User) error {
-	runtime.LockOSThread() // ensure the thread keyring doesn't change
-	defer runtime.UnlockOSThread()
 
 	keyringID, err := userKeyringIDLookup(0)
 	if err != nil {
