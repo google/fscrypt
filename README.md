@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
 [![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
-`fscrypt` is a high-level tool for the management of [Linux filesystem
+`fscrypt` is a high-level tool for the management of [Linux native filesystem
 encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
 `fscrypt` manages metadata, key generation, key wrapping, PAM integration, and
 provides a uniform interface for creating and modifying encrypted directories.
@@ -14,20 +14,20 @@ For a small low-level tool that directly sets policies, see
 
 Note that the kernel part of `fscrypt` (which is integrated into filesystems
 such as ext4) is also sometimes referred to as "fscrypt".  To avoid confusion,
-this documentation instead calls the kernel part "Linux filesystem encryption".
+this documentation calls the kernel part "Linux native filesystem encryption".
 
 To use `fscrypt`, you must have a filesystem with encryption enabled and a
 kernel that supports reading/writing from that filesystem. Currently,
 [ext4](https://en.wikipedia.org/wiki/Ext4),
 [F2FS](https://en.wikipedia.org/wiki/F2FS), and
-[UBIFS](https://en.wikipedia.org/wiki/UBIFS) support Linux filesystem
-encryption. Ext4 has supported Linux filesystem encryption
-[since v4.1](https://lwn.net/Articles/639427), F2FS
-[added support in v4.2](https://lwn.net/Articles/649652), and UBIFS
-[added support in v4.10](https://lwn.net/Articles/707900). Other filesystems
-may add support for native encryption in the future. Filesystems may
-additionally require certain kernel configuration options to be set to use
-native encryption.  See [Runtime dependencies](#runtime-dependencies).
+[UBIFS](https://en.wikipedia.org/wiki/UBIFS) support native filesystem
+encryption. Ext4 has supported native filesystem encryption [since
+v4.1](https://lwn.net/Articles/639427), F2FS [added support in
+v4.2](https://lwn.net/Articles/649652), and UBIFS [added support in
+v4.10](https://lwn.net/Articles/707900). Other filesystems may add support for
+native encryption in the future. Filesystems may additionally require certain
+kernel configuration options to be set to use native encryption.  See [Runtime
+dependencies](#runtime-dependencies).
 
 ## Table of contents
 
@@ -68,7 +68,7 @@ native encryption.  See [Runtime dependencies](#runtime-dependencies).
 
 ## Other encryption solutions
 
-It is important to distinguish Linux filesystem encryption from two other
+It is important to distinguish Linux native filesystem encryption from two other
 encryption solutions: [eCryptfs](https://en.wikipedia.org/wiki/ECryptfs) and
 [dm-crypt](https://en.wikipedia.org/wiki/Dm-crypt).
 
@@ -101,7 +101,7 @@ eCryptfs or [cryptsetup](https://linux.die.net/man/8/cryptsetup) for dm-crypt.
 [e4crypt](http://man7.org/linux/man-pages/man8/e4crypt.8.html) by providing a
 more managed environment and handling more functionality in the background.
 `fscrypt` has a [design document](https://goo.gl/55cCrI) specifying its full
-architecture.  See also the [kernel documentation for Linux filesystem
+architecture.  See also the [kernel documentation for Linux native filesystem
 encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
 
 Briefly, `fscrypt` deals with protectors and policies. Protectors represent some
@@ -1029,9 +1029,9 @@ for details about which option(s) are required for each encryption mode.
 
 #### Some processes can't access unlocked encrypted files
 
-This issue is caused by a limitation in the original design of Linux filesystem
-encryption which made it difficult to ensure that all processes can access
-unlocked encrypted files.  This issue can manifest in many ways, such as:
+This issue is caused by a limitation in the original design of Linux native
+filesystem encryption which made it difficult to ensure that all processes can
+access unlocked encrypted files.  This issue can manifest in many ways, such as:
 
 * SSH to a user with an encrypted home directory not working, even when that
   directory is already unlocked
@@ -1115,8 +1115,8 @@ from accessing unlocked encrypted files would be pointless.  On Linux systems,
 cannot be prevented, e.g. `setuid()` and `ptrace()`.  The only reliable way to
 limit what `root` can do is via a mandatory access control system, e.g. SELinux.
 
-The original design of Linux filesystem encryption actually did put the keys
-into per-user keyrings.  However, this caused a [massive number of
+The original design of Linux native filesystem encryption actually did put the
+keys into per-user keyrings.  However, this caused a [massive number of
 problems](#some-processes-cant-access-unlocked-encrypted-files), as it's
 actually very common that encrypted files need to be accessed by processes
 running under different user IDs -- even if it may not be immediately apparent.
