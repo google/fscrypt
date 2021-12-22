@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-const shortUsage = "A tool for managing Linux filesystem encryption"
+const shortUsage = "A tool for managing Linux native filesystem encryption"
 
 // Argument usage strings
 const (

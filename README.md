@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/google/fscrypt)](https://goreportcard.com/report/github.com/google/fscrypt)
 [![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
-`fscrypt` is a high-level tool for the management of [Linux filesystem
+`fscrypt` is a high-level tool for the management of [Linux native filesystem
 encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
 `fscrypt` manages metadata, key generation, key wrapping, PAM integration, and
 provides a uniform interface for creating and modifying encrypted directories.
@@ -14,24 +14,25 @@ For a small low-level tool that directly sets policies, see
 
 Note that the kernel part of `fscrypt` (which is integrated into filesystems
 such as ext4) is also sometimes referred to as "fscrypt".  To avoid confusion,
-this documentation instead calls the kernel part "Linux filesystem encryption".
+this documentation calls the kernel part "Linux native filesystem encryption".
 
 To use `fscrypt`, you must have a filesystem with encryption enabled and a
 kernel that supports reading/writing from that filesystem. Currently,
 [ext4](https://en.wikipedia.org/wiki/Ext4),
 [F2FS](https://en.wikipedia.org/wiki/F2FS), and
-[UBIFS](https://en.wikipedia.org/wiki/UBIFS) support Linux filesystem
-encryption. Ext4 has supported Linux filesystem encryption
-[since v4.1](https://lwn.net/Articles/639427), F2FS
-[added support in v4.2](https://lwn.net/Articles/649652), and UBIFS
-[added support in v4.10](https://lwn.net/Articles/707900). Other filesystems
-may add support for native encryption in the future. Filesystems may
-additionally require certain kernel configuration options to be set to use
-native encryption.  See [Runtime dependencies](#runtime-dependencies).
+[UBIFS](https://en.wikipedia.org/wiki/UBIFS) support native filesystem
+encryption. Ext4 has supported native filesystem encryption [since
+v4.1](https://lwn.net/Articles/639427), F2FS [added support in
+v4.2](https://lwn.net/Articles/649652), and UBIFS [added support in
+v4.10](https://lwn.net/Articles/707900). Other filesystems may add support for
+native encryption in the future. Filesystems may additionally require certain
+kernel configuration options to be set to use native encryption.  See [Runtime
+dependencies](#runtime-dependencies).
 
 ## Table of contents
 
-- [Other encryption solutions](#other-encryption-solutions)
+- [Alternatives to consider](#alternatives-to-consider)
+- [Threat model](#threat-model)
 - [Features](#features)
 - [Building and installing](#building-and-installing)
 - [Runtime dependencies](#runtime-dependencies)
@@ -66,34 +67,100 @@ native encryption.  See [Runtime dependencies](#runtime-dependencies).
   - [The reported size of encrypted symlinks is wrong](#the-reported-size-of-encrypted-symlinks-is-wrong)
 - [Legal](#legal)
 
-## Other encryption solutions
+## Alternatives to consider
 
-It is important to distinguish Linux filesystem encryption from two other
-encryption solutions: [eCryptfs](https://en.wikipedia.org/wiki/ECryptfs) and
-[dm-crypt](https://en.wikipedia.org/wiki/Dm-crypt).
+Operating-system level storage encryption solutions work at either the
+filesystem or block device level.  [Linux native filesystem
+encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html)
+(the solution configured by `fscrypt`) is filesystem-level; it encrypts
+individual directories.  Only file contents and filenames are encrypted;
+non-filename metadata, such as timestamps, the sizes and number of files, and
+extended attributes, is **not** encrypted.  Users choose which directories will
+be encrypted, and with what keys.
 
-Currently, dm-crypt encrypts an entire block device with a single master key.
-dm-crypt can be used with or without `fscrypt`. All filesystem data (including
-all filesystem metadata) is encrypted with this single key when using dm-crypt,
-while `fscrypt` only encrypts the filenames and file contents in a specified
-directory. Note that using both dm-crypt and `fscrypt` simultaneously will give
-the protections and benefits of both; however, this may cause a decrease in your
-performance, as file contents are encrypted twice.
+Before using `fscrypt`, you should consider other solutions:
 
-One example of a reasonable setup could involve using dm-crypt with a TPM or
-Secure boot key, while using `fscrypt` for the contents of a home directory.
-This would still encrypt the entire drive, but would also tie the encryption of
-a user's personal documents to their passphrase.
+* [**dm-crypt/LUKS**](https://en.wikipedia.org/wiki/Dm-crypt) is block device
+  level encryption: it encrypts an entire block device (and hence an entire
+  filesystem) with one key.  Unlocking this key will unlock the entire block
+  device.  dm-crypt/LUKS is usually configured using
+  [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup/-/wikis/home).
 
-On the other hand, eCryptfs is another form of filesystem encryption on Linux;
-it encrypts a filesystem directory with some key or passphrase. eCryptfs sits on
-top of an existing filesystem. This makes eCryptfs an alternative choice if your
-filesystem or kernel does not support native filesystem encryption.
+* [**eCryptfs**](https://en.wikipedia.org/wiki/ECryptfs) is an alternative
+  filesystem-level encryption solution.  It is a stacked filesystem, which means
+  it sits on top of a real filesystem, rather than being directly integrated
+  into the real filesystem.  Stacked filesystems have a couple advantages (such
+  as working on almost any real filesystem), but also some significant
+  disadvantages.  eCryptfs is usually configured using
+  [ecryptfs-utils](https://packages.debian.org/stretch/ecryptfs-utils).
 
-Also note that `fscrypt` does not support or setup either eCryptfs or dm-crypt.
-For these tools, use
-[ecryptfs-utils](https://packages.debian.org/source/jessie/ecryptfs-utils) for
-eCryptfs or [cryptsetup](https://linux.die.net/man/8/cryptsetup) for dm-crypt.
+* The [**ZFS**](https://en.wikipedia.org/wiki/ZFS) filesystem supports
+  encryption in its own way (not compatible with `fscrypt`).  ZFS encryption has
+  some advantages; however, ZFS isn't part of the upstream Linux kernel and is
+  less common than other filesystems, so this solution usually isn't an option.
+
+Which solution to use?  Here are our recommendations:
+
+* eCryptfs shouldn't be used, if at all possible.  eCryptfs's use of filesystem
+  stacking causes a number of issues, and eCryptfs is no longer actively
+  maintained.  The original author of eCryptfs recommends using Linux native
+  filesystem encryption instead.  The largest users of eCryptfs (Ubuntu and
+  Chrome OS) have switched to dm-crypt or Linux native filesystem encryption.
+
+* If you need fine-grained control of encryption within a filesystem, then use
+  `fscrypt`, or `fscrypt` together with dm-crypt/LUKS.  If you don't need this,
+  then use dm-crypt/LUKS.
+
+  To understand this recommendation: consider that the main advantage of
+  `fscrypt` is to allow different files on the same filesystem to be encrypted
+  by different keys, and thus be unlockable, lockable, and securely deletable
+  independently from each other.  Therefore, `fscrypt` is useful in cases such
+  as:
+
+    * Multi-user systems, since each user's files can be encrypted with their
+      own key that is unlocked by their own passphrase.
+
+    * Single-user systems where it's not possible for all files to have the
+      strongest level of protection.  For example, it might be necessary for the
+      system to boot up without user interaction.  Any files that are needed to
+      do so can only be encrypted by a hardware-protected (e.g. TPM-bound) key
+      at best.  If the user's personal files are located on the same filesystem,
+      then with dm-crypt/LUKS the user's personal files would be limited to this
+      weak level of protection.  With `fscrypt`, the user's personal files could
+      be fully protected using the user's passphrase.
+
+  `fscrypt` isn't very useful in the following cases:
+
+    * Single-user systems where the user is willing to enter a strong passphrase
+      at boot time to unlock the entire filesystem.  In this case, the main
+      advantage of `fscrypt` would go unused, so dm-crypt/LUKS would be better
+      as it would provide better security (due to ensuring that all files and
+      all filesystem metadata are encrypted).
+
+    * Any case where it is feasible to create a separate filesystem for every
+      encryption key you want to use.
+
+  Note: dm-crypt/LUKS and `fscrypt` aren't mutually exclusive; they can be used
+  together when the performance hit of double encryption is tolerable.  It only
+  makes sense to do this when the keys for each encryption layer are protected
+  in different ways, such that each layer serves a different purpose.  A
+  reasonable set-up would be to encrypt the whole filesystem with dm-crypt/LUKS
+  using a TPM-bound key that is automatically unlocked at boot time, and also
+  encrypt users' home directories with `fscrypt` using their login passphrases.
+
+## Threat model
+
+Like other storage encryption solutions (including dm-crypt/LUKS and eCryptfs),
+Linux native filesystem encryption is primarily intended to protect the
+confidentiality of data from a single point-in-time permanent offline compromise
+of the disk.  For a detailed description of the threat model, see the [kernel
+documentation](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html#threat-model).
+
+It's worth emphasizing that none of these encryption solutions protect unlocked
+encrypted files from other users on the same system (that's the job of OS-level
+access control, such as UNIX file permissions), or from the cloud provider you
+may be running a virtual machine on.  By themselves, they also do not protect
+from "evil maid" attacks, i.e. non-permanant offline compromises of the disk.
 
 ## Features
 
@@ -101,7 +168,7 @@ eCryptfs or [cryptsetup](https://linux.die.net/man/8/cryptsetup) for dm-crypt.
 [e4crypt](http://man7.org/linux/man-pages/man8/e4crypt.8.html) by providing a
 more managed environment and handling more functionality in the background.
 `fscrypt` has a [design document](https://goo.gl/55cCrI) specifying its full
-architecture.  See also the [kernel documentation for Linux filesystem
+architecture.  See also the [kernel documentation for Linux native filesystem
 encryption](https://www.kernel.org/doc/html/latest/filesystems/fscrypt.html).
 
 Briefly, `fscrypt` deals with protectors and policies. Protectors represent some
@@ -1029,9 +1096,9 @@ for details about which option(s) are required for each encryption mode.
 
 #### Some processes can't access unlocked encrypted files
 
-This issue is caused by a limitation in the original design of Linux filesystem
-encryption which made it difficult to ensure that all processes can access
-unlocked encrypted files.  This issue can manifest in many ways, such as:
+This issue is caused by a limitation in the original design of Linux native
+filesystem encryption which made it difficult to ensure that all processes can
+access unlocked encrypted files.  This issue can manifest in many ways, such as:
 
 * SSH to a user with an encrypted home directory not working, even when that
   directory is already unlocked
@@ -1115,8 +1182,8 @@ from accessing unlocked encrypted files would be pointless.  On Linux systems,
 cannot be prevented, e.g. `setuid()` and `ptrace()`.  The only reliable way to
 limit what `root` can do is via a mandatory access control system, e.g. SELinux.
 
-The original design of Linux filesystem encryption actually did put the keys
-into per-user keyrings.  However, this caused a [massive number of
+The original design of Linux native filesystem encryption actually did put the
+keys into per-user keyrings.  However, this caused a [massive number of
 problems](#some-processes-cant-access-unlocked-encrypted-files), as it's
 actually very common that encrypted files need to be accessed by processes
 running under different user IDs -- even if it may not be immediately apparent.
