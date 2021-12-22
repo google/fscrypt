@@ -166,6 +166,13 @@ func (h *Handle) err() error {
 	return errors.New(s)
 }
 
+// InfoMessage sends a message to the application using pam_info().
+func (h *Handle) InfoMessage(message string) {
+	cMessage := C.CString(message)
+	defer C.free(unsafe.Pointer(cMessage))
+	C.infoMessage(h.handle, cMessage)
+}
+
 // Transaction represents a wrapped pam_handle_t type created with pam_start
 // form an application.
 type Transaction Handle

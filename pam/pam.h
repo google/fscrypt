@@ -41,4 +41,7 @@ void *copyIntoSecret(void *data);
 // CleaupFunc that Zeros wipes a C string and unlocks and frees its memory.
 void freeSecret(pam_handle_t *pamh, char *data, int error_status);
 
+// Sends a message to the application using pam_info().
+void infoMessage(pam_handle_t *pamh, const char *message);
+
 #endif  // FSCRYPT_PAM_H
