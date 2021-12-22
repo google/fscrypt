@@ -160,7 +160,7 @@ It's worth emphasizing that none of these encryption solutions protect unlocked
 encrypted files from other users on the same system (that's the job of OS-level
 access control, such as UNIX file permissions), or from the cloud provider you
 may be running a virtual machine on.  By themselves, they also do not protect
-from "evil maid" attacks, i.e. non-permanant offline compromises of the disk.
+from "evil maid" attacks, i.e. non-permanent offline compromises of the disk.
 
 ## Features
 

@@ -79,7 +79,7 @@ func (h *Handle) getData(name string) (unsafe.Pointer, error) {
 	return data, h.err()
 }
 
-// ClearData remotes the PAM data with the specified name.
+// ClearData removes the PAM data with the specified name.
 func (h *Handle) ClearData(name string) error {
 	return h.setData(name, unsafe.Pointer(C.CString("")), C.CleanupFunc(C.freeData))
 }
@@ -92,8 +92,8 @@ func (h *Handle) SetSecret(name string, secret unsafe.Pointer) error {
 }
 
 // GetSecret returns a pointer to the C string PAM data with the specified name.
-// This a pointer directory to the data, so it shouldn't be modified. It should
-// have been previously set with SetSecret().
+// This is a pointer directly to the data, so it shouldn't be modified. It
+// should have been previously set with SetSecret().
 func (h *Handle) GetSecret(name string) (unsafe.Pointer, error) {
 	return h.getData(name)
 }
@@ -174,7 +174,7 @@ func (h *Handle) InfoMessage(message string) {
 }
 
 // Transaction represents a wrapped pam_handle_t type created with pam_start
-// form an application.
+// from an application.
 type Transaction Handle
 
 // Start initializes a pam Transaction. End() should be called after the
