@@ -29,6 +29,7 @@ package main
 */
 import "C"
 import (
+	"fmt"
 	"log"
 	"unsafe"
 
@@ -300,6 +301,14 @@ func lockLoginPolicies(handle *pam.Handle) (bool, error) {
 	return needDropCaches, nil
 }
 
+var noOldAuthTokMessage string = `
+pam_fscrypt: cannot update login protector for '%s' because old passphrase
+was not given.  This is expected when changing a user's passphrase as root.
+You'll need to manually update the protector's passphrase using:
+
+   fscrypt metadata change-passphrase --protector=%s:%s
+`
+
 // Chauthtok rewraps the login protector when the passphrase changes.
 func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
 	if err := handle.StartAsPamUser(); err != nil {
@@ -322,6 +331,9 @@ func Chauthtok(handle *pam.Handle, _ map[string]bool) error {
 		}
 		authtok, err := handle.GetItem(pam.Oldauthtok)
 		if err != nil {
+			handle.InfoMessage(fmt.Sprintf(noOldAuthTokMessage,
+				handle.PamUser.Username,
+				protector.Context.Mount.Path, protector.Descriptor()))
 			return nil, errors.Wrap(err, "could not get OLDAUTHTOK")
 		}
 		return crypto.NewKeyFromCString(authtok)
