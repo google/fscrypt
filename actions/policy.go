@@ -461,14 +461,15 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 }
 
 // RemoveProtector updates the data that is wrapping the Policy Key so that the
-// provided Protector is no longer protecting the specified Policy. If an error
-// is returned, no data has been changed. Note that no protector links are
+// protector with the given descriptor is no longer protecting the specified
+// Policy.  If an error is returned, no data has been changed.  Note that the
+// protector itself won't be removed, nor will a link to the protector be
 // removed (in the case where the protector and policy are on different
-// filesystems). The policy and protector can be locked or unlocked.
-func (policy *Policy) RemoveProtector(protector *Protector) error {
-	idx, ok := policy.findWrappedKeyIndex(protector.Descriptor())
+// filesystems).  The policy can be locked or unlocked.
+func (policy *Policy) RemoveProtector(protectorDescriptor string) error {
+	idx, ok := policy.findWrappedKeyIndex(protectorDescriptor)
 	if !ok {
-		return &ErrNotProtected{policy.Descriptor(), protector.Descriptor()}
+		return &ErrNotProtected{policy.Descriptor(), protectorDescriptor}
 	}
 
 	if len(policy.data.WrappedPolicyKeys) == 1 {

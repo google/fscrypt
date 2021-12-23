@@ -1083,29 +1083,30 @@ func removeProtectorAction(c *cli.Context) error {
 		return err
 	}
 
-	// We do not need to unlock anything for this operation
-	protector, err := getProtectorFromFlag(protectorFlag.Value, nil)
+	// We only need the protector descriptor, not the protector itself.
+	ctx, protectorDescriptor, err := parseMetadataFlag(protectorFlag.Value, nil)
 	if err != nil {
 		return newExitError(c, err)
 	}
-	policy, err := getPolicyFromFlag(policyFlag.Value, protector.Context.TargetUser)
+	// We don't need to unlock the policy for this operation.
+	policy, err := getPolicyFromFlag(policyFlag.Value, ctx.TargetUser)
 	if err != nil {
 		return newExitError(c, err)
 	}
 
 	prompt := fmt.Sprintf("Stop protecting policy %s with protector %s?",
-		policy.Descriptor(), protector.Descriptor())
+		policy.Descriptor(), protectorDescriptor)
 	warning := "All files using this policy will NO LONGER be accessible with this protector!!"
 	if err := askConfirmation(prompt, false, warning); err != nil {
 		return newExitError(c, err)
 	}
 
-	if err := policy.RemoveProtector(protector); err != nil {
+	if err := policy.RemoveProtector(protectorDescriptor); err != nil {
 		return newExitError(c, err)
 	}
 
 	fmt.Fprintf(c.App.Writer, "Protector %s no longer protecting policy %s.\n",
-		protector.Descriptor(), policy.Descriptor())
+		protectorDescriptor, policy.Descriptor())
 	return nil
 }
 
