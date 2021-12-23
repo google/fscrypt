@@ -51,6 +51,7 @@ var (
 	mountsInitialized bool
 	// Supported tokens for filesystem links
 	uuidToken = "UUID"
+	pathToken = "PATH"
 	// Location to perform UUID lookup
 	uuidDirectory = "/dev/disk/by-uuid"
 )
@@ -399,78 +400,132 @@ func GetMount(mountpoint string) (*Mount, error) {
 	return mnt, nil
 }
 
-// getMountFromLink returns the Mount object which matches the provided link.
-// This link is formatted as a tag (e.g. <token>=<value>) similar to how they
-// appear in "/etc/fstab". Currently, only "UUID" tokens are supported. An error
-// is returned if the link is invalid or we cannot load the required mount data.
-// If a mount has been updated since the last call to one of the mount
-// functions, run UpdateMountInfo to see the change.
-func getMountFromLink(link string) (*Mount, error) {
-	// Parse the link
-	link = strings.TrimSpace(link)
-	linkComponents := strings.Split(link, "=")
-	if len(linkComponents) != 2 {
-		return nil, &ErrFollowLink{link, errors.New("invalid link format")}
-	}
-	token := linkComponents[0]
-	value := linkComponents[1]
-	if token != uuidToken {
-		return nil, &ErrFollowLink{link, errors.Errorf("token type %q not supported", token)}
-	}
+func uuidToDeviceNumber(uuid string) (DeviceNumber, error) {
+	uuidSymlinkPath := filepath.Join(uuidDirectory, uuid)
+	return getDeviceNumber(uuidSymlinkPath)
+}
 
-	// See if UUID points to an existing device
-	searchPath := filepath.Join(uuidDirectory, value)
-	if filepath.Base(searchPath) != value {
-		return nil, &ErrFollowLink{link, errors.Errorf("invalid UUID format %q", value)}
-	}
-	deviceNumber, err := getDeviceNumber(searchPath)
-	if err != nil {
-		return nil, &ErrFollowLink{link, errors.Errorf("no device with UUID %s", value)}
-	}
-
-	// Lookup mountpoints for device in global store
+func deviceNumberToMount(deviceNumber DeviceNumber) (*Mount, bool) {
 	mountMutex.Lock()
 	defer mountMutex.Unlock()
 	if err := loadMountInfo(); err != nil {
-		return nil, err
+		log.Print(err)
+		return nil, false
 	}
 	mnt, ok := mountsByDevice[deviceNumber]
-	if !ok {
-		return nil, &ErrFollowLink{link, errors.Errorf("no mounts for device %q (%v)",
-			getDeviceName(deviceNumber), deviceNumber)}
-	}
-	if mnt == nil {
-		return nil, &ErrFollowLink{link, filesystemLacksMainMountError(deviceNumber)}
-	}
-	return mnt, nil
+	return mnt, ok
 }
 
-// makeLink returns a link of the form <token>=<value> where value is the tag
-// value for the Mount's device. Currently, only "UUID" tokens are supported. An
-// error is returned if the mount has no device, or no UUID.
-func makeLink(mnt *Mount, token string) (string, error) {
-	if token != uuidToken {
-		return "", &ErrMakeLink{mnt, errors.Errorf("token type %q not supported", token)}
+// getMountFromLink returns the main Mount, if any, for the filesystem which the
+// given link points to.  The link should contain a series of token-value pairs
+// (<token>=<value>), one per line.  The supported tokens are "UUID" and "PATH".
+// If the UUID is present and it works, then it is used; otherwise, PATH is used
+// if it is present.  (The fallback from UUID to PATH will keep the link working
+// if the UUID of the target filesystem changes but its mountpoint doesn't.)
+//
+// If a mount has been updated since the last call to one of the mount
+// functions, make sure to run UpdateMountInfo first.
+func getMountFromLink(link string) (*Mount, error) {
+	// Parse the link.
+	uuid := ""
+	path := ""
+	lines := strings.Split(link, "\n")
+	for _, line := range lines {
+		line := strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		pair := strings.Split(line, "=")
+		if len(pair) != 2 {
+			log.Printf("ignoring invalid line in filesystem link file: %q", line)
+			continue
+		}
+		token := pair[0]
+		value := pair[1]
+		switch token {
+		case uuidToken:
+			uuid = value
+		case pathToken:
+			path = value
+		default:
+			log.Printf("ignoring unknown link token %q", token)
+		}
+	}
+	// At least one of UUID and PATH must be present.
+	if uuid == "" && path == "" {
+		return nil, &ErrFollowLink{link, errors.Errorf("invalid filesystem link file")}
 	}
 
+	// Try following the UUID.
+	errMsg := ""
+	if uuid != "" {
+		deviceNumber, err := uuidToDeviceNumber(uuid)
+		if err == nil {
+			mnt, ok := deviceNumberToMount(deviceNumber)
+			if mnt != nil {
+				log.Printf("resolved filesystem link using UUID %q", uuid)
+				return mnt, nil
+			}
+			if ok {
+				return nil, &ErrFollowLink{link, filesystemLacksMainMountError(deviceNumber)}
+			}
+			log.Printf("cannot find filesystem with UUID %q", uuid)
+		} else {
+			log.Printf("cannot find filesystem with UUID %q: %v", uuid, err)
+		}
+		errMsg += fmt.Sprintf("cannot find filesystem with UUID %q", uuid)
+		if path != "" {
+			log.Printf("falling back to using mountpoint path instead of UUID")
+		}
+	}
+	// UUID didn't work.  As a fallback, try the mountpoint path.
+	if path != "" {
+		mnt, err := GetMount(path)
+		if mnt != nil {
+			log.Printf("resolved filesystem link using mountpoint path %q", path)
+			return mnt, nil
+		}
+		log.Print(err)
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("cannot find filesystem with main mountpoint %q", path)
+		} else {
+			errMsg += fmt.Sprintf(" or main mountpoint %q", path)
+		}
+	}
+	// No method worked; return an error.
+	return nil, &ErrFollowLink{link, errors.New(errMsg)}
+}
+
+func (mnt *Mount) getFilesystemUUID() (string, error) {
 	dirContents, err := ioutil.ReadDir(uuidDirectory)
 	if err != nil {
-		return "", &ErrMakeLink{mnt, err}
+		return "", err
 	}
 	for _, fileInfo := range dirContents {
 		if fileInfo.Mode()&os.ModeSymlink == 0 {
 			continue // Only interested in UUID symlinks
 		}
 		uuid := fileInfo.Name()
-		deviceNumber, err := getDeviceNumber(filepath.Join(uuidDirectory, uuid))
+		deviceNumber, err := uuidToDeviceNumber(uuid)
 		if err != nil {
 			log.Print(err)
 			continue
 		}
 		if mnt.DeviceNumber == deviceNumber {
-			return fmt.Sprintf("%s=%s", uuidToken, uuid), nil
+			return uuid, nil
 		}
 	}
-	return "", &ErrMakeLink{mnt, errors.Errorf("cannot determine UUID of device %q (%v)",
-		mnt.Device, mnt.DeviceNumber)}
+	return "", errors.Errorf("cannot determine UUID of device %q (%v)",
+		mnt.Device, mnt.DeviceNumber)
+}
+
+// makeLink creates the contents of a link file which will point to the given
+// filesystem.  This will be a string of the form "UUID=<uuid>\nPATH=<path>\n".
+// An error is returned if the filesystem's UUID cannot be determined.
+func makeLink(mnt *Mount) (string, error) {
+	uuid, err := mnt.getFilesystemUUID()
+	if err != nil {
+		return "", &ErrMakeLink{mnt, err}
+	}
+	return fmt.Sprintf("%s=%s\n%s=%s\n", uuidToken, uuid, pathToken, mnt.Path), nil
 }
