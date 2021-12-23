@@ -27,18 +27,13 @@ show_status()
 	fi
 }
 
-get_login_protector()
-{
-	fscrypt status "$dir" | awk '/login protector/{print $1}'
-}
-
 begin "Encrypt with login protector"
 chown "$TEST_USER" "$dir"
 _user_do "echo TEST_USER_PASS | fscrypt encrypt --quiet --source=pam_passphrase '$dir'"
 show_status true
 recovery_passphrase=$(grep -E '^ +[a-z]{20}$' "$dir/fscrypt_recovery_readme.txt" | sed 's/^ +//')
-recovery_protector=$(fscrypt status "$dir" | awk '/Recovery passphrase/{print $1}')
-login_protector=$(get_login_protector)
+recovery_protector=$(_get_protector_descriptor "$MNT" custom 'Recovery passphrase for dir')
+login_protector=$(_get_login_descriptor)
 _print_header "=> Lock, then unlock with login passphrase"
 _user_do "fscrypt lock '$dir'"
 # FIXME: should we be able to use $MNT:$login_protector here?
@@ -63,7 +58,7 @@ begin "Encrypt with login protector as root"
 echo TEST_USER_PASS | fscrypt encrypt --quiet --source=pam_passphrase --user="$TEST_USER" "$dir"
 show_status true
 # The newly-created login protector should be owned by the user, not root.
-login_protector=$(get_login_protector)
+login_protector=$(_get_login_descriptor)
 owner=$(stat -c "%U:%G" "$MNT_ROOT/.fscrypt/protectors/$login_protector")
 echo -e "\nProtector is owned by $owner"
 
