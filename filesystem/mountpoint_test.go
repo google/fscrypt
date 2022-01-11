@@ -52,7 +52,11 @@ func endLoadMountInfoTest() {
 }
 
 func loadMountInfoFromString(str string) {
-	readMountInfo(strings.NewReader(str))
+	readMountInfo(strings.NewReader(str), "")
+}
+
+func loadMountInfoFromStringWithPath(str string, path string) {
+	readMountInfo(strings.NewReader(str), path)
 }
 
 func mountForDevice(deviceNumberStr string) *Mount {
@@ -370,6 +374,87 @@ func TestLoadAmbiguousMounts(t *testing.T) {
 	}
 	if mnt != nil {
 		t.Error("Entry should be nil")
+	}
+}
+
+// Test when the .fscrypt directory is mounted directly
+func TestLoadMetadataDir(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	tempDir, err = filepath.Abs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/.fscrypt", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tempDir+"/home", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/home2", 0700); err != nil {
+		t.Fatal(err)
+	}
+	mountinfo := fmt.Sprintf(`
+222 15 259:3 /.fscrypt %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /home %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 /foo %s rw shared:1 - ext4 /dev/root rw
+`, tempDir+"/.fscrypt", tempDir+"/home", tempDir+"/home2")
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromStringWithPath(mountinfo, "/home/userA")
+	mnt := mountForDevice("259:3")
+	if mnt == nil {
+		t.Fatal("Failed to load mount")
+	}
+	if mnt.Path != tempDir+"/home" {
+		t.Error("Wrong path")
+	}
+	if mnt.MetadataPath != tempDir+"/.fscrypt" {
+		t.Error("Wrong metadata path")
+	}
+}
+
+// Test when the .fscrypt directory is mounted directly but with a subtree
+// equal to '/'. In this case only the mount path can help.
+func TestLoadMetadataDirNoSubtree(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	tempDir, err = filepath.Abs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/.fscrypt", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(tempDir+"/home", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(tempDir+"/home2", 0700); err != nil {
+		t.Fatal(err)
+	}
+	mountinfo := fmt.Sprintf(`
+222 15 259:3 / %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 / %s rw shared:1 - ext4 /dev/root rw
+222 15 259:3 / %s rw shared:1 - ext4 /dev/root rw
+`, tempDir+"/.fscrypt", tempDir+"/home", tempDir+"/home2")
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromStringWithPath(mountinfo, "/home/userA")
+	mnt := mountForDevice("259:3")
+	if mnt == nil {
+		t.Fatal("Failed to load mount")
+	}
+	if mnt.Path != tempDir+"/home" {
+		t.Error("Wrong path")
+	}
+	if mnt.MetadataPath != tempDir+"/.fscrypt" {
+		t.Error("Wrong metadata path")
 	}
 }
 
