@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/unix"
 
@@ -39,6 +40,22 @@ func OpenFileOverridingUmask(name string, flag int, perm os.FileMode) (*os.File,
 
 // We only check the unix permissions and the sticky bit
 const permMask = os.ModeSticky | os.ModePerm
+
+// canonicalizePath turns path into an absolute path without symlinks.
+func canonicalizePath(path string) (string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.EvalSymlinks(path)
+
+	// Get a better error if we have an invalid path
+	if pathErr, ok := err.(*os.PathError); ok {
+		err = errors.Wrap(pathErr.Err, pathErr.Path)
+	}
+
+	return path, err
+}
 
 // loggedStat runs os.Stat, but it logs the error if stat returns any error
 // other than nil or IsNotExist.
