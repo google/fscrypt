@@ -14,7 +14,7 @@ echo pass1 | fscrypt encrypt --quiet --name=prot --skip-unlock "$dir"
 _print_header "Try to unlock with wrong passphrase"
 _expect_failure "echo pass2 | fscrypt unlock --quiet '$dir'"
 _expect_failure "mkdir '$dir/subdir'"
-protector=$(fscrypt status "$dir" | awk '/custom protector/{print $1}')
+protector=$(_get_protector_descriptor "$dir" custom prot)
 
 _print_header "Change passphrase"
 echo $'pass1\npass2' | \

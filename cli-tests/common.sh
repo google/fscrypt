@@ -72,6 +72,40 @@ _get_enabled_fs_count()
 	echo "$count"
 }
 
+# Gets the descriptor of the given protector.
+_get_protector_descriptor()
+{
+	local mnt=$1
+	local source=$2
+
+	case $source in
+	custom)
+		local name=$3
+		local description="custom protector \\\"$name\\\""
+		;;
+	login)
+		local user=$3
+		local description="login protector for $user"
+		;;
+	*)
+		_fail "Unknown protector source $source"
+	esac
+
+	local descriptor
+	descriptor=$(fscrypt status "$mnt" |
+		     awk -F '   *' '{ if ($3 == "'"$description"'") print $1 }')
+	if [ -z "$descriptor" ]; then
+		_fail "Can't find $description on $mnt"
+	fi
+	echo "$descriptor"
+}
+
+# Gets the descriptor of the login protector for $TEST_USER.
+_get_login_descriptor()
+{
+	_get_protector_descriptor "$MNT_ROOT" login "$TEST_USER"
+}
+
 # Prints the number of filesystems that have fscrypt metadata.
 _get_setup_fs_count()
 {

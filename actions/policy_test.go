@@ -114,7 +114,7 @@ func TestPolicyGoodRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = pol.RemoveProtector(pro1)
+	err = pol.RemoveProtector(pro1.Descriptor())
 	if err != nil {
 		t.Error(err)
 	}
@@ -135,11 +135,11 @@ func TestPolicyBadRemoveProtector(t *testing.T) {
 	}
 	defer cleanupProtector(pro2)
 
-	if pol.RemoveProtector(pro2) == nil {
+	if pol.RemoveProtector(pro2.Descriptor()) == nil {
 		t.Error("we should not be able to remove a protector we did not add")
 	}
 
-	if pol.RemoveProtector(pro1) == nil {
+	if pol.RemoveProtector(pro1.Descriptor()) == nil {
 		t.Error("we should not be able to remove all the protectors from a policy")
 	}
 }

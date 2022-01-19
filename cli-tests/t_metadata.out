@@ -1,0 +1,17 @@
+ext4 filesystem "MNT" has 3 protectors and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "foo"
+desc2  No      custom protector "bar"
+desc3  No      custom protector "baz"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc4  No        desc1, desc2, desc3
+ext4 filesystem "MNT" has 2 protectors and 1 policy
+
+PROTECTOR         LINKED  DESCRIPTION
+desc1  No      custom protector "foo"
+desc2  No      custom protector "bar"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc4  No        desc1
