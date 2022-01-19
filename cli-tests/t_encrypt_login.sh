@@ -86,3 +86,11 @@ chown "$TEST_USER" "$dir"
 _user_do_and_expect_failure \
 	"echo wrong_passphrase | fscrypt encrypt --quiet --source=pam_passphrase '$dir'"
 show_status false
+
+begin "Test that linked protector works even if UUID link is broken"
+echo TEST_USER_PASS | fscrypt encrypt --quiet --source=pam_passphrase --user="$TEST_USER" "$dir"
+protector=$(get_login_protector)
+link_file=$MNT/.fscrypt/protectors/$protector.link
+[ -e "$link_file" ] || _fail "$link_file does not exist"
+sed -i 's/UUID=.*/UUID=00000000-0000-0000-0000-000000000000/' "$link_file"
+fscrypt status "$MNT"

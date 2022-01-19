@@ -373,14 +373,14 @@ func TestLoadAmbiguousMounts(t *testing.T) {
 	}
 }
 
-// Test making a filesystem link (i.e. "UUID=...") and following it, and test
-// that leading and trailing whitespace in the link is ignored.
+// Test making a filesystem link and following it, and test that leading and
+// trailing whitespace in the link is ignored.
 func TestGetMountFromLink(t *testing.T) {
 	mnt, err := getTestMount(t)
 	if err != nil {
 		t.Skip(err)
 	}
-	link, err := makeLink(mnt, uuidToken)
+	link, err := makeLink(mnt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,6 +402,68 @@ func TestGetMountFromLink(t *testing.T) {
 	}
 	if linkedMnt != mnt {
 		t.Fatal("Link doesn't point to the same Mount")
+	}
+}
+
+// Test that old filesystem links that contain a UUID only still work.
+func TestGetMountFromLegacyLink(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Skip(err)
+	}
+	uuid, err := mnt.getFilesystemUUID()
+	if uuid == "" || err != nil {
+		t.Fatal("Can't get UUID of test filesystem")
+	}
+
+	link := fmt.Sprintf("UUID=%s", uuid)
+	linkedMnt, err := getMountFromLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+}
+
+// Test that if the UUID in a filesystem link doesn't work, then the PATH is
+// used instead, and vice versa.
+func TestGetMountFromLinkFallback(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Skip(err)
+	}
+	badUUID := "00000000-0000-0000-0000-000000000000"
+	badPath := "/NONEXISTENT_MOUNT"
+	goodUUID, err := mnt.getFilesystemUUID()
+	if goodUUID == "" || err != nil {
+		t.Fatal("Can't get UUID of test filesystem")
+	}
+
+	// only PATH valid (should succeed)
+	link := fmt.Sprintf("UUID=%s\nPATH=%s\n", badUUID, mnt.Path)
+	linkedMnt, err := getMountFromLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+
+	// only UUID valid (should succeed)
+	link = fmt.Sprintf("UUID=%s\nPATH=%s\n", goodUUID, badPath)
+	if linkedMnt, err = getMountFromLink(link); err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+
+	// neither valid (should fail)
+	link = fmt.Sprintf("UUID=%s\nPATH=%s\n", badUUID, badPath)
+	linkedMnt, err = getMountFromLink(link)
+	if linkedMnt != nil || err == nil {
+		t.Fatal("Following a bad link succeeded")
 	}
 }
 

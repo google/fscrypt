@@ -174,3 +174,20 @@ ext4 filesystem "MNT_ROOT" has 0 protectors and 0 policies
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
+
+# Test that linked protector works even if UUID link is broken
+
+IMPORTANT: See "MNT/dir/fscrypt_recovery_readme.txt" for
+           important recovery instructions. It is *strongly recommended* to
+           record the recovery passphrase in a secure location; otherwise you
+           will lose access to this directory if you reinstall the operating
+           system or move this filesystem to another system.
+
+ext4 filesystem "MNT" has 2 protectors and 1 policy
+
+PROTECTOR         LINKED                              DESCRIPTION
+desc39  No                                  custom protector "Recovery passphrase for dir"
+desc40  Yes (MNT_ROOT)  login protector for fscrypt-test-user
+
+POLICY                            UNLOCKED  PROTECTORS
+desc41  Yes       desc40, desc39

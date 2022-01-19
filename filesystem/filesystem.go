@@ -176,8 +176,7 @@ var SortDescriptorsByLastMtime = false
 //
 // There is also the ability to reference another filesystem's metadata. This is
 // used when a Policy on filesystem A is protected with Protector on filesystem
-// B. In this scenario, we store a "link file" in the protectors directory whose
-// contents look like "UUID=3a6d9a76-47f0-4f13-81bf-3332fbe984fb".
+// B. In this scenario, we store a "link file" in the protectors directory.
 //
 // We also allow ".fscrypt" to be a symlink which was previously created. This
 // allows login protectors to be created when the root filesystem is read-only,
@@ -588,7 +587,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 
 	// Right now, we only make links using UUIDs.
 	var newLink string
-	newLink, err = makeLink(dest, "UUID")
+	newLink, err = makeLink(dest)
 	if err != nil {
 		return false, err
 	}
