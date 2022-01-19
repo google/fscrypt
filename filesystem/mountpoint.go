@@ -364,18 +364,38 @@ func FindMount(path string) (*Mount, error) {
 	if err := loadMountInfo(); err != nil {
 		return nil, err
 	}
+	// First try to find the mount by the number of the containing device.
 	deviceNumber, err := getNumberOfContainingDevice(path)
 	if err != nil {
 		return nil, err
 	}
 	mnt, ok := mountsByDevice[deviceNumber]
-	if !ok {
-		return nil, errors.Errorf("couldn't find mountpoint containing %q", path)
+	if ok {
+		if mnt == nil {
+			return nil, filesystemLacksMainMountError(deviceNumber)
+		}
+		return mnt, nil
 	}
-	if mnt == nil {
-		return nil, filesystemLacksMainMountError(deviceNumber)
+	// The mount couldn't be found by the number of the containing device.
+	// Fall back to walking up the directory hierarchy and checking for a
+	// mount at each directory path.  This is necessary for btrfs, where
+	// files report a different st_dev from the /proc/self/mountinfo entry.
+	curPath, err := canonicalizePath(path)
+	if err != nil {
+		return nil, err
 	}
-	return mnt, nil
+	for {
+		mnt := mountsByPath[curPath]
+		if mnt != nil {
+			return mnt, nil
+		}
+		// Move to the parent directory unless we have reached the root.
+		parent := filepath.Dir(curPath)
+		if parent == curPath {
+			return nil, errors.Errorf("couldn't find mountpoint containing %q", path)
+		}
+		curPath = parent
+	}
 }
 
 // GetMount is like FindMount, except GetMount also returns an error if the path
