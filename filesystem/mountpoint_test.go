@@ -411,6 +411,40 @@ func TestGetMountFromLink(t *testing.T) {
 	}
 }
 
+// Test that makeLink() is including the expected information in links.
+func TestMakeLink(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Skip(err)
+	}
+	link, err := makeLink(mnt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Normally, both UUID and PATH should be included.
+	if !strings.Contains(link, "UUID=") {
+		t.Fatal("Link doesn't contain UUID")
+	}
+	if !strings.Contains(link, "PATH=") {
+		t.Fatal("Link doesn't contain PATH")
+	}
+
+	// Without a valid device number, only PATH should be included.
+	mntCopy := *mnt
+	mntCopy.DeviceNumber = 0
+	link, err = makeLink(&mntCopy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(link, "UUID=") {
+		t.Fatal("Link shouldn't contain UUID")
+	}
+	if !strings.Contains(link, "PATH=") {
+		t.Fatal("Link doesn't contain PATH")
+	}
+}
+
 // Test that old filesystem links that contain a UUID only still work.
 func TestGetMountFromLegacyLink(t *testing.T) {
 	mnt, err := getTestMount(t)
@@ -449,6 +483,16 @@ func TestGetMountFromLinkFallback(t *testing.T) {
 	// only PATH valid (should succeed)
 	link := fmt.Sprintf("UUID=%s\nPATH=%s\n", badUUID, mnt.Path)
 	linkedMnt, err := getMountFromLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if linkedMnt != mnt {
+		t.Fatal("Link doesn't point to the same Mount")
+	}
+
+	// only PATH given at all (should succeed)
+	link = fmt.Sprintf("PATH=%s\n", mnt.Path)
+	linkedMnt, err = getMountFromLink(link)
 	if err != nil {
 		t.Fatal(err)
 	}

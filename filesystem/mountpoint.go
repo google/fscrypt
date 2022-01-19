@@ -545,12 +545,19 @@ func (mnt *Mount) getFilesystemUUID() (string, error) {
 }
 
 // makeLink creates the contents of a link file which will point to the given
-// filesystem.  This will be a string of the form "UUID=<uuid>\nPATH=<path>\n".
-// An error is returned if the filesystem's UUID cannot be determined.
+// filesystem.  This will normally be a string of the form
+// "UUID=<uuid>\nPATH=<path>\n".  If the UUID cannot be determined, the UUID
+// portion will be omitted.
 func makeLink(mnt *Mount) (string, error) {
 	uuid, err := mnt.getFilesystemUUID()
 	if err != nil {
-		return "", &ErrMakeLink{mnt, err}
+		// The UUID could not be determined.  This happens for btrfs
+		// filesystems, as the device number found via
+		// /dev/disk/by-uuid/* for btrfs filesystems differs from the
+		// actual device number of the mounted filesystem.  Just rely
+		// entirely on the fallback to mountpoint path.
+		log.Print(err)
+		return fmt.Sprintf("%s=%s\n", pathToken, mnt.Path), nil
 	}
 	return fmt.Sprintf("%s=%s\n%s=%s\n", uuidToken, uuid, pathToken, mnt.Path), nil
 }
