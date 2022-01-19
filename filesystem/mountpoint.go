@@ -38,13 +38,15 @@ import (
 )
 
 var (
-	// This map holds data about the state of the system's filesystems.
+	// These maps hold data about the state of the system's filesystems.
 	//
-	// It only contains one Mount per filesystem, even if there are
+	// They only contain one Mount per filesystem, even if there are
 	// additional bind mounts, since we want to store fscrypt metadata in
-	// only one place per filesystem.  If it is ambiguous which Mount should
-	// be used, an explicit nil entry is stored.
+	// only one place per filesystem.  When it is ambiguous which Mount
+	// should be used for a filesystem, mountsByDevice will contain an
+	// explicit nil entry, and mountsByPath won't contain an entry.
 	mountsByDevice map[DeviceNumber]*Mount
+	mountsByPath   map[string]*Mount
 	// Used to make the mount functions thread safe
 	mountMutex sync.Mutex
 	// True if the maps have been successfully initialized.
@@ -197,18 +199,18 @@ func findMainMount(filesystemMounts []*Mount) *Mount {
 	// since non-last mounts were already excluded earlier.
 	//
 	// Also build the set of all mounted subtrees.
-	mountsByPath := make(map[string]*mountpointTreeNode)
+	filesystemMountsByPath := make(map[string]*mountpointTreeNode)
 	allSubtrees := make(map[string]bool)
 	for _, mnt := range filesystemMounts {
-		mountsByPath[mnt.Path] = &mountpointTreeNode{mount: mnt}
+		filesystemMountsByPath[mnt.Path] = &mountpointTreeNode{mount: mnt}
 		allSubtrees[mnt.Subtree] = true
 	}
 
 	// Divide the mounts into non-overlapping trees of mountpoints.
-	for path, mntNode := range mountsByPath {
+	for path, mntNode := range filesystemMountsByPath {
 		for path != "/" && mntNode.parent == nil {
 			path = filepath.Dir(path)
-			if parent := mountsByPath[path]; parent != nil {
+			if parent := filesystemMountsByPath[path]; parent != nil {
 				mntNode.parent = parent
 				parent.children = append(parent.children, mntNode)
 			}
@@ -233,7 +235,7 @@ func findMainMount(filesystemMounts []*Mount) *Mount {
 	// *all* mounted subtrees.  Equivalently, select a mountpoint tree in
 	// which every uncontained subtree is mounted.
 	var mainMount *Mount
-	for _, mntNode := range mountsByPath {
+	for _, mntNode := range filesystemMountsByPath {
 		mnt := mntNode.mount
 		if mntNode.parent != nil {
 			continue
@@ -260,8 +262,10 @@ func findMainMount(filesystemMounts []*Mount) *Mount {
 
 // This is separate from loadMountInfo() only for unit testing.
 func readMountInfo(r io.Reader) error {
-	mountsByPath := make(map[string]*Mount)
 	mountsByDevice = make(map[DeviceNumber]*Mount)
+	mountsByPath = make(map[string]*Mount)
+	allMountsByDevice := make(map[DeviceNumber][]*Mount)
+	allMountsByPath := make(map[string]*Mount)
 
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -281,19 +285,22 @@ func readMountInfo(r io.Reader) error {
 		// Note this overrides the info if we have seen the mountpoint
 		// earlier in the file. This is correct behavior because the
 		// mountpoints are listed in mount order.
-		mountsByPath[mnt.Path] = mnt
+		allMountsByPath[mnt.Path] = mnt
 	}
 	// For each filesystem, choose a "main" Mount and discard any additional
 	// bind mounts.  fscrypt only cares about the main Mount, since it's
-	// where the fscrypt metadata is stored.  Store all main Mounts in
-	// mountsByDevice so that they can be found by device number later.
-	allMountsByDevice := make(map[DeviceNumber][]*Mount)
-	for _, mnt := range mountsByPath {
+	// where the fscrypt metadata is stored.  Store all the main Mounts in
+	// mountsByDevice and mountsByPath so that they can be found later.
+	for _, mnt := range allMountsByPath {
 		allMountsByDevice[mnt.DeviceNumber] =
 			append(allMountsByDevice[mnt.DeviceNumber], mnt)
 	}
 	for deviceNumber, filesystemMounts := range allMountsByDevice {
-		mountsByDevice[deviceNumber] = findMainMount(filesystemMounts)
+		mnt := findMainMount(filesystemMounts)
+		mountsByDevice[deviceNumber] = mnt // may store an explicit nil entry
+		if mnt != nil {
+			mountsByPath[mnt.Path] = mnt
+		}
 	}
 	return nil
 }
@@ -329,11 +336,9 @@ func AllFilesystems() ([]*Mount, error) {
 		return nil, err
 	}
 
-	mounts := make([]*Mount, 0, len(mountsByDevice))
-	for _, mount := range mountsByDevice {
-		if mount != nil {
-			mounts = append(mounts, mount)
-		}
+	mounts := make([]*Mount, 0, len(mountsByPath))
+	for _, mount := range mountsByPath {
+		mounts = append(mounts, mount)
 	}
 
 	sort.Sort(PathSorter(mounts))

@@ -90,6 +90,12 @@ func TestLoadMountInfoBasic(t *testing.T) {
 	if mnt.ReadOnly {
 		t.Error("Wrong readonly flag")
 	}
+	if len(mountsByPath) != 1 {
+		t.Error("mountsByPath doesn't contain exactly one entry")
+	}
+	if mountsByPath[mnt.Path] != mnt {
+		t.Error("mountsByPath doesn't contain the correct entry")
+	}
 }
 
 // Test that Mount.Device is set to the mountpoint's source device if
