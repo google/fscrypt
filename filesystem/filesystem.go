@@ -585,7 +585,6 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 		return false, err
 	}
 
-	// Right now, we only make links using UUIDs.
 	var newLink string
 	newLink, err = makeLink(dest)
 	if err != nil {
