@@ -444,14 +444,47 @@ func syncDirectory(dirPath string) error {
 	return dirFile.Close()
 }
 
-// writeDataAtomic writes the data to the path such that the data is either
-// written to stable storage or an error is returned.
-func (m *Mount) writeDataAtomic(path string, data []byte, owner *user.User) error {
+func (m *Mount) overwriteDataNonAtomic(path string, data []byte) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|unix.O_NOFOLLOW, 0)
+	if err != nil {
+		return err
+	}
+	if _, err = file.Write(data); err != nil {
+		log.Printf("WARNING: overwrite of %q failed; file will be corrupted!", path)
+		file.Close()
+		return err
+	}
+	if err = file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err = file.Close(); err != nil {
+		return err
+	}
+	log.Printf("successfully overwrote %q non-atomically", path)
+	return nil
+}
+
+// writeData writes the given data to the given path such that, if possible, the
+// data is either written to stable storage or an error is returned.  If a file
+// already exists at the path, it will be replaced.
+//
+// However, if the process doesn't have write permission to the directory but
+// does have write permission to the file itself, then as a fallback the file is
+// overwritten in-place rather than replaced.  Note that this may be non-atomic.
+func (m *Mount) writeData(path string, data []byte, owner *user.User) error {
 	// Write the data to a temporary file, sync it, then rename into place
 	// so that the operation will be atomic.
 	dirPath := filepath.Dir(path)
 	tempFile, err := ioutil.TempFile(dirPath, tempPrefix)
 	if err != nil {
+		log.Print(err)
+		if os.IsPermission(err) {
+			if _, err = os.Lstat(path); err == nil {
+				log.Printf("trying non-atomic overwrite of %q", path)
+				return m.overwriteDataNonAtomic(path, data)
+			}
+		}
 		return err
 	}
 	defer os.Remove(tempFile.Name())
@@ -501,7 +534,7 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 	}
 
 	log.Printf("writing metadata to %q", path)
-	return m.writeDataAtomic(path, data, owner)
+	return m.writeData(path, data, owner)
 }
 
 // readMetadataFileSafe gets the contents of a metadata file extra-carefully,
@@ -650,7 +683,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	return true, m.writeDataAtomic(linkPath, []byte(newLink), nil)
+	return true, m.writeData(linkPath, []byte(newLink), nil)
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
