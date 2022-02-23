@@ -42,6 +42,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -520,58 +521,60 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 // last path component only), and O_NONBLOCK is needed to avoid blocking if the
 // file is a FIFO.
 //
-// This function returns the data read.
-func readMetadataFileSafe(path string) ([]byte, error) {
+// This function returns the data read as well as the UID of the user who owns
+// the file.  The returned UID is needed for login protectors, where the UID
+// needs to be cross-checked with the UID stored in the file itself.
+func readMetadataFileSafe(path string) ([]byte, int64, error) {
 	file, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 	defer file.Close()
 
 	info, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, &ErrCorruptMetadata{path, errors.New("not a regular file")}
+		return nil, -1, &ErrCorruptMetadata{path, errors.New("not a regular file")}
 	}
 	// Clear O_NONBLOCK, since it has served its purpose when opening the
 	// file, and the behavior of reading from a regular file with O_NONBLOCK
 	// is technically unspecified.
 	if _, err = unix.FcntlInt(file.Fd(), unix.F_SETFL, 0); err != nil {
-		return nil, &os.PathError{Op: "clearing O_NONBLOCK", Path: path, Err: err}
+		return nil, -1, &os.PathError{Op: "clearing O_NONBLOCK", Path: path, Err: err}
 	}
 	// Read the file contents, allowing at most maxMetadataFileSize bytes.
 	reader := &io.LimitedReader{R: file, N: maxMetadataFileSize + 1}
 	data, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 	if reader.N == 0 {
-		return nil, &ErrCorruptMetadata{path, errors.New("metadata file size limit exceeded")}
+		return nil, -1, &ErrCorruptMetadata{path, errors.New("metadata file size limit exceeded")}
 	}
-	return data, nil
+	return data, int64(info.Sys().(*syscall.Stat_t).Uid), nil
 }
 
 // getMetadata reads the metadata structure from the file with the specified
 // path. Only reads normal metadata files, not linked metadata.
-func (m *Mount) getMetadata(path string, md metadata.Metadata) error {
-	data, err := readMetadataFileSafe(path)
+func (m *Mount) getMetadata(path string, md metadata.Metadata) (int64, error) {
+	data, owner, err := readMetadataFileSafe(path)
 	if err != nil {
 		log.Printf("could not read metadata from %q: %v", path, err)
-		return err
+		return -1, err
 	}
 
 	if err := proto.Unmarshal(data, md); err != nil {
-		return &ErrCorruptMetadata{path, err}
+		return -1, &ErrCorruptMetadata{path, err}
 	}
 
 	if err := md.CheckValidity(); err != nil {
-		return &ErrCorruptMetadata{path, err}
+		return -1, &ErrCorruptMetadata{path, err}
 	}
 
 	log.Printf("successfully read metadata from %q", path)
-	return nil
+	return owner, nil
 }
 
 // removeMetadata deletes the metadata struct from the file with the specified
@@ -626,7 +629,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 	linkPath := m.linkedProtectorPath(descriptor)
 
 	// Check whether the link already exists.
-	existingLink, err := readMetadataFileSafe(linkPath)
+	existingLink, _, err := readMetadataFileSafe(linkPath)
 	if err == nil {
 		existingLinkedMnt, err := getMountFromLink(string(existingLink))
 		if err != nil {
@@ -658,11 +661,25 @@ func (m *Mount) GetRegularProtector(descriptor string) (*metadata.ProtectorData,
 	}
 	data := new(metadata.ProtectorData)
 	path := m.protectorPath(descriptor)
-	err := m.getMetadata(path, data)
+	owner, err := m.getMetadata(path, data)
 	if os.IsNotExist(err) {
 		err = &ErrProtectorNotFound{descriptor, m}
 	}
-	return data, err
+	if err != nil {
+		return nil, err
+	}
+	// Login protectors have their UID stored in the file.  Since normally
+	// any user can create files in the fscrypt metadata directories, for a
+	// login protector to be considered valid it *must* be owned by the
+	// claimed user or by root.  Note: fscrypt v0.3.2 and later always makes
+	// login protectors owned by the user, but previous versions could
+	// create them owned by root -- that is the main reason we allow root.
+	if data.Source == metadata.SourceType_pam_passphrase && owner != 0 && owner != data.Uid {
+		log.Printf("WARNING: %q claims to be the login protector for uid %d, but it is owned by uid %d.  Needs to be %d or 0.",
+			path, data.Uid, owner, data.Uid)
+		return nil, &ErrCorruptMetadata{path, errors.New("login protector belongs to wrong user")}
+	}
+	return data, nil
 }
 
 // GetProtector returns the Mount of the filesystem containing the information
@@ -674,7 +691,7 @@ func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData
 	}
 	// Get the link data from the link file
 	path := m.linkedProtectorPath(descriptor)
-	link, err := readMetadataFileSafe(path)
+	link, _, err := readMetadataFileSafe(path)
 	if err != nil {
 		// If the link doesn't exist, try for a regular protector.
 		if os.IsNotExist(err) {
@@ -737,7 +754,7 @@ func (m *Mount) GetPolicy(descriptor string) (*metadata.PolicyData, error) {
 		return nil, err
 	}
 	data := new(metadata.PolicyData)
-	err := m.getMetadata(m.PolicyPath(descriptor), data)
+	_, err := m.getMetadata(m.PolicyPath(descriptor), data)
 	if os.IsNotExist(err) {
 		err = &ErrPolicyNotFound{descriptor, m}
 	}

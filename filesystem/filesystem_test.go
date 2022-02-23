@@ -60,6 +60,19 @@ func getFakeProtector() *metadata.ProtectorData {
 	}
 }
 
+func getFakeLoginProtector(uid int64) *metadata.ProtectorData {
+	protector := getFakeProtector()
+	protector.Source = metadata.SourceType_pam_passphrase
+	protector.Uid = uid
+	protector.Costs = &metadata.HashingCosts{
+		Time:        1,
+		Memory:      1 << 8,
+		Parallelism: 1,
+	}
+	protector.Salt = make([]byte, 16)
+	return protector
+}
+
 func getFakePolicy() *metadata.PolicyData {
 	return &metadata.PolicyData{
 		KeyDescriptor: "0123456789abcdef",
@@ -315,6 +328,50 @@ func TestSetProtector(t *testing.T) {
 	}
 }
 
+// Tests that a login protector whose embedded UID doesn't match the file owner
+// is considered invalid.  (Such a file could be created by a malicious user to
+// try to confuse fscrypt into processing the wrong file.)
+func TestSpoofedLoginProtector(t *testing.T) {
+	myUID := int64(os.Geteuid())
+	badUID := myUID + 1 // anything different from myUID
+	mnt, err := getSetupMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mnt.RemoveAllMetadata()
+
+	// Control case: protector with matching UID should be accepted.
+	protector := getFakeLoginProtector(myUID)
+	if err = mnt.AddProtector(protector); err != nil {
+		t.Fatal(err)
+	}
+	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = mnt.RemoveProtector(protector.ProtectorDescriptor); err != nil {
+		t.Fatal(err)
+	}
+
+	// The real test: protector with mismatching UID should rejected,
+	// *unless* the process running the tests (and hence the file owner) is
+	// root in which case it should be accepted.
+	protector = getFakeLoginProtector(badUID)
+	if err = mnt.AddProtector(protector); err != nil {
+		t.Fatal(err)
+	}
+	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor)
+	if myUID == 0 {
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		if err == nil {
+			t.Fatal("reading protector with bad UID unexpectedly succeeded")
+		}
+	}
+}
+
 // Gets a setup mount and a fake second mount
 func getTwoSetupMounts(t *testing.T) (realMnt, fakeMnt *Mount, err error) {
 	if realMnt, err = getSetupMount(t); err != nil {
@@ -405,13 +462,17 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = createFile(filePath, 1000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = readMetadataFileSafe(filePath); err != nil {
+	_, owner, err := readMetadataFileSafe(filePath)
+	if err != nil {
 		t.Fatal("failed to read file")
+	}
+	if owner != int64(os.Geteuid()) {
+		t.Fatal("got wrong owner")
 	}
 	os.Remove(filePath)
 
 	// Nonexistent file
-	_, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath)
 	if !os.IsNotExist(err) {
 		t.Fatal("trying to read nonexistent file didn't fail with expected error")
 	}
@@ -420,7 +481,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = os.Symlink("target", filePath); err != nil {
 		t.Fatal(err)
 	}
-	_, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath)
 	if err.(*os.PathError).Err != syscall.ELOOP {
 		t.Fatal("trying to read symlink didn't fail with ELOOP")
 	}
@@ -430,7 +491,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = unix.Mkfifo(filePath, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath)
 	if _, ok := err.(*ErrCorruptMetadata); !ok {
 		t.Fatal("trying to read FIFO didn't fail with expected error")
 	}
@@ -440,7 +501,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = createFile(filePath, 1000000); err != nil {
 		t.Fatal(err)
 	}
-	_, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath)
 	if _, ok := err.(*ErrCorruptMetadata); !ok {
 		t.Fatal("trying to read very large file didn't fail with expected error")
 	}
