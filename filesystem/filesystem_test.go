@@ -24,9 +24,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
+	"golang.org/x/sys/unix"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
@@ -380,5 +382,66 @@ func TestLinkedProtector(t *testing.T) {
 
 	if !proto.Equal(retProtector, protector) {
 		t.Errorf("protector %+v does not equal expected protector %+v", retProtector, protector)
+	}
+}
+
+func createFile(path string, size int64) error {
+	if err := ioutil.WriteFile(path, []byte{}, 0600); err != nil {
+		return err
+	}
+	return os.Truncate(path, size)
+}
+
+// Tests the readMetadataFileSafe() function.
+func TestReadMetadataFileSafe(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "fscrypt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePath := filepath.Join(tempDir, "file")
+	defer os.RemoveAll(tempDir)
+
+	// Good file (control case)
+	if err = createFile(filePath, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = readMetadataFileSafe(filePath); err != nil {
+		t.Fatal("failed to read file")
+	}
+	os.Remove(filePath)
+
+	// Nonexistent file
+	_, err = readMetadataFileSafe(filePath)
+	if !os.IsNotExist(err) {
+		t.Fatal("trying to read nonexistent file didn't fail with expected error")
+	}
+
+	// Symlink
+	if err = os.Symlink("target", filePath); err != nil {
+		t.Fatal(err)
+	}
+	_, err = readMetadataFileSafe(filePath)
+	if err.(*os.PathError).Err != syscall.ELOOP {
+		t.Fatal("trying to read symlink didn't fail with ELOOP")
+	}
+	os.Remove(filePath)
+
+	// FIFO
+	if err = unix.Mkfifo(filePath, 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = readMetadataFileSafe(filePath)
+	if _, ok := err.(*ErrCorruptMetadata); !ok {
+		t.Fatal("trying to read FIFO didn't fail with expected error")
+	}
+	os.Remove(filePath)
+
+	// Very large file
+	if err = createFile(filePath, 1000000); err != nil {
+		t.Fatal(err)
+	}
+	_, err = readMetadataFileSafe(filePath)
+	if _, ok := err.(*ErrCorruptMetadata); !ok {
+		t.Fatal("trying to read very large file didn't fail with expected error")
 	}
 }

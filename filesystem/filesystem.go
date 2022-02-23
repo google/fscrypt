@@ -34,6 +34,7 @@ package filesystem
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -213,6 +214,12 @@ const (
 	// The metadata files are globally visible, but can only be deleted by
 	// the user that created them
 	filePermissions = 0644
+
+	// Maximum size of a metadata file.  This value is arbitrary, and it can
+	// be changed.  We just set a reasonable limit that shouldn't be reached
+	// in practice, except by users trying to cause havoc by creating
+	// extremely large files in the metadata directories.
+	maxMetadataFileSize = 16384
 )
 
 func (m *Mount) String() string {
@@ -496,10 +503,60 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 	return m.writeDataAtomic(path, data, owner)
 }
 
+// readMetadataFileSafe gets the contents of a metadata file extra-carefully,
+// considering that it could be a malicious file created to cause a
+// denial-of-service.  Specifically, the following checks are done:
+//
+// - It must be a regular file, not another type of file like a symlink or FIFO.
+//   (Symlinks aren't bad by themselves, but given that a malicious user could
+//   point one to absolutely anywhere, and there is no known use case for the
+//   metadata files themselves being symlinks, it seems best to disallow them.)
+// - It must have a reasonable size (<= maxMetadataFileSize).
+//
+// Take care to avoid TOCTOU (time-of-check-time-of-use) bugs when doing these
+// tests.  Notably, we must open the file before checking the file type, as the
+// file type could change between any previous checks and the open.  When doing
+// this, O_NOFOLLOW is needed to avoid following a symlink (this applies to the
+// last path component only), and O_NONBLOCK is needed to avoid blocking if the
+// file is a FIFO.
+//
+// This function returns the data read.
+func readMetadataFileSafe(path string) ([]byte, error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, &ErrCorruptMetadata{path, errors.New("not a regular file")}
+	}
+	// Clear O_NONBLOCK, since it has served its purpose when opening the
+	// file, and the behavior of reading from a regular file with O_NONBLOCK
+	// is technically unspecified.
+	if _, err = unix.FcntlInt(file.Fd(), unix.F_SETFL, 0); err != nil {
+		return nil, &os.PathError{Op: "clearing O_NONBLOCK", Path: path, Err: err}
+	}
+	// Read the file contents, allowing at most maxMetadataFileSize bytes.
+	reader := &io.LimitedReader{R: file, N: maxMetadataFileSize + 1}
+	data, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	if reader.N == 0 {
+		return nil, &ErrCorruptMetadata{path, errors.New("metadata file size limit exceeded")}
+	}
+	return data, nil
+}
+
 // getMetadata reads the metadata structure from the file with the specified
 // path. Only reads normal metadata files, not linked metadata.
 func (m *Mount) getMetadata(path string, md metadata.Metadata) error {
-	data, err := ioutil.ReadFile(path)
+	data, err := readMetadataFileSafe(path)
 	if err != nil {
 		log.Printf("could not read metadata from %q: %v", path, err)
 		return err
@@ -569,7 +626,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 	linkPath := m.linkedProtectorPath(descriptor)
 
 	// Check whether the link already exists.
-	existingLink, err := ioutil.ReadFile(linkPath)
+	existingLink, err := readMetadataFileSafe(linkPath)
 	if err == nil {
 		existingLinkedMnt, err := getMountFromLink(string(existingLink))
 		if err != nil {
@@ -594,7 +651,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
-// fail with ErrNoMetadata if the descriptor is a linked protector.
+// fail with ErrProtectorNotFound if the descriptor is a linked protector.
 func (m *Mount) GetRegularProtector(descriptor string) (*metadata.ProtectorData, error) {
 	if err := m.CheckSetup(); err != nil {
 		return nil, err
@@ -617,7 +674,7 @@ func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData
 	}
 	// Get the link data from the link file
 	path := m.linkedProtectorPath(descriptor)
-	link, err := ioutil.ReadFile(path)
+	link, err := readMetadataFileSafe(path)
 	if err != nil {
 		// If the link doesn't exist, try for a regular protector.
 		if os.IsNotExist(err) {
