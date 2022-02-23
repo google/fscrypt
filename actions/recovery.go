@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/metadata"
+	"github.com/google/fscrypt/util"
 )
 
 // modifiedContextWithSource returns a copy of ctx with the protector source
@@ -66,7 +67,7 @@ func AddRecoveryPassphrase(policy *Policy, dirname string) (*crypto.Key, *Protec
 		if seq != 1 {
 			name += " (" + strconv.Itoa(seq) + ")"
 		}
-		recoveryProtector, err = CreateProtector(customCtx, name, getPassphraseFn)
+		recoveryProtector, err = CreateProtector(customCtx, name, getPassphraseFn, policy.ownerIfCreating)
 		if err == nil {
 			break
 		}
@@ -120,6 +121,11 @@ It is safe to keep it around though, as the recovery passphrase is high-entropy.
 		policy.Context.Mount.Path, policy.data.KeyDescriptor)
 	if _, err = file.WriteString(str); err != nil {
 		return err
+	}
+	if recoveryProtector.ownerIfCreating != nil {
+		if err = util.Chown(file, recoveryProtector.ownerIfCreating); err != nil {
+			return err
+		}
 	}
 	return file.Sync()
 }

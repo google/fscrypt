@@ -253,31 +253,31 @@ func TestAddProtector(t *testing.T) {
 	defer mnt.RemoveAllMetadata()
 
 	protector := getFakeProtector()
-	if err = mnt.AddProtector(protector); err != nil {
+	if err = mnt.AddProtector(protector, nil); err != nil {
 		t.Error(err)
 	}
 
 	// Change the source to bad one, or one that requires hashing costs
 	protector.Source = metadata.SourceType_default
-	if mnt.AddProtector(protector) == nil {
+	if mnt.AddProtector(protector, nil) == nil {
 		t.Error("bad source for a descriptor should make metadata invalid")
 	}
 	protector.Source = metadata.SourceType_custom_passphrase
-	if mnt.AddProtector(protector) == nil {
+	if mnt.AddProtector(protector, nil) == nil {
 		t.Error("protectors using passphrases should require hashing costs")
 	}
 	protector.Source = metadata.SourceType_raw_key
 
 	// Use a bad wrapped key
 	protector.WrappedKey = wrappedPolicyKey
-	if mnt.AddProtector(protector) == nil {
+	if mnt.AddProtector(protector, nil) == nil {
 		t.Error("bad length for protector keys should make metadata invalid")
 	}
 	protector.WrappedKey = wrappedProtectorKey
 
 	// Change the descriptor (to a bad length)
 	protector.ProtectorDescriptor = "abcde"
-	if mnt.AddProtector(protector) == nil {
+	if mnt.AddProtector(protector, nil) == nil {
 		t.Error("bad descriptor length should make metadata invalid")
 	}
 
@@ -292,32 +292,32 @@ func TestAddPolicy(t *testing.T) {
 	defer mnt.RemoveAllMetadata()
 
 	policy := getFakePolicy()
-	if err = mnt.AddPolicy(policy); err != nil {
+	if err = mnt.AddPolicy(policy, nil); err != nil {
 		t.Error(err)
 	}
 
 	// Bad encryption options should make policy invalid
 	policy.Options.Padding = 7
-	if mnt.AddPolicy(policy) == nil {
+	if mnt.AddPolicy(policy, nil) == nil {
 		t.Error("padding not a power of 2 should make metadata invalid")
 	}
 	policy.Options.Padding = 16
 	policy.Options.Filenames = metadata.EncryptionOptions_default
-	if mnt.AddPolicy(policy) == nil {
+	if mnt.AddPolicy(policy, nil) == nil {
 		t.Error("encryption mode not set should make metadata invalid")
 	}
 	policy.Options.Filenames = metadata.EncryptionOptions_AES_256_CTS
 
 	// Use a bad wrapped key
 	policy.WrappedPolicyKeys[0].WrappedKey = wrappedProtectorKey
-	if mnt.AddPolicy(policy) == nil {
+	if mnt.AddPolicy(policy, nil) == nil {
 		t.Error("bad length for policy keys should make metadata invalid")
 	}
 	policy.WrappedPolicyKeys[0].WrappedKey = wrappedPolicyKey
 
 	// Change the descriptor (to a bad length)
 	policy.KeyDescriptor = "abcde"
-	if mnt.AddPolicy(policy) == nil {
+	if mnt.AddPolicy(policy, nil) == nil {
 		t.Error("bad descriptor length should make metadata invalid")
 	}
 }
@@ -331,7 +331,7 @@ func TestSetPolicy(t *testing.T) {
 	defer mnt.RemoveAllMetadata()
 
 	policy := getFakePolicy()
-	if err = mnt.AddPolicy(policy); err != nil {
+	if err = mnt.AddPolicy(policy, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -355,7 +355,7 @@ func TestSetProtector(t *testing.T) {
 	defer mnt.RemoveAllMetadata()
 
 	protector := getFakeProtector()
-	if err = mnt.AddProtector(protector); err != nil {
+	if err = mnt.AddProtector(protector, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -383,7 +383,7 @@ func TestSpoofedLoginProtector(t *testing.T) {
 
 	// Control case: protector with matching UID should be accepted.
 	protector := getFakeLoginProtector(myUID)
-	if err = mnt.AddProtector(protector); err != nil {
+	if err = mnt.AddProtector(protector, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
@@ -398,7 +398,7 @@ func TestSpoofedLoginProtector(t *testing.T) {
 	// *unless* the process running the tests (and hence the file owner) is
 	// root in which case it should be accepted.
 	protector = getFakeLoginProtector(badUID)
-	if err = mnt.AddProtector(protector); err != nil {
+	if err = mnt.AddProtector(protector, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
@@ -445,19 +445,19 @@ func TestLinkedProtector(t *testing.T) {
 
 	// Add the protector to the first filesystem
 	protector := getFakeProtector()
-	if err = realMnt.AddProtector(protector); err != nil {
+	if err = realMnt.AddProtector(protector, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	// Add the link to the second filesystem
 	var isNewLink bool
-	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil); err != nil {
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !isNewLink {
 		t.Fatal("Link was not new")
 	}
-	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil); err != nil {
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if isNewLink {

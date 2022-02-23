@@ -649,6 +649,8 @@ func (m *Mount) writeData(path string, data []byte, owner *user.User) error {
 		tempFile.Close()
 		return err
 	}
+	// Override the file owner if one was specified.  This happens when root
+	// needs to create files owned by a particular user.
 	if owner != nil {
 		if err = util.Chown(tempFile, owner); err != nil {
 			log.Printf("could not set owner of %q to %v: %v",
@@ -786,7 +788,7 @@ func (m *Mount) removeMetadata(path string) error {
 // will overwrite the value of an existing protector with this descriptor. This
 // will fail with ErrLinkedProtector if a linked protector with this descriptor
 // already exists on the filesystem.
-func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
+func (m *Mount) AddProtector(data *metadata.ProtectorData, owner *user.User) error {
 	var err error
 	if err = m.CheckSetup(nil); err != nil {
 		return err
@@ -796,21 +798,14 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 			data.ProtectorDescriptor, m.Path)
 	}
 	path := m.protectorPath(data.ProtectorDescriptor)
-
-	var owner *user.User
-	if data.Source == metadata.SourceType_pam_passphrase && util.IsUserRoot() {
-		owner, err = util.UserFromUID(data.Uid)
-		if err != nil {
-			return err
-		}
-	}
 	return m.addMetadata(path, data, owner)
 }
 
 // AddLinkedProtector adds a link in this filesystem to the protector metadata
 // in the dest filesystem, if one doesn't already exist.  On success, the return
 // value is a nil error and a bool that is true iff the link is newly created.
-func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *user.User) (bool, error) {
+func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *user.User,
+	ownerIfCreating *user.User) (bool, error) {
 	if err := m.CheckSetup(trustedUser); err != nil {
 		return false, err
 	}
@@ -843,7 +838,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *
 	if err != nil {
 		return false, err
 	}
-	return true, m.writeData(linkPath, []byte(newLink), nil)
+	return true, m.writeData(linkPath, []byte(newLink), ownerIfCreating)
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
@@ -931,12 +926,12 @@ func (m *Mount) ListProtectors(trustedUser *user.User) ([]string, error) {
 }
 
 // AddPolicy adds the policy metadata to the filesystem storage.
-func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
+func (m *Mount) AddPolicy(data *metadata.PolicyData, owner *user.User) error {
 	if err := m.CheckSetup(nil); err != nil {
 		return err
 	}
 
-	return m.addMetadata(m.PolicyPath(data.KeyDescriptor), data, nil)
+	return m.addMetadata(m.PolicyPath(data.KeyDescriptor), data, owner)
 }
 
 // GetPolicy looks up the policy metadata by descriptor.

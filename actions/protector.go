@@ -109,17 +109,18 @@ func checkIfUserHasLoginProtector(ctx *Context, uid int64) error {
 // to unlock policies and create new polices. As with the key struct, a
 // Protector should be wiped after use.
 type Protector struct {
-	Context *Context
-	data    *metadata.ProtectorData
-	key     *crypto.Key
-	created bool
+	Context         *Context
+	data            *metadata.ProtectorData
+	key             *crypto.Key
+	created         bool
+	ownerIfCreating *user.User
 }
 
 // CreateProtector creates an unlocked protector with a given name (name only
 // needed for custom and raw protector types). The keyFn provided to create the
 // Protector key will only be called once. If an error is returned, no data has
 // been changed on the filesystem.
-func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, error) {
+func CreateProtector(ctx *Context, name string, keyFn KeyFunc, owner *user.User) (*Protector, error) {
 	if err := ctx.checkContext(); err != nil {
 		return nil, err
 	}
@@ -147,7 +148,8 @@ func CreateProtector(ctx *Context, name string, keyFn KeyFunc) (*Protector, erro
 			Name:   name,
 			Source: ctx.Config.Source,
 		},
-		created: true,
+		created:         true,
+		ownerIfCreating: owner,
 	}
 
 	// Extra data is needed for some SourceTypes
@@ -294,5 +296,5 @@ func (protector *Protector) Rewrap(keyFn KeyFunc) error {
 		return err
 	}
 
-	return protector.Context.Mount.AddProtector(protector.data)
+	return protector.Context.Mount.AddProtector(protector.data, protector.ownerIfCreating)
 }

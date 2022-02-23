@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/user"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
@@ -178,6 +179,7 @@ type Policy struct {
 	data                *metadata.PolicyData
 	key                 *crypto.Key
 	created             bool
+	ownerIfCreating     *user.User
 	newLinkedProtectors []string
 }
 
@@ -208,6 +210,12 @@ func CreatePolicy(ctx *Context, protector *Protector) (*Policy, error) {
 		},
 		key:     key,
 		created: true,
+	}
+
+	policy.ownerIfCreating, err = getOwnerOfMetadataForProtector(protector)
+	if err != nil {
+		policy.Lock()
+		return nil, err
 	}
 
 	if err = policy.AddProtector(protector); err != nil {
@@ -410,6 +418,25 @@ func (policy *Policy) UsesProtector(protector *Protector) bool {
 	return ok
 }
 
+// getOwnerOfMetadataForProtector returns the User to whom the owner of any new
+// policies or protector links for the given protector should be set.
+//
+// This will return a non-nil value only when the protector is a login protector
+// and the process is running as root.  In this scenario, root is setting up
+// encryption on the user's behalf, so we need to make new policies and
+// protector links owned by the user (rather than root) to allow them to be read
+// by the user, just like the login protector itself which is handled elsewhere.
+func getOwnerOfMetadataForProtector(protector *Protector) (*user.User, error) {
+	if protector.data.Source == metadata.SourceType_pam_passphrase && util.IsUserRoot() {
+		owner, err := util.UserFromUID(protector.data.Uid)
+		if err != nil {
+			return nil, err
+		}
+		return owner, nil
+	}
+	return nil, nil
+}
+
 // AddProtector updates the data that is wrapping the Policy Key so that the
 // provided Protector is now protecting the specified Policy. If an error is
 // returned, no data has been changed. If the policy and protector are on
@@ -427,8 +454,13 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 	// to it on the policy's filesystem.
 	if policy.Context.Mount != protector.Context.Mount {
 		log.Printf("policy on %s\n protector on %s\n", policy.Context.Mount, protector.Context.Mount)
+		ownerIfCreating, err := getOwnerOfMetadataForProtector(protector)
+		if err != nil {
+			return err
+		}
 		isNewLink, err := policy.Context.Mount.AddLinkedProtector(
-			protector.Descriptor(), protector.Context.Mount, protector.Context.TrustedUser)
+			protector.Descriptor(), protector.Context.Mount,
+			protector.Context.TrustedUser, ownerIfCreating)
 		if err != nil {
 			return err
 		}
@@ -554,7 +586,7 @@ func (policy *Policy) CanBeAppliedWithoutProvisioning() bool {
 
 // commitData writes the Policy's current data to the filesystem.
 func (policy *Policy) commitData() error {
-	return policy.Context.Mount.AddPolicy(policy.data)
+	return policy.Context.Mount.AddPolicy(policy.data, policy.ownerIfCreating)
 }
 
 // findWrappedPolicyKey returns the index of the wrapped policy key

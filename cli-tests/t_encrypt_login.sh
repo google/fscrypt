@@ -58,9 +58,17 @@ begin "Encrypt with login protector as root"
 echo TEST_USER_PASS | fscrypt encrypt --quiet --source=pam_passphrase --user="$TEST_USER" "$dir"
 show_status true
 # The newly-created login protector should be owned by the user, not root.
+# This is partly redundant with the below check, but we might as well test both.
 login_protector=$(_get_login_descriptor)
 owner=$(stat -c "%U:%G" "$MNT_ROOT/.fscrypt/protectors/$login_protector")
 echo -e "\nProtector is owned by $owner"
+# The user should be able to lock and unlock the directory themselves.  This
+# tests that the fscrypt metadata file permissions got set appropriately when
+# root set up the encryption on the user's behalf.
+chown "$TEST_USER" "$dir"
+_user_do "fscrypt lock $dir"
+_user_do "echo TEST_USER_PASS | fscrypt unlock $dir --quiet --unlock-with=$MNT_ROOT:$login_protector"
+_user_do "fscrypt lock $dir"
 
 begin "Encrypt with login protector with --no-recovery"
 chown "$TEST_USER" "$dir"
