@@ -254,7 +254,7 @@ const (
 	basePermissions = 0755
 	// The metadata files are globally visible, but can only be deleted by
 	// the user that created them
-	filePermissions = 0644
+	filePermissions = os.FileMode(0644)
 
 	// Maximum size of a metadata file.  This value is arbitrary, and it can
 	// be changed.  We just set a reasonable limit that shouldn't be reached
@@ -626,7 +626,7 @@ func (m *Mount) overwriteDataNonAtomic(path string, data []byte) error {
 // However, if the process doesn't have write permission to the directory but
 // does have write permission to the file itself, then as a fallback the file is
 // overwritten in-place rather than replaced.  Note that this may be non-atomic.
-func (m *Mount) writeData(path string, data []byte, owner *user.User) error {
+func (m *Mount) writeData(path string, data []byte, owner *user.User, mode os.FileMode) error {
 	// Write the data to a temporary file, sync it, then rename into place
 	// so that the operation will be atomic.
 	dirPath := filepath.Dir(path)
@@ -644,8 +644,8 @@ func (m *Mount) writeData(path string, data []byte, owner *user.User) error {
 	}
 	defer os.Remove(tempFile.Name())
 
-	// TempFile() creates the file with mode 0600.  Change it to 0644.
-	if err = tempFile.Chmod(filePermissions); err != nil {
+	// Ensure the new file has the right permissions mask.
+	if err = tempFile.Chmod(mode); err != nil {
 		tempFile.Close()
 		return err
 	}
@@ -690,8 +690,29 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 		return err
 	}
 
-	log.Printf("writing metadata to %q", path)
-	return m.writeData(path, data, owner)
+	mode := filePermissions
+	// If the file already exists, then preserve its owner and mode if
+	// possible.  This is necessary because by default, for atomicity
+	// reasons we'll replace the file rather than overwrite it.
+	info, err := os.Lstat(path)
+	if err == nil {
+		if owner == nil && util.IsUserRoot() {
+			uid := info.Sys().(*syscall.Stat_t).Uid
+			if owner, err = util.UserFromUID(int64(uid)); err != nil {
+				log.Print(err)
+			}
+		}
+		mode = info.Mode() & 0777
+	} else if !os.IsNotExist(err) {
+		log.Print(err)
+	}
+
+	if owner != nil {
+		log.Printf("writing metadata to %q and setting owner to %s", path, owner.Username)
+	} else {
+		log.Printf("writing metadata to %q", path)
+	}
+	return m.writeData(path, data, owner, mode)
 }
 
 // readMetadataFileSafe gets the contents of a metadata file extra-carefully,
@@ -838,7 +859,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *
 	if err != nil {
 		return false, err
 	}
-	return true, m.writeData(linkPath, []byte(newLink), ownerIfCreating)
+	return true, m.writeData(linkPath, []byte(newLink), ownerIfCreating, filePermissions)
 }
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
