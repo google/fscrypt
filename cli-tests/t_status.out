@@ -4,9 +4,11 @@ ext4 supported Yes
 ext4 supported Yes
 
 # Get status of setup mountpoint
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 
 # Get status of unencrypted directory on setup mountpoint

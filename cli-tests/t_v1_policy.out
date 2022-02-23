@@ -120,7 +120,8 @@ Unlocked: Partially (incompletely locked, or unlocked by another user)
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc2  No      custom protector "prot"
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc2  No      custom protector "prot"

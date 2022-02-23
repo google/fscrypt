@@ -37,6 +37,7 @@ dependencies](#runtime-dependencies).
 - [Building and installing](#building-and-installing)
 - [Runtime dependencies](#runtime-dependencies)
 - [Configuration file](#configuration-file)
+- [Setting up `fscrypt` on a filesystem](#setting-up-fscrypt-on-a-filesystem)
 - [Setting up for login protectors](#setting-up-for-login-protectors)
   - [Securing your login passphrase](#securing-your-login-passphrase)
   - [Enabling the PAM module](#enabling-the-pam-module)
@@ -377,6 +378,44 @@ The fields are:
   kernels, it's better to not use this setting and instead (re-)create your
   encrypted directories with `"policy_version": "2"`.
 
+## Setting up `fscrypt` on a filesystem
+
+`fscrypt` needs some directories to exist on the filesystem on which encryption
+will be used:
+
+* `MOUNTPOINT/.fscrypt/policies`
+* `MOUNTPOINT/.fscrypt/protectors`
+
+(If login protectors are used, these must also exist on the root filesystem.)
+
+To create these directories, run `fscrypt setup MOUNTPOINT`.  If MOUNTPOINT is
+owned by root, as is usually the case, then this command will require root.
+
+There will be one decision you'll need to make: whether non-root users will be
+allowed to create `fscrypt` metadata (policies and protectors).
+
+If you say `y`, then these directories will be made world-writable, with the
+sticky bit set so that users can't delete each other's files -- just like
+`/tmp`.  If you say `N`, then these directories will be writable only by root.
+
+Saying `y` maximizes the usability of `fscrypt`, and on most systems it's fine
+to say `y`.  However, on some systems this may be inappropriate, as it will
+allow malicious users to fill the entire filesystem unless filesystem quotas
+have been configured -- similar to problems that have historically existed with
+other world-writable directories, e.g. `/tmp`.  If you are concerned about this,
+say `N`.  If you say `N`, then you'll only be able to run `fscrypt` as root to
+set up encryption on users' behalf, unless you manually set custom permissions
+on the metadata directories to grant write access to specific users or groups.
+
+If you chose the wrong mode at `fscrypt setup` time, you can change the
+directory permissions at any time.  To enable single-user writable mode, run:
+
+    sudo chmod 0755 MOUNTPOINT/.fscrypt/*
+
+To enable world-writable mode, run:
+
+    sudo chmod 1777 MOUNTPOINT/.fscrypt/*
+
 ## Setting up for login protectors
 
 If you want any encrypted directories to be protected by your login passphrase,
@@ -646,11 +685,15 @@ MOUNTPOINT  DEVICE     FILESYSTEM  ENCRYPTION   FSCRYPT
 Defaulting to policy_version 2 because kernel supports it.
 Customizing passphrase hashing difficulty for this system...
 Created global config file at "/etc/fscrypt.conf".
-Metadata directories created at "/.fscrypt".
+Allow users other than root to create fscrypt metadata on the root filesystem?
+(See https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem) [y/N] y
+Metadata directories created at "/.fscrypt", writable by everyone.
 
 # Start using fscrypt with our filesystem
->>>>> fscrypt setup /mnt/disk
-Metadata directories created at "/mnt/disk/.fscrypt".
+>>>>> sudo fscrypt setup /mnt/disk
+Allow users other than root to create fscrypt metadata on this filesystem? (See
+https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem) [y/N] y
+Metadata directories created at "/mnt/disk/.fscrypt", writable by everyone.
 
 # Initialize encryption on a new empty directory
 >>>>> mkdir /mnt/disk/dir1
@@ -678,8 +721,8 @@ POLICY                            UNLOCKED  PROTECTORS
 
 #### Quiet version
 ```bash
->>>>> sudo fscrypt setup --quiet --force
->>>>> fscrypt setup /mnt/disk --quiet
+>>>>> sudo fscrypt setup --quiet --force --all-users
+>>>>> sudo fscrypt setup /mnt/disk --quiet --all-users
 >>>>> echo "hunter2" | fscrypt encrypt /mnt/disk/dir1 --quiet --source=custom_passphrase  --name="Super Secret"
 ```
 

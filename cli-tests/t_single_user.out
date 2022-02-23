@@ -1,0 +1,30 @@
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+Only root can create fscrypt metadata on this filesystem.
+
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+Only root can create fscrypt metadata on this filesystem.
+
+
+# Encrypt, lock, and unlock as root
+"MNT/dir" is now locked.
+
+# Encrypt as root with user's login protector
+
+IMPORTANT: See "MNT/dir/fscrypt_recovery_readme.txt" for
+           important recovery instructions. It is *strongly recommended* to
+           record the recovery passphrase in a secure location; otherwise you
+           will lose access to this directory if you reinstall the operating
+           system or move this filesystem to another system.
+
+Protector desc1 no longer protecting policy desc2.
+"MNT/dir" is now locked.
+Enter login passphrase for fscrypt-test-user: "MNT/dir" is now unlocked and ready for use.
+
+# Encrypt as user (should fail)
+[ERROR] fscrypt encrypt: user lacks permission to create fscrypt metadata on
+                         MNT
+
+For how to allow users to create fscrypt metadata on a filesystem, refer to
+https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem
+
+# Encrypt as user if they set up filesystem (should succeed)

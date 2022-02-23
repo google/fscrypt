@@ -165,9 +165,18 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.FilesystemType,
+	fmt.Fprintf(w, "%s filesystem %q has %s and %s.\n", ctx.Mount.FilesystemType,
 		ctx.Mount.Path, pluralize(len(options), "protector"),
 		pluralize(len(policyDescriptors), "policy"))
+	if setupMode, user, err := ctx.Mount.GetSetupMode(); err == nil {
+		switch setupMode {
+		case filesystem.WorldWritable:
+			fmt.Fprintf(w, "All users can create fscrypt metadata on this filesystem.\n")
+		case filesystem.SingleUserWritable:
+			fmt.Fprintf(w, "Only %s can create fscrypt metadata on this filesystem.\n", user.Username)
+		}
+	}
+	fmt.Fprintf(w, "\n")
 
 	if len(options) > 0 {
 		writeOptions(w, options)

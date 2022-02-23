@@ -232,6 +232,10 @@ func getErrorSuggestions(err error) string {
 			}
 		}
 		return ""
+	case *filesystem.ErrNoCreatePermission:
+		return `For how to allow users to create fscrypt metadata on a
+			filesystem, refer to
+			https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem`
 	case *filesystem.ErrNotSetup:
 		return fmt.Sprintf(`Run "sudo fscrypt setup %s" to use fscrypt
 		        on this filesystem.`, e.Mount.Path)

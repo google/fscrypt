@@ -1,6 +1,7 @@
 
 # Encrypt with raw_key protector from file
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      raw key protector "prot"
@@ -18,7 +19,8 @@ PROTECTOR         LINKED  DESCRIPTION
 desc1  No      raw key protector "prot"
 
 # Encrypt with raw_key protector from stdin
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc6  No      raw key protector "prot"
@@ -37,21 +39,24 @@ desc6  No      raw key protector "prot"
 
 # Try to encrypt with raw_key protector from file, using wrong key length
 [ERROR] fscrypt encrypt: TMPDIR/raw_key: key file must be 32 bytes
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
 
 # Try to encrypt with raw_key protector from stdin, using wrong key length
 [ERROR] fscrypt encrypt: unexpected EOF
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
 
 # Encrypt with raw_key protector from file, unlock from stdin
 "MNT/dir" is now locked.
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc11  No      raw key protector "prot"

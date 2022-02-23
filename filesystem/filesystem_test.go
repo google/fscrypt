@@ -92,7 +92,7 @@ func getSetupMount(t *testing.T) (*Mount, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mnt, mnt.Setup()
+	return mnt, mnt.Setup(WorldWritable)
 }
 
 // Tests that the setup works and creates the correct files
@@ -153,7 +153,7 @@ func testSetupWithSymlink(t *testing.T, mnt *Mount, symlinkTarget string, realDi
 	}
 	defer os.Remove(rawBaseDir)
 
-	if err := mnt.Setup(); err != nil {
+	if err := mnt.Setup(WorldWritable); err != nil {
 		t.Fatal(err)
 	}
 	defer mnt.RemoveAllMetadata()
@@ -201,6 +201,35 @@ func TestSetupWithRelativeSymlink(t *testing.T) {
 	}
 	realDir := filepath.Join(mnt.Path, ".fscrypt-real")
 	testSetupWithSymlink(t, mnt, ".fscrypt-real", realDir)
+}
+
+func testSetupMode(t *testing.T, mnt *Mount, setupMode SetupMode, expectedPerms os.FileMode) {
+	mnt.RemoveAllMetadata()
+	if err := mnt.Setup(setupMode); err != nil {
+		t.Fatal(err)
+	}
+	dirNames := []string{"policies", "protectors"}
+	for _, dirName := range dirNames {
+		fi, err := os.Stat(filepath.Join(mnt.Path, ".fscrypt", dirName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode()&(os.ModeSticky|0777) != expectedPerms {
+			t.Errorf("directory %s doesn't have permissions %o", dirName, expectedPerms)
+		}
+	}
+}
+
+// Tests that the supported setup modes (WorldWritable and SingleUserWritable)
+// work as intended.
+func TestSetupModes(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mnt.RemoveAllMetadata()
+	testSetupMode(t, mnt, WorldWritable, os.ModeSticky|0777)
+	testSetupMode(t, mnt, SingleUserWritable, 0755)
 }
 
 // Adding a good Protector should succeed, adding a bad one should fail
@@ -384,7 +413,7 @@ func getTwoSetupMounts(t *testing.T) (realMnt, fakeMnt *Mount, err error) {
 		return
 	}
 	fakeMnt = &Mount{Path: fakeMountpoint, FilesystemType: realMnt.FilesystemType}
-	err = fakeMnt.Setup()
+	err = fakeMnt.Setup(WorldWritable)
 	return
 }
 

@@ -96,6 +96,16 @@ func (err *ErrMakeLink) Error() string {
 		err.Target.Path, err.UnderlyingError)
 }
 
+// ErrNoCreatePermission indicates that the current user lacks permission to
+// create fscrypt metadata on the given filesystem.
+type ErrNoCreatePermission struct {
+	Mount *Mount
+}
+
+func (err *ErrNoCreatePermission) Error() string {
+	return fmt.Sprintf("user lacks permission to create fscrypt metadata on %s", err.Mount.Path)
+}
+
 // ErrNotAMountpoint indicates that a path is not a mountpoint.
 type ErrNotAMountpoint struct {
 	Path string
@@ -209,9 +219,6 @@ const (
 
 	// The base directory should be read-only (except for the creator)
 	basePermissions = 0755
-	// The subdirectories should be writable to everyone, but they have the
-	// sticky bit set so users cannot delete other users' metadata.
-	dirPermissions = os.ModeSticky | 0777
 	// The metadata files are globally visible, but can only be deleted by
 	// the user that created them
 	filePermissions = 0644
@@ -221,6 +228,18 @@ const (
 	// in practice, except by users trying to cause havoc by creating
 	// extremely large files in the metadata directories.
 	maxMetadataFileSize = 16384
+)
+
+// SetupMode is a mode for creating the fscrypt metadata directories.
+type SetupMode int
+
+const (
+	// SingleUserWritable specifies to make the fscrypt metadata directories
+	// writable by a single user (usually root) only.
+	SingleUserWritable SetupMode = iota
+	// WorldWritable specifies to make the fscrypt metadata directories
+	// world-writable (with the sticky bit set).
+	WorldWritable
 )
 
 func (m *Mount) String() string {
@@ -359,8 +378,8 @@ func (m *Mount) CheckSetup() error {
 	}
 	// Run all the checks so we will always get all the warnings
 	baseGood := isDirCheckPerm(m.BaseDir(), basePermissions)
-	policyGood := isDirCheckPerm(m.PolicyDir(), dirPermissions)
-	protectorGood := isDirCheckPerm(m.ProtectorDir(), dirPermissions)
+	policyGood := isDir(m.PolicyDir())
+	protectorGood := isDir(m.ProtectorDir())
 
 	if baseGood && policyGood && protectorGood {
 		return nil
@@ -370,7 +389,7 @@ func (m *Mount) CheckSetup() error {
 
 // makeDirectories creates the three metadata directories with the correct
 // permissions. Note that this function overrides the umask.
-func (m *Mount) makeDirectories() error {
+func (m *Mount) makeDirectories(setupMode SetupMode) error {
 	// Zero the umask so we get the permissions we want
 	oldMask := unix.Umask(0)
 	defer func() {
@@ -380,17 +399,51 @@ func (m *Mount) makeDirectories() error {
 	if err := os.Mkdir(m.BaseDir(), basePermissions); err != nil {
 		return err
 	}
-	if err := os.Mkdir(m.PolicyDir(), dirPermissions); err != nil {
+
+	var dirMode os.FileMode
+	switch setupMode {
+	case SingleUserWritable:
+		dirMode = 0755
+	case WorldWritable:
+		dirMode = os.ModeSticky | 0777
+	}
+	if err := os.Mkdir(m.PolicyDir(), dirMode); err != nil {
 		return err
 	}
-	return os.Mkdir(m.ProtectorDir(), dirPermissions)
+	return os.Mkdir(m.ProtectorDir(), dirMode)
+}
+
+// GetSetupMode returns the current mode for fscrypt metadata creation on this
+// filesystem.
+func (m *Mount) GetSetupMode() (SetupMode, *user.User, error) {
+	info1, err1 := os.Stat(m.PolicyDir())
+	info2, err2 := os.Stat(m.ProtectorDir())
+
+	if err1 == nil && err2 == nil {
+		mask := os.ModeSticky | 0777
+		mode1 := info1.Mode() & mask
+		mode2 := info2.Mode() & mask
+		uid1 := info1.Sys().(*syscall.Stat_t).Uid
+		uid2 := info2.Sys().(*syscall.Stat_t).Uid
+		user, err := util.UserFromUID(int64(uid1))
+		if err == nil && mode1 == mode2 && uid1 == uid2 {
+			switch mode1 {
+			case mask:
+				return WorldWritable, nil, nil
+			case 0755:
+				return SingleUserWritable, user, nil
+			}
+		}
+		log.Printf("filesystem %s uses custom permissions on metadata directories", m.Path)
+	}
+	return -1, nil, errors.New("unable to determine setup mode")
 }
 
 // Setup sets up the filesystem for use with fscrypt. Note that this merely
 // creates the appropriate files on the filesystem. It does not actually modify
 // the filesystem's feature flags. This operation is atomic; it either succeeds
 // or no files in the baseDir are created.
-func (m *Mount) Setup() error {
+func (m *Mount) Setup(mode SetupMode) error {
 	if m.CheckSetup() == nil {
 		return &ErrAlreadySetup{m}
 	}
@@ -404,7 +457,7 @@ func (m *Mount) Setup() error {
 	}
 	defer os.RemoveAll(temp.Path)
 
-	if err = temp.makeDirectories(); err != nil {
+	if err = temp.makeDirectories(mode); err != nil {
 		return err
 	}
 
@@ -484,6 +537,7 @@ func (m *Mount) writeData(path string, data []byte, owner *user.User) error {
 				log.Printf("trying non-atomic overwrite of %q", path)
 				return m.overwriteDataNonAtomic(path, data)
 			}
+			return &ErrNoCreatePermission{m}
 		}
 		return err
 	}
