@@ -173,6 +173,9 @@ func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
 		// Skip mountpoints that do not use the protector.
 		if _, _, err := mount.GetProtector(protector.Descriptor(),
 			protector.Context.TrustedUser); err != nil {
+			if _, ok := err.(*filesystem.ErrNotSetup); !ok {
+				log.Print(err)
+			}
 			continue
 		}
 		policyDescriptors, err := mount.ListPolicies(protector.Context.TrustedUser)
