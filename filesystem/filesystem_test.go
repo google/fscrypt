@@ -413,6 +413,41 @@ func TestSpoofedLoginProtector(t *testing.T) {
 	}
 }
 
+// Tests that the fscrypt metadata files are given mode 0600.
+func TestMetadataFileMode(t *testing.T) {
+	mnt, err := getSetupMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mnt.RemoveAllMetadata()
+
+	// Policy
+	policy := getFakePolicy()
+	if err = mnt.AddPolicy(policy, nil); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(filepath.Join(mnt.Path, ".fscrypt/policies/", policy.KeyDescriptor))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&0777 != 0600 {
+		t.Error("Policy file has wrong mode")
+	}
+
+	// Protector
+	protector := getFakeProtector()
+	if err = mnt.AddProtector(protector, nil); err != nil {
+		t.Fatal(err)
+	}
+	fi, err = os.Stat(filepath.Join(mnt.Path, ".fscrypt/protectors", protector.ProtectorDescriptor))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&0777 != 0600 {
+		t.Error("Protector file has wrong mode")
+	}
+}
+
 // Gets a setup mount and a fake second mount
 func getTwoSetupMounts(t *testing.T) (realMnt, fakeMnt *Mount, err error) {
 	if realMnt, err = getSetupMount(t); err != nil {

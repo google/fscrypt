@@ -76,7 +76,6 @@ cat: MNT/dir/file: No such file or directory
 mkdir: cannot create directory 'MNT/dir/subdir': Required key not available
 
 # Try to lock directory while other user has unlocked
-Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
 [ERROR] fscrypt lock: Directory "MNT/dir" couldn't be fully
                       locked because other user(s) have unlocked it.
 

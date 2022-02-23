@@ -252,9 +252,14 @@ const (
 
 	// The base directory should be read-only (except for the creator)
 	basePermissions = 0755
-	// The metadata files are globally visible, but can only be deleted by
-	// the user that created them
-	filePermissions = os.FileMode(0644)
+
+	// The metadata files shouldn't be readable or writable by other users.
+	// Having them be world-readable wouldn't necessarily be a huge issue,
+	// but given that some of these files contain (strong) password hashes,
+	// we error on the side of caution -- similar to /etc/shadow.
+	// Note: existing files on-disk might have mode 0644, as that was the
+	// mode used by fscrypt v0.3.2 and earlier.
+	filePermissions = os.FileMode(0600)
 
 	// Maximum size of a metadata file.  This value is arbitrary, and it can
 	// be changed.  We just set a reasonable limit that shouldn't be reached

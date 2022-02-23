@@ -385,7 +385,9 @@ The fields are:
   other users might be untrusted and could create malicious files.  This can be
   set to `true` to restore the old behavior on systems where `fscrypt` metadata
   needs to be shared between multiple users.  Note that this option is
-  independent from the permissions on the metadata files themselves.
+  independent from the permissions on the metadata files themselves, which are
+  set to 0600 by default; users who wish to share their metadata files with
+  other users would also need to explicitly change their mode to 0644.
 
 ## Setting up `fscrypt` on a filesystem
 
