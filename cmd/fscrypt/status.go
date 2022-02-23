@@ -114,8 +114,11 @@ func writeGlobalStatus(w io.Writer) error {
 			continue
 		}
 
-		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", mount.Path, mount.Device,
-			mount.FilesystemType, supportString, yesNoString(usingFscrypt))
+		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n",
+			filesystem.EscapeString(mount.Path),
+			filesystem.EscapeString(mount.Device),
+			filesystem.EscapeString(mount.FilesystemType),
+			supportString, yesNoString(usingFscrypt))
 
 		if supportErr == nil {
 			supportCount++

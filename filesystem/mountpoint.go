@@ -77,6 +77,21 @@ func unescapeString(str string) string {
 	return sb.String()
 }
 
+// EscapeString is the reverse of unescapeString.  Use this to avoid injecting
+// spaces or newlines into output that uses these characters as separators.
+func EscapeString(str string) string {
+	var sb strings.Builder
+	for _, b := range []byte(str) {
+		switch b {
+		case ' ', '\t', '\n', '\\':
+			sb.WriteString(fmt.Sprintf("\\%03o", b))
+		default:
+			sb.WriteByte(b)
+		}
+	}
+	return sb.String()
+}
+
 // We get the device name via the device number rather than use the mount source
 // field directly.  This is necessary to handle a rootfs that was mounted via
 // the kernel command line, since mountinfo always shows /dev/root for that.
