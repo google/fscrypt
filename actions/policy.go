@@ -145,7 +145,7 @@ func PurgeAllPolicies(ctx *Context) error {
 	if err := ctx.checkContext(); err != nil {
 		return err
 	}
-	policies, err := ctx.Mount.ListPolicies()
+	policies, err := ctx.Mount.ListPolicies(nil)
 	if err != nil {
 		return err
 	}
@@ -225,7 +225,7 @@ func GetPolicy(ctx *Context, descriptor string) (*Policy, error) {
 	if err := ctx.checkContext(); err != nil {
 		return nil, err
 	}
-	data, err := ctx.Mount.GetPolicy(descriptor)
+	data, err := ctx.Mount.GetPolicy(descriptor, ctx.TrustedUser)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func GetPolicyFromPath(ctx *Context, path string) (*Policy, error) {
 	descriptor := pathData.KeyDescriptor
 	log.Printf("found policy %s for %q", descriptor, path)
 
-	mountData, err := ctx.Mount.GetPolicy(descriptor)
+	mountData, err := ctx.Mount.GetPolicy(descriptor, ctx.TrustedUser)
 	if err != nil {
 		log.Printf("getting policy metadata: %v", err)
 		if _, ok := err.(*filesystem.ErrPolicyNotFound); ok {
@@ -428,7 +428,7 @@ func (policy *Policy) AddProtector(protector *Protector) error {
 	if policy.Context.Mount != protector.Context.Mount {
 		log.Printf("policy on %s\n protector on %s\n", policy.Context.Mount, protector.Context.Mount)
 		isNewLink, err := policy.Context.Mount.AddLinkedProtector(
-			protector.Descriptor(), protector.Context.Mount)
+			protector.Descriptor(), protector.Context.Mount, protector.Context.TrustedUser)
 		if err != nil {
 			return err
 		}

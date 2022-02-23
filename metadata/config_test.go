@@ -49,7 +49,8 @@ var testConfigString = `{
 		"filenames": "AES_256_CTS",
 		"policy_version": "1"
 	},
-	"use_fs_keyring_for_v1_policies": false
+	"use_fs_keyring_for_v1_policies": false,
+	"allow_cross_user_metadata": false
 }
 `
 

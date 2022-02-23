@@ -199,7 +199,7 @@ func GetProtector(ctx *Context, descriptor string) (*Protector, error) {
 	}
 
 	protector := &Protector{Context: ctx}
-	protector.data, err = ctx.Mount.GetRegularProtector(descriptor)
+	protector.data, err = ctx.Mount.GetRegularProtector(descriptor, ctx.TrustedUser)
 	return protector, err
 }
 
@@ -218,7 +218,7 @@ func GetProtectorFromOption(ctx *Context, option *ProtectorOption) (*Protector, 
 
 	// Replace the context if this is a linked protector
 	if option.LinkedMount != nil {
-		ctx = &Context{ctx.Config, option.LinkedMount, ctx.TargetUser}
+		ctx = &Context{ctx.Config, option.LinkedMount, ctx.TargetUser, ctx.TrustedUser}
 	}
 	return &Protector{Context: ctx, data: option.data}, nil
 }

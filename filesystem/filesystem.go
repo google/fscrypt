@@ -370,6 +370,20 @@ func (m *Mount) CheckSupport() error {
 	return m.EncryptionSupportError(metadata.CheckSupport(m.Path))
 }
 
+func checkOwnership(path string, info os.FileInfo, trustedUser *user.User) bool {
+	if trustedUser == nil {
+		return true
+	}
+	trustedUID := uint32(util.AtoiOrPanic(trustedUser.Uid))
+	actualUID := info.Sys().(*syscall.Stat_t).Uid
+	if actualUID != 0 && actualUID != trustedUID {
+		log.Printf("WARNING: %q is owned by uid %d, but expected %d or 0",
+			path, actualUID, trustedUID)
+		return false
+	}
+	return true
+}
+
 // CheckSetup returns an error if all the fscrypt metadata directories do not
 // exist. Will log any unexpected errors or incorrect permissions.
 func (m *Mount) CheckSetup() error {
@@ -600,6 +614,8 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 //   point one to absolutely anywhere, and there is no known use case for the
 //   metadata files themselves being symlinks, it seems best to disallow them.)
 // - It must have a reasonable size (<= maxMetadataFileSize).
+// - If trustedUser is non-nil, then the file must be owned by the given user
+//   or by root.
 //
 // Take care to avoid TOCTOU (time-of-check-time-of-use) bugs when doing these
 // tests.  Notably, we must open the file before checking the file type, as the
@@ -611,7 +627,7 @@ func (m *Mount) addMetadata(path string, md metadata.Metadata, owner *user.User)
 // This function returns the data read as well as the UID of the user who owns
 // the file.  The returned UID is needed for login protectors, where the UID
 // needs to be cross-checked with the UID stored in the file itself.
-func readMetadataFileSafe(path string) ([]byte, int64, error) {
+func readMetadataFileSafe(path string, trustedUser *user.User) ([]byte, int64, error) {
 	file, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, -1, err
@@ -624,6 +640,9 @@ func readMetadataFileSafe(path string) ([]byte, int64, error) {
 	}
 	if !info.Mode().IsRegular() {
 		return nil, -1, &ErrCorruptMetadata{path, errors.New("not a regular file")}
+	}
+	if !checkOwnership(path, info, trustedUser) {
+		return nil, -1, &ErrCorruptMetadata{path, errors.New("metadata file belongs to another user")}
 	}
 	// Clear O_NONBLOCK, since it has served its purpose when opening the
 	// file, and the behavior of reading from a regular file with O_NONBLOCK
@@ -645,8 +664,8 @@ func readMetadataFileSafe(path string) ([]byte, int64, error) {
 
 // getMetadata reads the metadata structure from the file with the specified
 // path. Only reads normal metadata files, not linked metadata.
-func (m *Mount) getMetadata(path string, md metadata.Metadata) (int64, error) {
-	data, owner, err := readMetadataFileSafe(path)
+func (m *Mount) getMetadata(path string, trustedUser *user.User, md metadata.Metadata) (int64, error) {
+	data, owner, err := readMetadataFileSafe(path, trustedUser)
 	if err != nil {
 		log.Printf("could not read metadata from %q: %v", path, err)
 		return -1, err
@@ -704,19 +723,19 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 // AddLinkedProtector adds a link in this filesystem to the protector metadata
 // in the dest filesystem, if one doesn't already exist.  On success, the return
 // value is a nil error and a bool that is true iff the link is newly created.
-func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error) {
+func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *user.User) (bool, error) {
 	if err := m.CheckSetup(); err != nil {
 		return false, err
 	}
 	// Check that the link is good (descriptor exists, filesystem has UUID).
-	if _, err := dest.GetRegularProtector(descriptor); err != nil {
+	if _, err := dest.GetRegularProtector(descriptor, trustedUser); err != nil {
 		return false, err
 	}
 
 	linkPath := m.linkedProtectorPath(descriptor)
 
 	// Check whether the link already exists.
-	existingLink, _, err := readMetadataFileSafe(linkPath)
+	existingLink, _, err := readMetadataFileSafe(linkPath, trustedUser)
 	if err == nil {
 		existingLinkedMnt, err := getMountFromLink(string(existingLink))
 		if err != nil {
@@ -742,13 +761,13 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount) (bool, error)
 
 // GetRegularProtector looks up the protector metadata by descriptor. This will
 // fail with ErrProtectorNotFound if the descriptor is a linked protector.
-func (m *Mount) GetRegularProtector(descriptor string) (*metadata.ProtectorData, error) {
+func (m *Mount) GetRegularProtector(descriptor string, trustedUser *user.User) (*metadata.ProtectorData, error) {
 	if err := m.CheckSetup(); err != nil {
 		return nil, err
 	}
 	data := new(metadata.ProtectorData)
 	path := m.protectorPath(descriptor)
-	owner, err := m.getMetadata(path, data)
+	owner, err := m.getMetadata(path, trustedUser, data)
 	if os.IsNotExist(err) {
 		err = &ErrProtectorNotFound{descriptor, m}
 	}
@@ -772,17 +791,17 @@ func (m *Mount) GetRegularProtector(descriptor string) (*metadata.ProtectorData,
 // GetProtector returns the Mount of the filesystem containing the information
 // and that protector's data. If the descriptor is a regular (not linked)
 // protector, the mount will return itself.
-func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData, error) {
+func (m *Mount) GetProtector(descriptor string, trustedUser *user.User) (*Mount, *metadata.ProtectorData, error) {
 	if err := m.CheckSetup(); err != nil {
 		return nil, nil, err
 	}
 	// Get the link data from the link file
 	path := m.linkedProtectorPath(descriptor)
-	link, _, err := readMetadataFileSafe(path)
+	link, _, err := readMetadataFileSafe(path, trustedUser)
 	if err != nil {
 		// If the link doesn't exist, try for a regular protector.
 		if os.IsNotExist(err) {
-			data, err := m.GetRegularProtector(descriptor)
+			data, err := m.GetRegularProtector(descriptor, trustedUser)
 			return m, data, err
 		}
 		return nil, nil, err
@@ -792,7 +811,7 @@ func (m *Mount) GetProtector(descriptor string) (*Mount, *metadata.ProtectorData
 	if err != nil {
 		return nil, nil, errors.Wrap(err, path)
 	}
-	data, err := linkedMnt.GetRegularProtector(descriptor)
+	data, err := linkedMnt.GetRegularProtector(descriptor, trustedUser)
 	if err != nil {
 		return nil, nil, &ErrFollowLink{string(link), err}
 	}
@@ -818,12 +837,10 @@ func (m *Mount) RemoveProtector(descriptor string) error {
 }
 
 // ListProtectors lists the descriptors of all protectors on this filesystem.
-// This does not include linked protectors.
-func (m *Mount) ListProtectors() ([]string, error) {
-	if err := m.CheckSetup(); err != nil {
-		return nil, err
-	}
-	return m.listDirectory(m.ProtectorDir())
+// This does not include linked protectors.  If trustedUser is non-nil, then
+// the protectors are restricted to those owned by the given user or by root.
+func (m *Mount) ListProtectors(trustedUser *user.User) ([]string, error) {
+	return m.listMetadata(m.ProtectorDir(), "protectors", trustedUser)
 }
 
 // AddPolicy adds the policy metadata to the filesystem storage.
@@ -836,12 +853,12 @@ func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
 }
 
 // GetPolicy looks up the policy metadata by descriptor.
-func (m *Mount) GetPolicy(descriptor string) (*metadata.PolicyData, error) {
+func (m *Mount) GetPolicy(descriptor string, trustedUser *user.User) (*metadata.PolicyData, error) {
 	if err := m.CheckSetup(); err != nil {
 		return nil, err
 	}
 	data := new(metadata.PolicyData)
-	_, err := m.getMetadata(m.PolicyPath(descriptor), data)
+	_, err := m.getMetadata(m.PolicyPath(descriptor), trustedUser, data)
 	if os.IsNotExist(err) {
 		err = &ErrPolicyNotFound{descriptor, m}
 	}
@@ -860,12 +877,11 @@ func (m *Mount) RemovePolicy(descriptor string) error {
 	return err
 }
 
-// ListPolicies lists the descriptors of all policies on this filesystem.
-func (m *Mount) ListPolicies() ([]string, error) {
-	if err := m.CheckSetup(); err != nil {
-		return nil, err
-	}
-	return m.listDirectory(m.PolicyDir())
+// ListPolicies lists the descriptors of all policies on this filesystem.  If
+// trustedUser is non-nil, then the policies are restricted to those owned by
+// the given user or by root.
+func (m *Mount) ListPolicies(trustedUser *user.User) ([]string, error) {
+	return m.listMetadata(m.PolicyDir(), "policies", trustedUser)
 }
 
 type namesAndTimes struct {
@@ -902,7 +918,6 @@ func sortFileListByLastMtime(directoryPath string, names []string) error {
 // listDirectory returns a list of descriptors for a metadata directory,
 // including files which are links to other filesystem's metadata.
 func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
-	log.Printf("listing descriptors in %q", directoryPath)
 	dir, err := os.Open(directoryPath)
 	if err != nil {
 		return nil, err
@@ -925,7 +940,41 @@ func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
 		// Be sure to include links as well
 		descriptors = append(descriptors, strings.TrimSuffix(name, linkFileExtension))
 	}
-
-	log.Printf("found %d descriptor(s)", len(descriptors))
 	return descriptors, nil
+}
+
+func (m *Mount) listMetadata(dirPath string, metadataType string, owner *user.User) ([]string, error) {
+	log.Printf("listing %s in %q", metadataType, dirPath)
+	if err := m.CheckSetup(); err != nil {
+		return nil, err
+	}
+	names, err := m.listDirectory(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	filesIgnoredDescription := ""
+	if owner != nil {
+		filteredNames := make([]string, 0, len(names))
+		uid := uint32(util.AtoiOrPanic(owner.Uid))
+		for _, name := range names {
+			info, err := os.Lstat(filepath.Join(dirPath, name))
+			if err != nil {
+				continue
+			}
+			fileUID := info.Sys().(*syscall.Stat_t).Uid
+			if fileUID != uid && fileUID != 0 {
+				continue
+			}
+			filteredNames = append(filteredNames, name)
+		}
+		numIgnored := len(names) - len(filteredNames)
+		if numIgnored != 0 {
+			filesIgnoredDescription =
+				fmt.Sprintf(" (ignored %d %s not owned by %s or root)",
+					numIgnored, metadataType, owner.Username)
+		}
+		names = filteredNames
+	}
+	log.Printf("found %d %s%s", len(names), metadataType, filesIgnoredDescription)
+	return names, nil
 }

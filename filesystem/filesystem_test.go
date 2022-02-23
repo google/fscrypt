@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"path/filepath"
 	"syscall"
 	"testing"
@@ -323,7 +324,7 @@ func TestSetPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	realPolicy, err := mnt.GetPolicy(policy.KeyDescriptor)
+	realPolicy, err := mnt.GetPolicy(policy.KeyDescriptor, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +348,7 @@ func TestSetProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	realProtector, err := mnt.GetRegularProtector(protector.ProtectorDescriptor)
+	realProtector, err := mnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +375,7 @@ func TestSpoofedLoginProtector(t *testing.T) {
 	if err = mnt.AddProtector(protector); err != nil {
 		t.Fatal(err)
 	}
-	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor)
+	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +390,7 @@ func TestSpoofedLoginProtector(t *testing.T) {
 	if err = mnt.AddProtector(protector); err != nil {
 		t.Fatal(err)
 	}
-	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor)
+	_, err = mnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
 	if myUID == 0 {
 		if err != nil {
 			t.Fatal(err)
@@ -439,13 +440,13 @@ func TestLinkedProtector(t *testing.T) {
 
 	// Add the link to the second filesystem
 	var isNewLink bool
-	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt); err != nil {
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !isNewLink {
 		t.Fatal("Link was not new")
 	}
-	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt); err != nil {
+	if isNewLink, err = fakeMnt.AddLinkedProtector(protector.ProtectorDescriptor, realMnt, nil); err != nil {
 		t.Fatal(err)
 	}
 	if isNewLink {
@@ -453,12 +454,12 @@ func TestLinkedProtector(t *testing.T) {
 	}
 
 	// Get the protector though the second system
-	_, err = fakeMnt.GetRegularProtector(protector.ProtectorDescriptor)
+	_, err = fakeMnt.GetRegularProtector(protector.ProtectorDescriptor, nil)
 	if _, ok := err.(*ErrProtectorNotFound); !ok {
 		t.Fatal(err)
 	}
 
-	retMnt, retProtector, err := fakeMnt.GetProtector(protector.ProtectorDescriptor)
+	retMnt, retProtector, err := fakeMnt.GetProtector(protector.ProtectorDescriptor, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,6 +481,11 @@ func createFile(path string, size int64) error {
 
 // Tests the readMetadataFileSafe() function.
 func TestReadMetadataFileSafe(t *testing.T) {
+	currentUser, err := util.EffectiveUser()
+	otherUser := &user.User{Uid: "-1"}
+	if err != nil {
+		t.Fatal(err)
+	}
 	tempDir, err := ioutil.TempDir("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
@@ -491,17 +497,39 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = createFile(filePath, 1000); err != nil {
 		t.Fatal(err)
 	}
-	_, owner, err := readMetadataFileSafe(filePath)
+	_, owner, err := readMetadataFileSafe(filePath, nil)
 	if err != nil {
 		t.Fatal("failed to read file")
 	}
 	if owner != int64(os.Geteuid()) {
 		t.Fatal("got wrong owner")
 	}
+	// Also try it with the trustedUser argument set to the current user.
+	if _, _, err = readMetadataFileSafe(filePath, currentUser); err != nil {
+		t.Fatal("failed to read file")
+	}
+	os.Remove(filePath)
+
+	// File owned by another user.  We might not have permission to actually
+	// change the file's ownership, so we simulate this by passing in a bad
+	// value for the trustedUser argument.
+	if err = createFile(filePath, 1000); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = readMetadataFileSafe(filePath, otherUser)
+	if util.IsUserRoot() {
+		if err != nil {
+			t.Fatal("root-owned file didn't pass owner validation")
+		}
+	} else {
+		if err == nil {
+			t.Fatal("unexpectedly could read file owned by another user")
+		}
+	}
 	os.Remove(filePath)
 
 	// Nonexistent file
-	_, _, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath, nil)
 	if !os.IsNotExist(err) {
 		t.Fatal("trying to read nonexistent file didn't fail with expected error")
 	}
@@ -510,7 +538,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = os.Symlink("target", filePath); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath, nil)
 	if err.(*os.PathError).Err != syscall.ELOOP {
 		t.Fatal("trying to read symlink didn't fail with ELOOP")
 	}
@@ -520,7 +548,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = unix.Mkfifo(filePath, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath, nil)
 	if _, ok := err.(*ErrCorruptMetadata); !ok {
 		t.Fatal("trying to read FIFO didn't fail with expected error")
 	}
@@ -530,7 +558,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err = createFile(filePath, 1000000); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = readMetadataFileSafe(filePath)
+	_, _, err = readMetadataFileSafe(filePath, nil)
 	if _, ok := err.(*ErrCorruptMetadata); !ok {
 		t.Fatal("trying to read very large file didn't fail with expected error")
 	}

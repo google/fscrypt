@@ -320,7 +320,8 @@ that looks like the following:
 		"filenames": "AES_256_CTS",
 		"policy_version": "2"
 	},
-	"use_fs_keyring_for_v1_policies": false
+	"use_fs_keyring_for_v1_policies": false,
+	"allow_cross_user_metadata": false
 }
 ```
 
@@ -377,6 +378,14 @@ The fields are:
   compatible with older kernels.  If you don't need compatibility with older
   kernels, it's better to not use this setting and instead (re-)create your
   encrypted directories with `"policy_version": "2"`.
+
+* "allow\_cross\_user\_metadata" specifies whether `fscrypt` will allow
+  protectors and policies from other non-root users to be read, e.g. to be
+  offered as options by `fscrypt encrypt`.  The default value is `false`, since
+  other users might be untrusted and could create malicious files.  This can be
+  set to `true` to restore the old behavior on systems where `fscrypt` metadata
+  needs to be shared between multiple users.  Note that this option is
+  independent from the permissions on the metadata files themselves.
 
 ## Setting up `fscrypt` on a filesystem
 

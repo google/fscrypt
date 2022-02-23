@@ -160,14 +160,18 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 		return err
 	}
 
-	policyDescriptors, err := ctx.Mount.ListPolicies()
+	policyDescriptors, err := ctx.Mount.ListPolicies(ctx.TrustedUser)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(w, "%s filesystem %q has %s and %s.\n", ctx.Mount.FilesystemType,
+	filterDescription := ""
+	if ctx.TrustedUser != nil {
+		filterDescription = fmt.Sprintf(" (only including ones owned by %s or root)", ctx.TrustedUser.Username)
+	}
+	fmt.Fprintf(w, "%s filesystem %q has %s and %s%s.\n", ctx.Mount.FilesystemType,
 		ctx.Mount.Path, pluralize(len(options), "protector"),
-		pluralize(len(policyDescriptors), "policy"))
+		pluralize(len(policyDescriptors), "policy"), filterDescription)
 	if setupMode, user, err := ctx.Mount.GetSetupMode(); err == nil {
 		switch setupMode {
 		case filesystem.WorldWritable:

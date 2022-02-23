@@ -137,6 +137,13 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Ensure that pam_fscrypt only processes metadata files owned by the
+	// user or root, even if the user is root themselves.  (Normally, when
+	// fscrypt is run as root it is allowed to process all metadata files.
+	// This implements stricter behavior for pam_fscrypt.)
+	if !ctx.Config.GetAllowCrossUserMetadata() {
+		ctx.TrustedUser = handle.PamUser
+	}
 
 	// Find the user's PAM protector.
 	options, err := ctx.ProtectorOptions()
@@ -164,10 +171,11 @@ func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
 	var policies []*actions.Policy
 	for _, mount := range mounts {
 		// Skip mountpoints that do not use the protector.
-		if _, _, err := mount.GetProtector(protector.Descriptor()); err != nil {
+		if _, _, err := mount.GetProtector(protector.Descriptor(),
+			protector.Context.TrustedUser); err != nil {
 			continue
 		}
-		policyDescriptors, err := mount.ListPolicies()
+		policyDescriptors, err := mount.ListPolicies(protector.Context.TrustedUser)
 		if err != nil {
 			log.Printf("listing policies: %s", err)
 			continue

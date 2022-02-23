@@ -58,6 +58,12 @@ type Context struct {
 	// the user for whom the keys are claimed in the filesystem keyring when
 	// v2 policies are provisioned.
 	TargetUser *user.User
+	// TrustedUser is the user for whom policies and protectors are allowed
+	// to be read.  Specifically, if TrustedUser is set, then only
+	// policies and protectors owned by TrustedUser or by root will be
+	// allowed to be read.  If it's nil, then all policies and protectors
+	// the process has filesystem-level read access to will be allowed.
+	TrustedUser *user.User
 }
 
 // NewContextFromPath makes a context for the filesystem containing the
@@ -112,6 +118,16 @@ func newContextFromUser(targetUser *user.User) (*Context, error) {
 		return nil, err
 	}
 
+	// By default, when running as a non-root user we only read policies and
+	// protectors owned by the user or root.  When running as root, we allow
+	// reading all policies and protectors.
+	if !ctx.Config.GetAllowCrossUserMetadata() && !util.IsUserRoot() {
+		ctx.TrustedUser, err = util.EffectiveUser()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	log.Printf("creating context for user %q", targetUser.Username)
 	return ctx, nil
 }
@@ -136,7 +152,7 @@ func (ctx *Context) getKeyringOptions() *keyring.Options {
 // getProtectorOption returns the ProtectorOption for the protector on the
 // context's mountpoint with the specified descriptor.
 func (ctx *Context) getProtectorOption(protectorDescriptor string) *ProtectorOption {
-	mnt, data, err := ctx.Mount.GetProtector(protectorDescriptor)
+	mnt, data, err := ctx.Mount.GetProtector(protectorDescriptor, ctx.TrustedUser)
 	if err != nil {
 		return &ProtectorOption{ProtectorInfo{}, nil, err}
 	}
@@ -155,7 +171,7 @@ func (ctx *Context) ProtectorOptions() ([]*ProtectorOption, error) {
 	if err := ctx.checkContext(); err != nil {
 		return nil, err
 	}
-	descriptors, err := ctx.Mount.ListProtectors()
+	descriptors, err := ctx.Mount.ListProtectors(ctx.TrustedUser)
 	if err != nil {
 		return nil, err
 	}
