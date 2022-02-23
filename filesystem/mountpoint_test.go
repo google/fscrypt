@@ -179,6 +179,21 @@ func TestLoadMountWithSpecialCharacters(t *testing.T) {
 	}
 }
 
+// Tests the EscapeString() and unescapeString() functions.
+func TestStringEscaping(t *testing.T) {
+	charsNeedEscaping := " \t\n\\"
+	charsDontNeedEscaping := "ABCDEF\u2603\xff\xff\v"
+
+	orig := charsNeedEscaping + charsDontNeedEscaping
+	escaped := `\040\011\012\134` + charsDontNeedEscaping
+	if EscapeString(orig) != escaped {
+		t.Fatal("EscapeString gave wrong result")
+	}
+	if unescapeString(escaped) != orig {
+		t.Fatal("unescapeString gave wrong result")
+	}
+}
+
 // Test parsing some invalid mountinfo lines.
 func TestLoadBadMountInfo(t *testing.T) {
 	mountinfos := []string{"a",

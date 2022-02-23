@@ -159,7 +159,7 @@ setup_for_test()
 
 	# Give the tests their own fscrypt.conf.
 	export FSCRYPT_CONF="$TMPDIR/fscrypt.conf"
-	fscrypt setup --time=1ms > /dev/null
+	fscrypt setup --time=1ms --quiet --all-users > /dev/null
 
 	# The tests assume kernel support for v2 policies.
 	if ! grep -q '"policy_version": "2"' "$FSCRYPT_CONF"; then
@@ -171,7 +171,7 @@ EOF
 	fi
 
 	# Set up the test filesystems that aren't already set up.
-	fscrypt setup "$MNT" > /dev/null
+	fscrypt setup --quiet --all-users "$MNT" > /dev/null
 }
 
 run_test()

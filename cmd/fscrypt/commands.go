@@ -63,7 +63,7 @@ var Setup = cli.Command{
 		the README). This may require root privileges.`,
 		mountpointArg, actions.ConfigFileLocation,
 		shortDisplay(timeTargetFlag)),
-	Flags:  []cli.Flag{timeTargetFlag, forceFlag},
+	Flags:  []cli.Flag{timeTargetFlag, forceFlag, allUsersSetupFlag},
 	Action: setupAction,
 }
 
@@ -468,7 +468,7 @@ var Lock = cli.Command{
 		recoverable by an attacker who compromises system memory. To be
 		fully safe, you must reboot with a power cycle.`,
 		directoryArg, shortDisplay(dropCachesFlag)),
-	Flags:  []cli.Flag{dropCachesFlag, userFlag, allUsersFlag},
+	Flags:  []cli.Flag{dropCachesFlag, userFlag, allUsersLockFlag},
 	Action: lockAction,
 }
 
@@ -502,7 +502,7 @@ func lockAction(c *cli.Context) error {
 		return newExitError(c, ErrDropCachesPerm)
 	}
 
-	if err = policy.Deprovision(allUsersFlag.Value); err != nil {
+	if err = policy.Deprovision(allUsersLockFlag.Value); err != nil {
 		switch err {
 		case keyring.ErrKeyNotPresent:
 			break

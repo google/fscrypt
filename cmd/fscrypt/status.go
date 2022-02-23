@@ -101,7 +101,7 @@ func writeGlobalStatus(w io.Writer) error {
 	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
 	for _, mount := range mounts {
 		// Only print mountpoints backed by devices or using fscrypt.
-		usingFscrypt := mount.CheckSetup() == nil
+		usingFscrypt := mount.CheckSetup(nil) == nil
 		if !usingFscrypt && mount.Device == "" {
 			continue
 		}
@@ -114,8 +114,11 @@ func writeGlobalStatus(w io.Writer) error {
 			continue
 		}
 
-		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n", mount.Path, mount.Device,
-			mount.FilesystemType, supportString, yesNoString(usingFscrypt))
+		fmt.Fprintf(t, "%s\t%s\t%s\t%s\t%s\n",
+			filesystem.EscapeString(mount.Path),
+			filesystem.EscapeString(mount.Device),
+			filesystem.EscapeString(mount.FilesystemType),
+			supportString, yesNoString(usingFscrypt))
 
 		if supportErr == nil {
 			supportCount++
@@ -157,14 +160,27 @@ func writeFilesystemStatus(w io.Writer, ctx *actions.Context) error {
 		return err
 	}
 
-	policyDescriptors, err := ctx.Mount.ListPolicies()
+	policyDescriptors, err := ctx.Mount.ListPolicies(ctx.TrustedUser)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(w, "%s filesystem %q has %s and %s\n\n", ctx.Mount.FilesystemType,
+	filterDescription := ""
+	if ctx.TrustedUser != nil {
+		filterDescription = fmt.Sprintf(" (only including ones owned by %s or root)", ctx.TrustedUser.Username)
+	}
+	fmt.Fprintf(w, "%s filesystem %q has %s and %s%s.\n", ctx.Mount.FilesystemType,
 		ctx.Mount.Path, pluralize(len(options), "protector"),
-		pluralize(len(policyDescriptors), "policy"))
+		pluralize(len(policyDescriptors), "policy"), filterDescription)
+	if setupMode, user, err := ctx.Mount.GetSetupMode(); err == nil {
+		switch setupMode {
+		case filesystem.WorldWritable:
+			fmt.Fprintf(w, "All users can create fscrypt metadata on this filesystem.\n")
+		case filesystem.SingleUserWritable:
+			fmt.Fprintf(w, "Only %s can create fscrypt metadata on this filesystem.\n", user.Username)
+		}
+	}
+	fmt.Fprintf(w, "\n")
 
 	if len(options) > 0 {
 		writeOptions(w, options)

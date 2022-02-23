@@ -1,7 +1,8 @@
 
 # Try to encrypt a nonexistent directory
 [ERROR] fscrypt encrypt: no such file or directory
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
@@ -23,7 +24,8 @@ files into it, and securely delete the original directory. For example:
 Caution: due to the nature of modern storage devices and filesystems, the
 original data may still be recoverable from disk. It's much better to encrypt
 your files from the start.
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
@@ -45,13 +47,15 @@ files into it, and securely delete the original directory. For example:
 Caution: due to the nature of modern storage devices and filesystems, the
 original data may still be recoverable from disk. It's much better to encrypt
 your files from the start.
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted
 
 # Encrypt a directory as non-root user
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "prot"
@@ -67,7 +71,8 @@ Unlocked: Yes
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "prot"
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy (only including ones owned by fscrypt-test-user or root).
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "prot"
@@ -94,7 +99,8 @@ desc1  No      custom protector "prot"
 
                          Encryption can only be enabled on a directory you own,
                          even if you have write access to the directory.
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted

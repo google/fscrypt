@@ -116,7 +116,8 @@ var (
 	allFlags = []prettyFlag{helpFlag, versionFlag, verboseFlag, quietFlag,
 		forceFlag, skipUnlockFlag, timeTargetFlag,
 		sourceFlag, nameFlag, keyFileFlag, protectorFlag,
-		unlockWithFlag, policyFlag, allUsersFlag, noRecoveryFlag}
+		unlockWithFlag, policyFlag, allUsersLockFlag, allUsersSetupFlag,
+		noRecoveryFlag}
 	// universalFlags contains flags that should be on every command
 	universalFlags = []cli.Flag{verboseFlag, quietFlag, helpFlag}
 )
@@ -164,13 +165,22 @@ var (
 			privileges.`,
 		Default: true,
 	}
-	allUsersFlag = &boolFlag{
+	allUsersLockFlag = &boolFlag{
 		Name: "all-users",
 		Usage: `Lock the directory no matter which user(s) have unlocked
 			it. Requires root privileges. This flag is only
 			necessary if the directory was unlocked by a user
 			different from the one you're locking it as. This flag
 			is only implemented for v2 encryption policies.`,
+	}
+	allUsersSetupFlag = &boolFlag{
+		Name: "all-users",
+		Usage: `When setting up a filesystem for fscrypt, allow users
+			other than the calling user (typically root) to create
+			fscrypt policies and protectors on the filesystem. Note
+			that this will create a world-writable directory, which
+			users could use to fill up the entire filesystem. Hence,
+			this option may not be appropriate for some systems.`,
 	}
 	noRecoveryFlag = &boolFlag{
 		Name:  "no-recovery",

@@ -15,25 +15,71 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-
-# Prefer completion script style COMPREPLY=($(...)) assignment.
+#
+# bash completion scripts require exercising some unusual shell script
+# features/quirks, so we have to disable some shellcheck warnings:
+#
+# Disable SC2016 ("Expressions don't expand in single quotes, use double quotes
+# for that") because the 'compgen' built-in expands the argument passed to -W,
+# so that argument *must* be single-quoted to avoid command injection.
+# shellcheck disable=SC2016
+#
+# Disable SC2034 ("{Variable} appears unused. Verify use (or export if used
+# externally)") because of the single quoting mentioned above as well as the
+# fact that we have to declare "local" variables used only by a called function
+# (_init_completion()) and not by the function itself.
+# shellcheck disable=SC2034
+#
+# Disable SC2207 ("Prefer mapfile or read -a to split command output (or quote
+# to avoid splitting)") because bash completion scripts conventionally use
+# COMPREPLY=($(...)) assignments.
 # shellcheck disable=SC2207
-true  # To apply shellcheck directive to all file
+#
+true  # To apply the above shellcheck directives to the entire file
 
 
-# Output list of possible mount points
-_fscrypt_mountpoints()
+# Generate the completion list for possible mountpoints.
+#
+# We need to be super careful here because mountpoints can contain whitespace
+# and shell meta-characters.  To avoid most problems, we do the following:
+#
+#   1.) To avoid parsing ambiguities, 'fscrypt status' replaces the space, tab,
+#       newline, and backslash characters with octal escape sequences -- like
+#       what /proc/self/mountinfo does.  To properly process its output, we need
+#       to split lines on space only (and not on other whitespace which might
+#       not be escaped), and unescape these characters.  Exception: we don't
+#       unescape newlines, as we need to reserve newline as the separator for
+#       the words passed to compgen.  (This causes mountpoints containing
+#       newlines to not be completed correctly, which we have to tolerate.)
+#
+#   2.) We backslash-escape all shell meta-characters, and single-quote the
+#       argument passed to compgen -W.  Without either step, command injection
+#       would be possible.  Without both steps, completions would be incorrect.
+#       The list of shell meta-characters used comes from that used by the
+#       completion script for umount, which has to solve this same problem.
+#
+_fscrypt_compgen_mountpoints()
 {
-    # shellcheck disable=SC2016
-    fscrypt status 2>/dev/null | \
-        command awk 'substr($0, 1, 1) == "/" && $5 == "Yes" { print $1 }'
+    local IFS=$'\n'
+    compgen -W '$(_fscrypt_mountpoints_internal)' -- "${cur}"
 }
 
+_fscrypt_mountpoints_internal()
+{
+    fscrypt status 2>/dev/null | command awk -F " " \
+    'substr($0, 1, 1) == "/" && $5 == "Yes" {
+        gsub(/\\040/, " ", $1)
+        gsub(/\\011/, "\t", $1)
+        gsub(/\\134/, "\\", $1)
+        gsub(/[\]\[(){}<>",:;^&!$=?`|'\''\\ \t\f\n\r\v]/, "\\\\&", $1)
+        print $1
+    }'
+}
 
 # Complete with all possible mountpoints
 _fscrypt_complete_mountpoint()
 {
-    COMPREPLY=($(compgen -W "$(_fscrypt_mountpoints)" -- "${cur}"))
+    COMPREPLY=($(_fscrypt_compgen_mountpoints))
 }
 
 
@@ -43,7 +89,6 @@ _fscrypt_complete_mountpoint()
 _fscrypt_status_section()
 {
     local section=${2^^}
-    # shellcheck disable=SC2016
     fscrypt status "$1" 2>/dev/null | \
         command awk '/^[[:xdigit:]]{16}/ && section == "'"$section"'" { print $1; next; }
                      { section = $1 }'
@@ -57,13 +102,13 @@ _fscrypt_complete_policy_or_protector()
     if [[ $cur = *:* ]]; then
         # Complete with IDs of the given mountpoint
         local mountpoint="${cur%:*}" id="${cur#*:}"
+        # Note: compgen expands the argument to -W, so it *must* be single-quoted.
         COMPREPLY=($(compgen \
-            -W "$(_fscrypt_status_section "${mountpoint}" "${status_section}")" \
+            -W '$(_fscrypt_status_section "${mountpoint}" "${status_section}")' \
             -- "${id}"))
     else
         # Complete with mountpoints, with colon and without ending space
-        COMPREPLY=($(compgen -W "$(_fscrypt_mountpoints)" \
-                     -- "${cur}" | sed s/\$/:/))
+        COMPREPLY=($(_fscrypt_compgen_mountpoints | sed s/\$/:/))
         compopt -o nospace
     fi
 }
@@ -72,7 +117,8 @@ _fscrypt_complete_policy_or_protector()
 # Complete with all arguments of that function
 _fscrypt_complete_word()
 {
-    COMPREPLY=($(compgen -W "$*" -- "${cur}"))
+    # Note: compgen expands the argument to -W, so it *must* be single-quoted.
+    COMPREPLY=($(compgen -W '$*' -- "${cur}"))
 }
 
 
@@ -82,7 +128,8 @@ _fscrypt_complete_option()
     local additional_opts=( "$@" )
     # Add global options, always correct
     additional_opts+=( --verbose --quiet --help )
-    COMPREPLY=($(compgen -W "${additional_opts[*]}" -- "${cur}"))
+    # Note: compgen expands the argument to -W, so it *must* be single-quoted.
+    COMPREPLY=($(compgen -W '${additional_opts[*]}' -- "${cur}"))
 }
 
 
@@ -95,7 +142,6 @@ _fscrypt()
     #
     # `split` is set by `_init_completion -s`, we must declare it local
     # even if we don't use it, not to modify the environment.
-    # shellcheck disable=SC2034
     local cur prev words cword split
     _init_completion -s -n : || return
 

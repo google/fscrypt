@@ -14,7 +14,7 @@ fscrypt setup --time=1ms
 _print_header "fscrypt setup creates fscrypt.conf and /.fscrypt"
 _rm_metadata "$MNT_ROOT"
 rm -f "$FSCRYPT_CONF"
-fscrypt setup --time=1ms
+echo y | fscrypt setup --time=1ms
 [ -e "$MNT_ROOT/.fscrypt" ]
 
 _print_header "fscrypt setup when fscrypt.conf already exists (cancel)"
@@ -37,7 +37,7 @@ fscrypt setup --quiet --force --time=1ms
 
 _print_header "fscrypt setup filesystem"
 _rm_metadata "$MNT"
-fscrypt setup "$MNT"
+echo y | fscrypt setup "$MNT"
 [ -e "$MNT/.fscrypt" ]
 
 _print_header "fscrypt setup filesystem (already set up)"

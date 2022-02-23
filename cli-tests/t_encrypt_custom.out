@@ -1,6 +1,7 @@
 
 # Encrypt with custom passphrase protector
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "prot"
@@ -28,7 +29,8 @@ Enter a name for the new protector: prot
 Enter custom passphrase for protector "prot": 
 Confirm passphrase: 
 "MNT/dir" is now encrypted, unlocked, and ready for use.
-ext4 filesystem "MNT" has 1 protector and 1 policy
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc6  No      custom protector "prot"
@@ -49,7 +51,8 @@ desc6  No      custom protector "prot"
 [ERROR] fscrypt encrypt: custom_passphrase protectors must be named
 
 Use --name=PROTECTOR_NAME to specify a protector name.
-ext4 filesystem "MNT" has 0 protectors and 0 policies
+ext4 filesystem "MNT" has 0 protectors and 0 policies.
+All users can create fscrypt metadata on this filesystem.
 
 [ERROR] fscrypt status: file or directory "MNT/dir" is not
                         encrypted

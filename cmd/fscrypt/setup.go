@@ -26,6 +26,7 @@ import (
 	"os"
 
 	"github.com/google/fscrypt/actions"
+	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/util"
 )
 
@@ -80,11 +81,47 @@ func setupFilesystem(w io.Writer, path string) error {
 	if err != nil {
 		return err
 	}
+	username := ctx.TargetUser.Username
 
-	if err = ctx.Mount.Setup(); err != nil {
+	err = ctx.Mount.CheckSetup(ctx.TrustedUser)
+	if err == nil {
+		return &filesystem.ErrAlreadySetup{Mount: ctx.Mount}
+	}
+	if _, ok := err.(*filesystem.ErrNotSetup); !ok {
 		return err
 	}
 
-	fmt.Fprintf(w, "Metadata directories created at %q.\n", ctx.Mount.BaseDir())
+	allUsers := allUsersSetupFlag.Value
+	if !allUsers {
+		thisFilesystem := "this filesystem"
+		if ctx.Mount.Path == "/" {
+			thisFilesystem = "the root filesystem"
+		}
+		prompt := fmt.Sprintf(`Allow users other than %s to create
+fscrypt metadata on %s? (See
+https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem)`,
+			username, thisFilesystem)
+		allUsers, err = askQuestion(wrapText(prompt, 0), false)
+		if err != nil {
+			return err
+		}
+	}
+	var setupMode filesystem.SetupMode
+	if allUsers {
+		setupMode = filesystem.WorldWritable
+	} else {
+		setupMode = filesystem.SingleUserWritable
+	}
+	if err = ctx.Mount.Setup(setupMode); err != nil {
+		return err
+	}
+
+	if allUsers {
+		fmt.Fprintf(w, "Metadata directories created at %q, writable by everyone.\n",
+			ctx.Mount.BaseDir())
+	} else {
+		fmt.Fprintf(w, "Metadata directories created at %q, writable by %s only.\n",
+			ctx.Mount.BaseDir(), username)
+	}
 	return nil
 }

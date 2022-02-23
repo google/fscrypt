@@ -27,7 +27,7 @@ import (
 
 // Makes a protector and policy
 func makeBoth() (*Protector, *Policy, error) {
-	protector, err := CreateProtector(testContext, testProtectorName, goodCallback)
+	protector, err := CreateProtector(testContext, testProtectorName, goodCallback, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,7 +68,7 @@ func TestPolicyGoodAddProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestPolicyGoodRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPolicyBadRemoveProtector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback)
+	pro2, err := CreateProtector(testContext, testProtectorName2, goodCallback, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

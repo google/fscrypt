@@ -43,7 +43,7 @@ func badCallback(info ProtectorInfo, retry bool) (*crypto.Key, error) {
 
 // Tests that we can create a valid protector.
 func TestCreateProtector(t *testing.T) {
-	p, err := CreateProtector(testContext, testProtectorName, goodCallback)
+	p, err := CreateProtector(testContext, testProtectorName, goodCallback, nil)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -54,7 +54,7 @@ func TestCreateProtector(t *testing.T) {
 
 // Tests that a failure in the callback is relayed back to the caller.
 func TestBadCallback(t *testing.T) {
-	p, err := CreateProtector(testContext, testProtectorName, badCallback)
+	p, err := CreateProtector(testContext, testProtectorName, badCallback, nil)
 	if err == nil {
 		p.Lock()
 		p.Destroy()

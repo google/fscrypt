@@ -23,6 +23,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os/user"
 
 	"github.com/google/fscrypt/actions"
 	"github.com/google/fscrypt/filesystem"
@@ -38,7 +39,6 @@ func createProtectorFromContext(ctx *actions.Context) (*actions.Protector, error
 		return nil, err
 	}
 	log.Printf("using source: %s", ctx.Config.Source.String())
-
 	if ctx.Config.Source == metadata.SourceType_pam_passphrase {
 		if userFlag.Value == "" && util.IsUserRoot() {
 			return nil, ErrSpecifyUser
@@ -70,7 +70,11 @@ IMPORTANT: Before continuing, ensure you have properly set up your system for
 		}
 	}
 
-	return actions.CreateProtector(ctx, name, createKeyFn)
+	var owner *user.User
+	if ctx.Config.Source == metadata.SourceType_pam_passphrase && util.IsUserRoot() {
+		owner = ctx.TargetUser
+	}
+	return actions.CreateProtector(ctx, name, createKeyFn, owner)
 }
 
 // selectExistingProtector returns a locked Protector which corresponds to an

@@ -1,4 +1,5 @@
-ext4 filesystem "MNT" has 3 protectors and 1 policy
+ext4 filesystem "MNT" has 3 protectors and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "foo"
@@ -7,7 +8,8 @@ desc3  No      custom protector "baz"
 
 POLICY                            UNLOCKED  PROTECTORS
 desc4  No        desc1, desc2, desc3
-ext4 filesystem "MNT" has 2 protectors and 1 policy
+ext4 filesystem "MNT" has 2 protectors and 1 policy.
+All users can create fscrypt metadata on this filesystem.
 
 PROTECTOR         LINKED  DESCRIPTION
 desc1  No      custom protector "foo"

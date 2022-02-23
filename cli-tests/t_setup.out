@@ -9,7 +9,8 @@ Skipping creating MNT_ROOT/.fscrypt because it already exists.
 Defaulting to policy_version 2 because kernel supports it.
 Customizing passphrase hashing difficulty for this system...
 Created global config file at "FSCRYPT_CONF".
-Metadata directories created at "MNT_ROOT/.fscrypt".
+Allow users other than root to create fscrypt metadata on this filesystem? (See
+https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem) [y/N] Metadata directories created at "MNT_ROOT/.fscrypt", writable by everyone.
 
 # fscrypt setup when fscrypt.conf already exists (cancel)
 Replace "FSCRYPT_CONF"? [y/N] [ERROR] fscrypt setup: operation canceled
@@ -31,7 +32,8 @@ If desired, use --force to automatically run destructive operations.
 # fscrypt setup --quiet --force when fscrypt.conf already exists
 
 # fscrypt setup filesystem
-Metadata directories created at "MNT/.fscrypt".
+Allow users other than root to create fscrypt metadata on this filesystem? (See
+https://github.com/google/fscrypt#setting-up-fscrypt-on-a-filesystem) [y/N] Metadata directories created at "MNT/.fscrypt", writable by everyone.
 
 # fscrypt setup filesystem (already set up)
 [ERROR] fscrypt setup: filesystem MNT is already setup for

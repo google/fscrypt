@@ -38,9 +38,6 @@ func OpenFileOverridingUmask(name string, flag int, perm os.FileMode) (*os.File,
 	return os.OpenFile(name, flag, perm)
 }
 
-// We only check the unix permissions and the sticky bit
-const permMask = os.ModeSticky | os.ModePerm
-
 // canonicalizePath turns path into an absolute path without symlinks.
 func canonicalizePath(path string) (string, error) {
 	path, err := filepath.Abs(path)
@@ -67,26 +64,20 @@ func loggedStat(name string) (os.FileInfo, error) {
 	return info, err
 }
 
+// loggedLstat runs os.Lstat (doesn't dereference trailing symlink), but it logs
+// the error if lstat returns any error other than nil or IsNotExist.
+func loggedLstat(name string) (os.FileInfo, error) {
+	info, err := os.Lstat(name)
+	if err != nil && !os.IsNotExist(err) {
+		log.Print(err)
+	}
+	return info, err
+}
+
 // isDir returns true if the path exists and is that of a directory.
 func isDir(path string) bool {
 	info, err := loggedStat(path)
 	return err == nil && info.IsDir()
-}
-
-// isDirCheckPerm returns true if the path exists and is a directory. If the
-// specified permissions and sticky bit of mode do not match the path, an error
-// is logged.
-func isDirCheckPerm(path string, mode os.FileMode) bool {
-	info, err := loggedStat(path)
-	// Check if directory
-	if err != nil || !info.IsDir() {
-		return false
-	}
-	// Check for bad permissions
-	if info.Mode()&permMask != mode&permMask {
-		log.Printf("directory %s has incorrect permissions", path)
-	}
-	return true
 }
 
 // isRegularFile returns true if the path exists and is that of a regular file.

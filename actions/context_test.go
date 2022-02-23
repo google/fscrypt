@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/fscrypt/filesystem"
 	"github.com/google/fscrypt/util"
 	"github.com/pkg/errors"
 )
@@ -67,7 +68,7 @@ func setupContext() (ctx *Context, err error) {
 		return nil, err
 	}
 
-	return ctx, ctx.Mount.Setup()
+	return ctx, ctx.Mount.Setup(filesystem.WorldWritable)
 }
 
 // Cleans up the testing config file and testing filesystem data.
