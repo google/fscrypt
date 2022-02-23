@@ -138,7 +138,7 @@ func (ctx *Context) checkContext() error {
 	if err := ctx.Config.CheckValidity(); err != nil {
 		return &ErrBadConfig{ctx.Config, err}
 	}
-	return ctx.Mount.CheckSetup()
+	return ctx.Mount.CheckSetup(ctx.TrustedUser)
 }
 
 func (ctx *Context) getKeyringOptions() *keyring.Options {

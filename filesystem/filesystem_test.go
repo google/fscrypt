@@ -21,7 +21,6 @@ package filesystem
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -103,7 +102,7 @@ func TestSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := mnt.CheckSetup(); err != nil {
+	if err := mnt.CheckSetup(nil); err != nil {
 		t.Error(err)
 	}
 
@@ -124,16 +123,6 @@ func TestRemoveAllMetadata(t *testing.T) {
 	if isDir(mnt.BaseDir()) {
 		t.Error("metadata was not removed")
 	}
-}
-
-// loggedLstat runs os.Lstat (doesn't dereference trailing symlink), but it logs
-// the error if lstat returns any error other than nil or IsNotExist.
-func loggedLstat(name string) (os.FileInfo, error) {
-	info, err := os.Lstat(name)
-	if err != nil && !os.IsNotExist(err) {
-		log.Print(err)
-	}
-	return info, err
 }
 
 // isSymlink returns true if the path exists and is that of a symlink.
@@ -158,7 +147,7 @@ func testSetupWithSymlink(t *testing.T, mnt *Mount, symlinkTarget string, realDi
 		t.Fatal(err)
 	}
 	defer mnt.RemoveAllMetadata()
-	if err := mnt.CheckSetup(); err != nil {
+	if err := mnt.CheckSetup(nil); err != nil {
 		t.Fatal(err)
 	}
 	if !isSymlink(rawBaseDir) {
@@ -231,6 +220,28 @@ func TestSetupModes(t *testing.T) {
 	defer mnt.RemoveAllMetadata()
 	testSetupMode(t, mnt, WorldWritable, os.ModeSticky|0777)
 	testSetupMode(t, mnt, SingleUserWritable, 0755)
+}
+
+// Tests that fscrypt refuses to use metadata directories that are
+// world-writable but don't have the sticky bit set.
+func TestInsecurePermissions(t *testing.T) {
+	mnt, err := getTestMount(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mnt.RemoveAllMetadata()
+
+	if err = mnt.Setup(WorldWritable); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Chmod(mnt.PolicyDir(), 0777); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(mnt.PolicyDir(), os.ModeSticky|0777)
+	err = mnt.CheckSetup(nil)
+	if _, ok := err.(*ErrInsecurePermissions); !ok {
+		t.Fatal("expected ErrInsecurePermissions")
+	}
 }
 
 // Adding a good Protector should succeed, adding a bad one should fail

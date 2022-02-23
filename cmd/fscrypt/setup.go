@@ -83,7 +83,7 @@ func setupFilesystem(w io.Writer, path string) error {
 	}
 	username := ctx.TargetUser.Username
 
-	err = ctx.Mount.CheckSetup()
+	err = ctx.Mount.CheckSetup(ctx.TrustedUser)
 	if err == nil {
 		return &filesystem.ErrAlreadySetup{Mount: ctx.Mount}
 	}

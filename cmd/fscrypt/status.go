@@ -101,7 +101,7 @@ func writeGlobalStatus(w io.Writer) error {
 	t := makeTableWriter(w, "MOUNTPOINT\tDEVICE\tFILESYSTEM\tENCRYPTION\tFSCRYPT")
 	for _, mount := range mounts {
 		// Only print mountpoints backed by devices or using fscrypt.
-		usingFscrypt := mount.CheckSetup() == nil
+		usingFscrypt := mount.CheckSetup(nil) == nil
 		if !usingFscrypt && mount.Device == "" {
 			continue
 		}

@@ -85,6 +85,17 @@ func (err *ErrFollowLink) Error() string {
 		err.Link, err.UnderlyingError)
 }
 
+// ErrInsecurePermissions indicates that a filesystem is not considered to be
+// setup for fscrypt because a metadata directory has insecure permissions.
+type ErrInsecurePermissions struct {
+	Path string
+}
+
+func (err *ErrInsecurePermissions) Error() string {
+	return fmt.Sprintf("%q has insecure permissions (world-writable without sticky bit)",
+		err.Path)
+}
+
 // ErrMakeLink indicates that a protector link can't be created.
 type ErrMakeLink struct {
 	Target          *Mount
@@ -94,6 +105,17 @@ type ErrMakeLink struct {
 func (err *ErrMakeLink) Error() string {
 	return fmt.Sprintf("cannot create filesystem link to %q: %s",
 		err.Target.Path, err.UnderlyingError)
+}
+
+// ErrMountOwnedByAnotherUser indicates that the mountpoint root directory is
+// owned by a user that isn't trusted in the current context, so we don't
+// consider fscrypt to be properly setup on the filesystem.
+type ErrMountOwnedByAnotherUser struct {
+	Mount *Mount
+}
+
+func (err *ErrMountOwnedByAnotherUser) Error() string {
+	return fmt.Sprintf("another non-root user owns the root directory of %s", err.Mount.Path)
 }
 
 // ErrNoCreatePermission indicates that the current user lacks permission to
@@ -122,6 +144,17 @@ type ErrNotSetup struct {
 
 func (err *ErrNotSetup) Error() string {
 	return fmt.Sprintf("filesystem %s is not setup for use with fscrypt", err.Mount.Path)
+}
+
+// ErrSetupByAnotherUser indicates that one or more of the fscrypt metadata
+// directories is owned by a user that isn't trusted in the current context, so
+// we don't consider fscrypt to be properly setup on the filesystem.
+type ErrSetupByAnotherUser struct {
+	Mount *Mount
+}
+
+func (err *ErrSetupByAnotherUser) Error() string {
+	return fmt.Sprintf("another non-root user owns fscrypt metadata directories on %s", err.Mount.Path)
 }
 
 // ErrSetupNotSupported indicates that the given filesystem type is not
@@ -384,21 +417,75 @@ func checkOwnership(path string, info os.FileInfo, trustedUser *user.User) bool 
 	return true
 }
 
-// CheckSetup returns an error if all the fscrypt metadata directories do not
+// CheckSetup returns an error if any of the fscrypt metadata directories do not
 // exist. Will log any unexpected errors or incorrect permissions.
-func (m *Mount) CheckSetup() error {
+func (m *Mount) CheckSetup(trustedUser *user.User) error {
 	if !m.isFscryptSetupAllowed() {
 		return &ErrNotSetup{m}
 	}
-	// Run all the checks so we will always get all the warnings
-	baseGood := isDirCheckPerm(m.BaseDir(), basePermissions)
-	policyGood := isDir(m.PolicyDir())
-	protectorGood := isDir(m.ProtectorDir())
-
-	if baseGood && policyGood && protectorGood {
-		return nil
+	// Check that the mountpoint directory itself is not a symlink and has
+	// proper ownership, as otherwise we can't trust anything beneath it.
+	info, err := loggedLstat(m.Path)
+	if err != nil {
+		return &ErrNotSetup{m}
 	}
-	return &ErrNotSetup{m}
+	if (info.Mode() & os.ModeSymlink) != 0 {
+		log.Printf("mountpoint directory %q cannot be a symlink", m.Path)
+		return &ErrNotSetup{m}
+	}
+	if !info.IsDir() {
+		log.Printf("mountpoint %q is not a directory", m.Path)
+		return &ErrNotSetup{m}
+	}
+	if !checkOwnership(m.Path, info, trustedUser) {
+		return &ErrMountOwnedByAnotherUser{m}
+	}
+
+	// Check BaseDir similarly.  However, unlike the other directories, we
+	// allow BaseDir to be a symlink, to support the use case of metadata
+	// for a read-only filesystem being redirected to a writable location.
+	info, err = loggedStat(m.BaseDir())
+	if err != nil {
+		return &ErrNotSetup{m}
+	}
+	if !info.IsDir() {
+		log.Printf("%q is not a directory", m.BaseDir())
+		return &ErrNotSetup{m}
+	}
+	if !checkOwnership(m.Path, info, trustedUser) {
+		return &ErrMountOwnedByAnotherUser{m}
+	}
+
+	// Check that the policies and protectors directories aren't symlinks and
+	// have proper ownership.
+	subdirs := []string{m.PolicyDir(), m.ProtectorDir()}
+	for _, path := range subdirs {
+		info, err := loggedLstat(path)
+		if err != nil {
+			return &ErrNotSetup{m}
+		}
+		if (info.Mode() & os.ModeSymlink) != 0 {
+			log.Printf("directory %q cannot be a symlink", path)
+			return &ErrNotSetup{m}
+		}
+		if !info.IsDir() {
+			log.Printf("%q is not a directory", path)
+			return &ErrNotSetup{m}
+		}
+		// We are no longer too picky about the mode, given that
+		// 'fscrypt setup' now offers a choice of two different modes,
+		// and system administrators could customize it further.
+		// However, we can at least verify that if the directory is
+		// world-writable, then the sticky bit is also set.
+		if info.Mode()&(os.ModeSticky|0002) == 0002 {
+			log.Printf("%q is world-writable but doesn't have sticky bit set", path)
+			return &ErrInsecurePermissions{path}
+		}
+		if !checkOwnership(path, info, trustedUser) {
+			return &ErrSetupByAnotherUser{m}
+		}
+	}
+	return nil
 }
 
 // makeDirectories creates the three metadata directories with the correct
@@ -458,7 +545,7 @@ func (m *Mount) GetSetupMode() (SetupMode, *user.User, error) {
 // the filesystem's feature flags. This operation is atomic; it either succeeds
 // or no files in the baseDir are created.
 func (m *Mount) Setup(mode SetupMode) error {
-	if m.CheckSetup() == nil {
+	if m.CheckSetup(nil) == nil {
 		return &ErrAlreadySetup{m}
 	}
 	if !m.isFscryptSetupAllowed() {
@@ -485,7 +572,7 @@ func (m *Mount) Setup(mode SetupMode) error {
 // WARNING: Will cause data loss if the metadata is used to encrypt
 // directories (this could include directories on other filesystems).
 func (m *Mount) RemoveAllMetadata() error {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(nil); err != nil {
 		return err
 	}
 	// temp will hold the old metadata temporarily
@@ -701,7 +788,7 @@ func (m *Mount) removeMetadata(path string) error {
 // already exists on the filesystem.
 func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 	var err error
-	if err = m.CheckSetup(); err != nil {
+	if err = m.CheckSetup(nil); err != nil {
 		return err
 	}
 	if isRegularFile(m.linkedProtectorPath(data.ProtectorDescriptor)) {
@@ -724,7 +811,7 @@ func (m *Mount) AddProtector(data *metadata.ProtectorData) error {
 // in the dest filesystem, if one doesn't already exist.  On success, the return
 // value is a nil error and a bool that is true iff the link is newly created.
 func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *user.User) (bool, error) {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(trustedUser); err != nil {
 		return false, err
 	}
 	// Check that the link is good (descriptor exists, filesystem has UUID).
@@ -762,7 +849,7 @@ func (m *Mount) AddLinkedProtector(descriptor string, dest *Mount, trustedUser *
 // GetRegularProtector looks up the protector metadata by descriptor. This will
 // fail with ErrProtectorNotFound if the descriptor is a linked protector.
 func (m *Mount) GetRegularProtector(descriptor string, trustedUser *user.User) (*metadata.ProtectorData, error) {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(trustedUser); err != nil {
 		return nil, err
 	}
 	data := new(metadata.ProtectorData)
@@ -792,7 +879,7 @@ func (m *Mount) GetRegularProtector(descriptor string, trustedUser *user.User) (
 // and that protector's data. If the descriptor is a regular (not linked)
 // protector, the mount will return itself.
 func (m *Mount) GetProtector(descriptor string, trustedUser *user.User) (*Mount, *metadata.ProtectorData, error) {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(trustedUser); err != nil {
 		return nil, nil, err
 	}
 	// Get the link data from the link file
@@ -821,7 +908,7 @@ func (m *Mount) GetProtector(descriptor string, trustedUser *user.User) (*Mount,
 // RemoveProtector deletes the protector metadata (or a link to another
 // filesystem's metadata) from the filesystem storage.
 func (m *Mount) RemoveProtector(descriptor string) error {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(nil); err != nil {
 		return err
 	}
 	// We first try to remove the linkedProtector. If that metadata does not
@@ -845,7 +932,7 @@ func (m *Mount) ListProtectors(trustedUser *user.User) ([]string, error) {
 
 // AddPolicy adds the policy metadata to the filesystem storage.
 func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(nil); err != nil {
 		return err
 	}
 
@@ -854,7 +941,7 @@ func (m *Mount) AddPolicy(data *metadata.PolicyData) error {
 
 // GetPolicy looks up the policy metadata by descriptor.
 func (m *Mount) GetPolicy(descriptor string, trustedUser *user.User) (*metadata.PolicyData, error) {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(trustedUser); err != nil {
 		return nil, err
 	}
 	data := new(metadata.PolicyData)
@@ -867,7 +954,7 @@ func (m *Mount) GetPolicy(descriptor string, trustedUser *user.User) (*metadata.
 
 // RemovePolicy deletes the policy metadata from the filesystem storage.
 func (m *Mount) RemovePolicy(descriptor string) error {
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(nil); err != nil {
 		return err
 	}
 	err := m.removeMetadata(m.PolicyPath(descriptor))
@@ -945,7 +1032,7 @@ func (m *Mount) listDirectory(directoryPath string) ([]string, error) {
 
 func (m *Mount) listMetadata(dirPath string, metadataType string, owner *user.User) ([]string, error) {
 	log.Printf("listing %s in %q", metadataType, dirPath)
-	if err := m.CheckSetup(); err != nil {
+	if err := m.CheckSetup(owner); err != nil {
 		return nil, err
 	}
 	names, err := m.listDirectory(dirPath)
