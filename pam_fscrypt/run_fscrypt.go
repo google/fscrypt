@@ -35,6 +35,7 @@ import (
 	"log"
 	"log/syslog"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime/debug"
 	"unsafe"
@@ -57,6 +58,10 @@ const (
 	countDirectoryPermissions = 0700
 	countFilePermissions      = 0600
 	countFileFormat           = "%d\n"
+	// uidMin is the first UID that can be used for a regular user (as
+	// opposed to a system user or root).  This value is fairly standard
+	// across Linux distros, but it can be adjusted if needed.
+	uidMin = 1000
 )
 
 // PamFunc is used to define the various actions in the PAM module.
@@ -65,6 +70,14 @@ type PamFunc struct {
 	name string
 	// Go implementation of this function
 	impl func(handle *pam.Handle, args map[string]bool) error
+}
+
+// isSystemUser checks if a user is a system user.  pam_fscrypt should never
+// need to do anything for system users since they should never have login
+// protectors.  Therefore, we detect them early to avoid wasting resources.
+func isSystemUser(user *user.User) bool {
+	uid := util.AtoiOrPanic(user.Uid)
+	return uid < uidMin && uid != 0
 }
 
 // Run is used to convert between the Go functions and exported C funcs.
@@ -85,7 +98,13 @@ func (f *PamFunc) Run(pamh unsafe.Pointer, argc C.int, argv **C.char) (ret C.int
 	log.Printf("%s(%v) starting", f.name, args)
 	handle, err := pam.NewHandle(pamh)
 	if err == nil {
-		err = f.impl(handle, args)
+		if isSystemUser(handle.PamUser) {
+			log.Printf("invoked for system user %q (%s), doing nothing",
+				handle.PamUser.Username, handle.PamUser.Uid)
+			err = nil
+		} else {
+			err = f.impl(handle, args)
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(errorWriter, "%s(%v) failed: %s", f.name, args, err)
