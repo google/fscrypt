@@ -72,8 +72,6 @@ VERSION_FLAG := -X "main.version=$(if $(TAG_VERSION),$(TAG_VERSION),$(VERSION))"
 
 override GO_LINK_FLAGS += $(VERSION_FLAG) -extldflags "$(LDFLAGS)"
 override GO_FLAGS += --ldflags '$(GO_LINK_FLAGS)'
-# Always use Go modules
-export GO111MODULE = on
 # Use -trimpath if available
 ifneq "" "$(shell go help build | grep trimpath)"
 override GO_FLAGS += -trimpath

@@ -27,7 +27,7 @@ jobs:
   build:
     strategy:
       matrix:
-        go: ['1.14', '1.13', '1.12', '1.11']
+        go: ['1.18', '1.17', '1.16']
     name: Build (Go ${{ matrix.go }})
     runs-on: ubuntu-latest
     steps:
@@ -40,7 +40,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libpam0g-dev
     - name: Build
-      run: GO111MODULE=on make
+      run: make
 
   build-32bit:
     name: Build (32-bit)
@@ -97,7 +97,6 @@ jobs:
   #           apt-get install -y build-essential git sudo golang-go \
   #                              libpam0g-dev e2fsprogs keyutils
   #         run: |
-  #           export GO111MODULE=on
   #           make test-setup
   #           keyctl link @u @s
   #           make test
