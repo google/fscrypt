@@ -30,7 +30,7 @@ problem in your PAM stack, enable pam_keyinit.so, or run "keyctl link @u @s".
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -41,7 +41,7 @@ desc2  No      custom protector "prot"
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Partially (incompletely locked, or unlocked by another user)
 
 Protected with 1 protector:
@@ -59,7 +59,7 @@ directories in an accessible state).
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -77,7 +77,7 @@ use --user=root.
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -90,7 +90,7 @@ Encrypted data removed from filesystem cache.
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -114,7 +114,7 @@ Then re-run:
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Partially (incompletely locked, or unlocked by another user)
 
 Protected with 1 protector:
@@ -135,7 +135,7 @@ Encrypted data removed from filesystem cache.
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:

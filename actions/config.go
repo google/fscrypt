@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/google/fscrypt/crypto"
 	"github.com/google/fscrypt/filesystem"
@@ -210,7 +211,7 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 	memoryKiBLimit := memoryBytesLimit() / 1024
 	for {
 		// Store a copy of the previous costs
-		costsPrev := *costs
+		costsPrev := proto.Clone(costs).(*metadata.HashingCosts)
 		tPrev := t
 
 		// Double the memory up to the max, then double the time.
@@ -223,7 +224,7 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 		// If our hashing failed, return the last good set of costs.
 		if t, err = timeHashingCosts(costs); err != nil {
 			log.Printf("Hashing with costs={%v} failed: %v\n", costs, err)
-			return &costsPrev, nil
+			return costsPrev, nil
 		}
 		log.Printf("Costs={%v}\t-> %v\n", costs, t)
 

@@ -4,14 +4,14 @@ go 1.16
 
 require (
 	github.com/client9/misspell v0.3.4
-	github.com/golang/protobuf v1.2.0
-	github.com/pkg/errors v0.8.0
-	github.com/urfave/cli v1.20.0
+	github.com/pkg/errors v0.9.1
+	github.com/urfave/cli v1.22.5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529
-	golang.org/x/lint v0.0.0-20190930215403-16217165b5de
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
-	golang.org/x/term v0.0.0-20210422114643-f5beecf764ed
-	golang.org/x/tools v0.0.0-20191025023517-2077df36852e
-	honnef.co/go/tools v0.0.1-2019.2.3
+	golang.org/x/crypto v0.0.0-20220408190544-5352b0902921
+	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
+	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a
+	google.golang.org/protobuf v1.28.0
+	honnef.co/go/tools v0.3.0
 )

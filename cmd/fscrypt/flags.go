@@ -144,10 +144,10 @@ var (
 	}
 	forceFlag = &boolFlag{
 		Name: "force",
-		Usage: fmt.Sprintf(`Suppresses all confirmation prompts and
-			warnings, causing any action to automatically proceed.
-			WARNING: This bypasses confirmations for protective
-			operations, use with care.`),
+		Usage: `Suppresses all confirmation prompts and warnings,
+			causing any action to automatically proceed.  WARNING:
+			This bypasses confirmations for protective operations,
+			use with care.`,
 	}
 	skipUnlockFlag = &boolFlag{
 		Name: "skip-unlock",

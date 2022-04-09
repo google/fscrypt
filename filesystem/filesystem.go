@@ -45,9 +45,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/google/fscrypt/metadata"
 	"github.com/google/fscrypt/util"

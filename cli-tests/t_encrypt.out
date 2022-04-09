@@ -65,7 +65,7 @@ desc2  Yes       desc1
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc2
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -82,7 +82,7 @@ desc2  Yes       desc1
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc2
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:

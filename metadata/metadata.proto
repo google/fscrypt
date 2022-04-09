@@ -23,6 +23,8 @@
 syntax = "proto3";
 package metadata;
 
+option go_package = "github.com/google/fscrypt/metadata";
+
 // Cost parameters to be used in our hashing functions.
 message HashingCosts {
   int64 time = 2;

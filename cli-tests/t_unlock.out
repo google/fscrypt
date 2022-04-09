@@ -5,7 +5,7 @@
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:
@@ -23,7 +23,7 @@ Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and read
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -39,7 +39,7 @@ desc1  Yes       desc2
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:
@@ -55,7 +55,7 @@ desc1  No        desc2
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:
@@ -69,7 +69,7 @@ Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and read
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -83,7 +83,7 @@ desc1  Yes       desc2
 # Try to unlock with corrupt policy metadata
 [ERROR] fscrypt unlock: fscrypt metadata file at
                         "MNT/.fscrypt/policies/desc1"
-                        is corrupt: unexpected EOF
+                        is corrupt: proto: cannot parse invalid wire-format data
 
 # Try to unlock with missing policy metadata
 [ERROR] fscrypt unlock: filesystem "MNT" does not contain

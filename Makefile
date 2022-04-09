@@ -98,7 +98,7 @@ $(PAM_MODULE): $(GO_FILES) $(C_FILES)
 	rm -f $(BIN)/$(PAM_NAME).h
 
 gen: $(BIN)/protoc $(BIN)/protoc-gen-go $(PROTO_FILES)
-	protoc --go_out=. $(PROTO_FILES)
+	protoc --go_out=. --go_opt=paths=source_relative $(PROTO_FILES)
 
 format: $(BIN)/goimports
 	goimports -w $(GO_NONGEN_FILES)
@@ -203,7 +203,7 @@ tools: $(TOOLS)
 $(BIN)/golint:
 	go build -o $@ golang.org/x/lint/golint
 $(BIN)/protoc-gen-go:
-	go build -o $@ github.com/golang/protobuf/protoc-gen-go
+	go build -o $@ google.golang.org/protobuf/cmd/protoc-gen-go
 $(BIN)/goimports:
 	go build -o $@ golang.org/x/tools/cmd/goimports
 $(BIN)/staticcheck:

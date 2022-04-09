@@ -71,8 +71,8 @@ type ErrDirFilesOpen struct {
 }
 
 func (err *ErrDirFilesOpen) Error() string {
-	return fmt.Sprintf(`Directory was incompletely locked because some files
-	are still open. These files remain accessible.`)
+	return `Directory was incompletely locked because some files are still
+	open. These files remain accessible.`
 }
 
 // ErrDirUnlockedByOtherUsers indicates that a directory can't be locked because
