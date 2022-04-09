@@ -17,7 +17,7 @@ re-create your encrypted directories using v2 encryption policies rather than v1
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:
@@ -40,7 +40,7 @@ Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and read
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -63,7 +63,7 @@ cat: MNT/dir/file: No such file or directory
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:1
 Unlocked: No
 
 Protected with 1 protector:

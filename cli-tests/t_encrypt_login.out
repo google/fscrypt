@@ -24,7 +24,7 @@ desc1  No      login protector for fscrypt-test-user
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc3
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 2 protectors:
@@ -76,7 +76,7 @@ desc10  No      login protector for fscrypt-test-user
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc12
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 2 protectors:
@@ -109,7 +109,7 @@ desc19  No      login protector for fscrypt-test-user
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc21
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 2 protectors:
@@ -138,7 +138,7 @@ desc28  No      login protector for fscrypt-test-user
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc29
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -149,7 +149,7 @@ desc28  Yes (MNT_ROOT)  login protector for fscrypt-test-user
 "MNT_ROOT/dir" is encrypted with fscrypt.
 
 Policy:   desc34
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:

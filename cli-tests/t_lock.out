@@ -3,7 +3,7 @@
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -24,7 +24,7 @@ Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and read
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Yes
 
 Protected with 1 protector:
@@ -48,7 +48,7 @@ Then re-run:
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: Partially (incompletely locked)
 
 Protected with 1 protector:
@@ -66,7 +66,7 @@ bash: MNT/dir/file2: Required key not available
 "MNT/dir" is encrypted with fscrypt.
 
 Policy:   desc1
-Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2 
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
 Unlocked: No
 
 Protected with 1 protector:

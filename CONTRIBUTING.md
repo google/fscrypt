@@ -150,7 +150,7 @@ your code.
   - Downloads [`protoc`](https://github.com/google/protobuf) to compile the
   `.proto` files.
   - Turns each `.proto` file into a matching `.pb.go` file using
-    [`protoc-gen-go`](https://github.com/golang/protobuf/tree/master/protoc-gen-go).
+    [`protoc-gen-go`](https://go.googlesource.com/protobuf/+/refs/heads/master/cmd/protoc-gen-go).
 
 `make format` runs:
   - [`goimports`](https://godoc.org/golang.org/x/tools/cmd/goimports)
