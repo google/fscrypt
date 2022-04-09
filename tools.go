@@ -1,4 +1,6 @@
+//go:build tools
 // +build tools
+
 // Never compiled, just used to manage tool dependencies
 
 package tools
