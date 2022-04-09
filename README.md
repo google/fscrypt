@@ -12,22 +12,13 @@ provides a uniform interface for creating and modifying encrypted directories.
 For a small low-level tool that directly sets policies, see
 [`fscryptctl`](https://github.com/google/fscryptctl).
 
-Note that the kernel part of `fscrypt` (which is integrated into filesystems
-such as ext4) is also sometimes referred to as "fscrypt".  To avoid confusion,
-this documentation calls the kernel part "Linux native filesystem encryption".
-
-To use `fscrypt`, you must have a filesystem with encryption enabled and a
-kernel that supports reading/writing from that filesystem. Currently,
-[ext4](https://en.wikipedia.org/wiki/Ext4),
-[F2FS](https://en.wikipedia.org/wiki/F2FS), and
-[UBIFS](https://en.wikipedia.org/wiki/UBIFS) support native filesystem
-encryption. Ext4 has supported native filesystem encryption [since
-v4.1](https://lwn.net/Articles/639427), F2FS [added support in
-v4.2](https://lwn.net/Articles/649652), and UBIFS [added support in
-v4.10](https://lwn.net/Articles/707900). Other filesystems may add support for
-native encryption in the future. Filesystems may additionally require certain
-kernel configuration options to be set to use native encryption.  See [Runtime
-dependencies](#runtime-dependencies).
+To use `fscrypt`, you must have a filesystem that supports the Linux native
+filesystem encryption API (which is also sometimes called "fscrypt"; this
+documentation calls it "Linux native filesystem encryption" to avoid confusion).
+Only certain filesystems, such as [ext4](https://en.wikipedia.org/wiki/Ext4) and
+[f2fs](https://en.wikipedia.org/wiki/F2FS), support this API.  For a full list
+of supported filesystems and how to enable encryption support on each one, see
+[Runtime dependencies](#runtime-dependencies).
 
 ## Table of contents
 
@@ -262,26 +253,31 @@ See the `Makefile` for instructions on how to further customize the build.
 To run, `fscrypt` needs the following libraries:
 *   `libpam.so` (almost certainly already on your system)
 
-In addition, `fscrypt` requires kernel support for encryption for your
-filesystem, and for some filesystems that a feature flag has been
-enabled in the on-disk filesystem superblock:
+In addition, `fscrypt` requires a filesystem that supports the Linux native
+filesystem encryption API.  Currently, the filesystems that support this are:
 
-* For ext4, the kernel must be v4.1 or later, and the kernel configuration must
-  have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
-  `CONFIG_EXT4_ENCRYPTION=y` or `=m` (for older kernels).  Also, the filesystem
-  must have the `encrypt` feature flag enabled; see
-  [here](#getting-encryption-not-enabled-on-an-ext4-filesystem) for how to
-  enable it.
+* ext4, with upstream kernel v4.1 or later.  The kernel configuration must
+  contain `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+  `CONFIG_EXT4_ENCRYPTION=y` or `=m` (for older kernels).  The filesystem must
+  also have the `encrypt` feature flag enabled; to enable this flag, see
+  [here](#getting-encryption-not-enabled-on-an-ext4-filesystem).
 
-* For f2fs, the kernel must be v4.2 or later, and the kernel configuration must
-  have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
-  `CONFIG_F2FS_FS_ENCRYPTION=y` (for older kernels).  Also, the filesystem must
-  have the `encrypt` feature flag enabled.  It can be enabled at format time by
-  `mkfs.f2fs -O encrypt`, or later by `fsck.f2fs -O encrypt`.
+* f2fs, with upstream kernel v4.2 or later.  The kernel configuration must
+  contain `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+  `CONFIG_F2FS_FS_ENCRYPTION=y` (for older kernels).  The filesystem must also
+  have the `encrypt` feature flag enabled; this flag can be enabled at format
+  time by `mkfs.f2fs -O encrypt` or later by `fsck.f2fs -O encrypt`.
 
-* For UBIFS, the kernel must be v4.10 or later, and the kernel configuration
-  must have either `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
+* UBIFS, with upstream kernel v4.10 or later.  The kernel configuration must
+  contain `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
   `CONFIG_UBIFS_FS_ENCRYPTION=y` (for older kernels).
+
+* [Lustre](https://www.lustre.org/), with Lustre v2.14.0 or later.  For details,
+  see the Lustre documentation.  Please note that Lustre is not part of the
+  upstream Linux kernel, and its encryption implementation has not been reviewed
+  by the authors of `fscrypt`.  Questions/issues about Lustre encryption should
+  be directed to the Lustre developers.  Lustre version 2.14 does not encrypt
+  filenames, even though it claims to, so v2.15.0 or later should be used.
 
 To check whether the needed option is enabled in your kernel, run:
 ```shell
@@ -292,9 +288,9 @@ It is also recommended to use Linux kernel v5.4 or later, since this
 allows the use of v2 encryption policies.  v2 policies have several
 security and usability improvements over v1 policies.
 
-Be careful when using encryption on removable media, since filesystems with the
-`encrypt` feature cannot be mounted on systems with kernel versions older than
-the minimums listed above -- even to access unencrypted files!
+Be careful when using ext4 encryption on removable media, since ext4 filesystems
+with the `encrypt` feature cannot be mounted on systems with kernel versions
+older than the minimums listed above -- even to access unencrypted files!
 
 If you configure `fscrypt` to use non-default features, other kernel
 prerequisites may be needed too.  See [Configuration
