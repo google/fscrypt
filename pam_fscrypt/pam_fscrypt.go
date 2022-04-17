@@ -31,6 +31,9 @@ import "C"
 import (
 	"fmt"
 	"log"
+	"log/syslog"
+	"os"
+	"strconv"
 	"unsafe"
 
 	"github.com/pkg/errors"
@@ -46,6 +49,8 @@ const (
 	moduleName = "pam_fscrypt"
 	// authtokLabel tags the AUTHTOK in the PAM data.
 	authtokLabel = "fscrypt_authtok"
+	// pidLabel tags the pid in the PAM data.
+	pidLabel = "fscrypt_pid"
 	// These flags are used to toggle behavior of the PAM module.
 	debugFlag = "debug"
 
@@ -75,6 +80,12 @@ func Authenticate(handle *pam.Handle, _ map[string]bool) error {
 		return err
 	}
 	defer handle.StopAsPamUser()
+
+	// Save the PID in the PAM data so that the Session hook can try to
+	// detect the unsupported situation where the process was forked.
+	if err := handle.SetString(pidLabel, strconv.Itoa(os.Getpid())); err != nil {
+		return errors.Wrap(err, "could not save pid in PAM data")
+	}
 
 	// If this user doesn't have a login protector, no unlocking is needed.
 	if _, err := loginProtector(handle); err != nil {
@@ -128,6 +139,37 @@ func setupUserKeyringIfNeeded(handle *pam.Handle, policies []*actions.Policy) er
 	return handle.StartAsPamUser()
 }
 
+// The Go runtime doesn't support being forked, as it is multithreaded but
+// fork() deletes all threads except one.  Some programs, such as xrdp, misuse
+// libpam by fork()-ing the process between pam_authenticate() and
+// pam_open_session().  Try to detect such unsupported cases and bail out early
+// rather than deadlocking the Go runtime, which would prevent the user from
+// logging in entirely.  This isn't guaranteed to work, as we are already
+// running Go code here, so we may have already deadlocked.  But in practice the
+// deadlock doesn't occur until hashing the login passphrase is attempted.
+func isUnsupportedFork(handle *pam.Handle) bool {
+	pidString, err := handle.GetString(pidLabel)
+	if err != nil {
+		return false
+	}
+	expectedPid, err := strconv.Atoi(pidString)
+	if err != nil {
+		log.Printf("%s parse error: %v", pidLabel, err)
+		return false
+	}
+	if os.Getpid() == expectedPid {
+		return false
+	}
+	handle.InfoMessage(fmt.Sprintf("%s couldn't automatically unlock directories, see syslog", moduleName))
+	if logger, err := syslog.New(syslog.LOG_WARNING, moduleName); err == nil {
+		fmt.Fprintf(logger,
+			"not unlocking directories because %s forked the process between authenticating the user and opening the session, which is incompatible with %s.  See https://github.com/google/fscrypt/issues/350",
+			handle.GetServiceName(), moduleName)
+		logger.Close()
+	}
+	return true
+}
+
 // OpenSession provisions any policies protected with the login protector.
 func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	// We will always clear the AUTHTOK data
@@ -151,6 +193,10 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 	policies := policiesUsingProtector(protector)
 	if len(policies) == 0 {
 		log.Print("no policies to unlock")
+		return nil
+	}
+
+	if isUnsupportedFork(handle) {
 		return nil
 	}
 
