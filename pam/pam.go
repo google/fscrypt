@@ -127,6 +127,15 @@ func (h *Handle) GetItem(i Item) (unsafe.Pointer, error) {
 	return data, nil
 }
 
+// GetServiceName retrieves the name of the application running the PAM transaction.
+func (h *Handle) GetServiceName() string {
+	data, err := h.GetItem(Service)
+	if err != nil {
+		return "[unknown service]"
+	}
+	return C.GoString((*C.char)(data))
+}
+
 // StartAsPamUser sets the effective privileges to that of the PAM user.
 func (h *Handle) StartAsPamUser() error {
 	userPrivs, err := security.UserPrivileges(h.PamUser)
