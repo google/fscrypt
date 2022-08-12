@@ -186,7 +186,7 @@ func requireV2PolicySupport(t *testing.T, directory string) {
 	}
 	defer file.Close()
 
-	err = policyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY_EX, nil)
+	err = getPolicyIoctl(file, unix.FS_IOC_GET_ENCRYPTION_POLICY_EX, nil)
 	if err == ErrEncryptionNotSupported {
 		t.Skip("No support for v2 encryption policies, skipping test")
 	}
