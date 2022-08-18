@@ -13,7 +13,7 @@ mkdir "$dir"
 chown "$TEST_USER" "$dir"
 
 _print_header "Set policy_version 1"
-sed -i 's/"policy_version": "2"/"policy_version": "1"/' "$FSCRYPT_CONF"
+sed -E -i 's/"policy_version": +"2"/"policy_version": "1"/' "$FSCRYPT_CONF"
 
 _print_header "Try to encrypt as root"
 _expect_failure "echo hunter2 | fscrypt encrypt --quiet --name=prot '$dir'"
