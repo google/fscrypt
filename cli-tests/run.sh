@@ -167,6 +167,7 @@ setup_for_test()
 ERROR: Can't run these tests because your kernel doesn't support v2 policies.
 You need kernel v5.4 or later.
 EOF
+		cat 1>&2 "$FSCRYPT_CONF"
 		exit 1
 	fi
 
