@@ -10,8 +10,8 @@ cd "$(dirname "$0")"
 . common.sh
 
 _print_header "Enable v1 policies with fs keyring"
-sed -e 's/"use_fs_keyring_for_v1_policies": false/"use_fs_keyring_for_v1_policies": true/' \
-    -e 's/"policy_version": "2"/"policy_version": "1"/' \
+sed -E -e 's/"use_fs_keyring_for_v1_policies": +false/"use_fs_keyring_for_v1_policies": true/' \
+    -e 's/"policy_version": +"2"/"policy_version": "1"/' \
     -i "$FSCRYPT_CONF"
 
 dir="$MNT/dir"
