@@ -21,6 +21,7 @@ package metadata
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -54,6 +55,15 @@ var testConfigString = `{
 }
 `
 
+// Used for JSON string comparison while ignoring whitespace
+func compact(t testing.TB, s string) string {
+	var b bytes.Buffer
+	if err := json.Compact(&b, []byte(s)); err != nil {
+		t.Fatalf("failed to compact json: %v", err)
+	}
+	return b.String()
+}
+
 // Makes sure that writing a config and reading it back gives the same thing.
 func TestWrite(t *testing.T) {
 	var b bytes.Buffer
@@ -62,7 +72,7 @@ func TestWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("json encoded config:\n%s", b.String())
-	if b.String() != testConfigString {
+	if compact(t, b.String()) != compact(t, testConfigString) {
 		t.Errorf("did not match: %s", testConfigString)
 	}
 }
