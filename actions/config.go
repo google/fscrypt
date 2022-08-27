@@ -187,11 +187,17 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 	log.Printf("Finding hashing costs that take %v\n", target)
 
 	// Start out with the minimal possible costs that use all the CPUs.
-	nCPUs := int64(runtime.NumCPU())
+	parallelism := int64(runtime.NumCPU())
+	// golang.org/x/crypto/argon2 only supports parallelism up to 255.
+	// For compatibility, don't use more than that amount.
+	if parallelism > metadata.MaxParallelism {
+		parallelism = metadata.MaxParallelism
+	}
 	costs := &metadata.HashingCosts{
-		Time:        1,
-		Memory:      8 * nCPUs,
-		Parallelism: nCPUs,
+		Time:            1,
+		Memory:          8 * parallelism,
+		Parallelism:     parallelism,
+		TruncationFixed: true,
 	}
 
 	// If even the minimal costs are not fast enough, just return the
@@ -233,9 +239,10 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 		if t >= target {
 			f := float64(target-tPrev) / float64(t-tPrev)
 			return &metadata.HashingCosts{
-				Time:        betweenCosts(costsPrev.Time, costs.Time, f),
-				Memory:      betweenCosts(costsPrev.Memory, costs.Memory, f),
-				Parallelism: costs.Parallelism,
+				Time:            betweenCosts(costsPrev.Time, costs.Time, f),
+				Memory:          betweenCosts(costsPrev.Memory, costs.Memory, f),
+				Parallelism:     costs.Parallelism,
+				TruncationFixed: costs.TruncationFixed,
 			}, nil
 		}
 	}
