@@ -76,6 +76,12 @@ var hashTestCases = []hashTestCase{
 		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 1},
 		hexHash: "a66f5398e33761bf161fdf1273e99b148f07d88d12d85b7673fddd723f95ec34",
 	},
+	// Make sure we maintain our backwards compatible behavior, where
+	// Parallelism is truncated to 8-bits unless TruncationFixed is true.
+	{
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 257},
+		hexHash: "a66f5398e33761bf161fdf1273e99b148f07d88d12d85b7673fddd723f95ec34",
+	},
 	{
 		costs:   &metadata.HashingCosts{Time: 10, Memory: 1 << 10, Parallelism: 1},
 		hexHash: "5fa2cb89db1f7413ba1776258b7c8ee8c377d122078d28fe1fd645c353787f50",
@@ -87,6 +93,15 @@ var hashTestCases = []hashTestCase{
 	{
 		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 10, Parallelism: 10},
 		hexHash: "b7c3d7a0be222680b5ea3af3fb1a0b7b02b92cbd7007821dc8b84800c86c7783",
+	},
+	{
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 11, Parallelism: 255},
+		hexHash: "d51af3775bbdd0cba31d96fd6d921d9de27f521ceffe667618cd7624f6643071",
+	},
+	// Adding TruncationFixed shouldn't matter if Parallelism < 256.
+	{
+		costs:   &metadata.HashingCosts{Time: 1, Memory: 1 << 11, Parallelism: 255, TruncationFixed: true},
+		hexHash: "d51af3775bbdd0cba31d96fd6d921d9de27f521ceffe667618cd7624f6643071",
 	},
 }
 
@@ -493,16 +508,21 @@ func TestComputeKeyDescriptorBadVersion(t *testing.T) {
 
 // Run our test cases for passphrase hashing
 func TestPassphraseHashing(t *testing.T) {
-	for i, testCase := range hashTestCases {
-		pk, err := fakePassphraseKey()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pk.Wipe()
+	pk, err := fakePassphraseKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pk.Wipe()
 
+	for i, testCase := range hashTestCases {
+		if err := testCase.costs.CheckValidity(); err != nil {
+			t.Errorf("Hash test %d: for costs=%+v hashing failed: %v", i, testCase.costs, err)
+			continue
+		}
 		hash, err := PassphraseHash(pk, fakeSalt, testCase.costs)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("Hash test %d: for costs=%+v hashing failed: %v", i, testCase.costs, err)
+			continue
 		}
 		defer hash.Wipe()
 
@@ -510,6 +530,29 @@ func TestPassphraseHashing(t *testing.T) {
 		if actual != testCase.hexHash {
 			t.Errorf("Hash test %d: for costs=%+v expected hash of %q got %q",
 				i, testCase.costs, testCase.hexHash, actual)
+		}
+	}
+}
+
+var badCosts = []*metadata.HashingCosts{
+	// Bad Time costs
+	{Time: 0, Memory: 1 << 11, Parallelism: 1},
+	{Time: 1 << 33, Memory: 1 << 11, Parallelism: 1},
+	// Bad Memory costs
+	{Time: 1, Memory: 5, Parallelism: 1},
+	{Time: 1, Memory: 1 << 33, Parallelism: 1},
+	// Bad Parallelism costs
+	{Time: 1, Memory: 1 << 11, Parallelism: 0, TruncationFixed: false},
+	{Time: 1, Memory: 1 << 11, Parallelism: 0, TruncationFixed: true},
+	{Time: 1, Memory: 1 << 11, Parallelism: 256, TruncationFixed: false},
+	{Time: 1, Memory: 1 << 11, Parallelism: 256, TruncationFixed: true},
+	{Time: 1, Memory: 1 << 11, Parallelism: 257, TruncationFixed: true},
+}
+
+func TestBadParameters(t *testing.T) {
+	for i, costs := range badCosts {
+		if costs.CheckValidity() == nil {
+			t.Errorf("Hash test %d: expected error for costs=%+v", i, costs)
 		}
 	}
 }
