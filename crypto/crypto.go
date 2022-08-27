@@ -39,6 +39,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"io"
+	"math"
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/argon2"
@@ -216,7 +217,7 @@ func ComputeKeyDescriptor(key *Key, policyVersion int64) (string, error) {
 func PassphraseHash(passphrase *Key, salt []byte, costs *metadata.HashingCosts) (*Key, error) {
 	t := uint32(costs.Time)
 	m := uint32(costs.Memory)
-	p := uint8(costs.Parallelism)
+	p := uint8(math.Min(float64(costs.Parallelism), float64(math.MaxUint8)))
 	key := argon2.IDKey(passphrase.data, salt, t, m, p, metadata.InternalKeyLen)
 
 	hash, err := NewBlankKey(metadata.InternalKeyLen)
