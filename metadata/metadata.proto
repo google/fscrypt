@@ -19,7 +19,8 @@
  * the License.
  */
 
-// If you modify this file, be sure to run "go generate" on this package.
+// If the *.proto file is modified, be sure to run "make gen" (at the project
+// root) to recreate the *.pb.go file.
 syntax = "proto3";
 package metadata;
 
