@@ -31,6 +31,8 @@ message HashingCosts {
   int64 time = 2;
   int64 memory = 3;
   int64 parallelism = 4;
+  // If true, parallelism should no longer be truncated to 8 bits.
+  bool truncation_fixed = 5;
 }
 
 // This structure is used for our authenticated wrapping/unwrapping of keys.

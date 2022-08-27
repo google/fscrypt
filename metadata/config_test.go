@@ -30,9 +30,10 @@ import (
 var testConfig = &Config{
 	Source: SourceType_custom_passphrase,
 	HashCosts: &HashingCosts{
-		Time:        10,
-		Memory:      1 << 12,
-		Parallelism: 8,
+		Time:            10,
+		Memory:          1 << 12,
+		Parallelism:     8,
+		TruncationFixed: true,
 	},
 	Options: DefaultOptions,
 }
@@ -42,7 +43,8 @@ var testConfigString = `{
 	"hash_costs": {
 		"time": "10",
 		"memory": "4096",
-		"parallelism": "8"
+		"parallelism": "8",
+		"truncation_fixed": true
 	},
 	"options": {
 		"padding": "32",
