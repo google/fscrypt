@@ -343,8 +343,8 @@ The fields are:
       Normally, "AES_256_XTS" is recommended.
 
     * "filenames" is the algorithm used to encrypt file names.  The
-      choices are "AES_256_CTS", "AES_128_CTS", and "Adiantum".
-      Normally, "AES_256_CTS" is recommended.
+      choices are "AES_256_CTS", "AES_128_CTS", "Adiantum", and
+      "AES_256_HCTR2".  Normally, "AES_256_CTS" is recommended.
 
       To use algorithms other than "AES_256_XTS" for contents and
       "AES_256_CTS" for filenames, the needed algorithm(s) may need to
