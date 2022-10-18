@@ -75,6 +75,7 @@ message EncryptionOptions {
     AES_128_CBC = 5;
     AES_128_CTS = 6;
     Adiantum = 9;
+    AES_256_HCTR2 = 10;
   }
 
   Mode contents = 2;
