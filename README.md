@@ -536,8 +536,15 @@ after `pam_unix.so` in `/etc/pam.d/common-session` or similar, but before
 which starts processes that access the user's home directory during their
 session.
 
-To make `pam_fscrypt.so` print debugging messages to the system log, add the
-`debug` option.  All hook types accept this option.
+`pam_fscrypt.so` accepts several options:
+
+* `debug`: print additional debug messages to the syslog.  All hook types accept
+  this option.
+
+* `unlock_only`: only unlock directories (at log-in); don't also lock them (at
+  log-out).  This is only relevant for the "session" hook.  Note that in
+  `fscrypt` v0.2.9 and earlier, unlock-only was the default behavior, and
+  `lock_policies` needed to be specified to enable locking.
 
 ### Allowing `fscrypt` to check your login passphrase
 
