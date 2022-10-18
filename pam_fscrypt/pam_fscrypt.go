@@ -55,8 +55,11 @@ const (
 	debugFlag = "debug"
 
 	// This option is accepted for compatibility with existing config files,
-	// but now we lock policies unconditionally and this option is a no-op.
+	// but now we lock policies by default and this option is a no-op.
 	lockPoliciesFlag = "lock_policies"
+
+	// Only unlock directories, don't lock them.
+	unlockOnlyFlag = "unlock_only"
 
 	// This option is accepted for compatibility with existing config files,
 	// but it no longer does anything.  pam_fscrypt now drops caches if and
@@ -279,19 +282,21 @@ func CloseSession(handle *pam.Handle, args map[string]bool) error {
 	// Don't automatically drop privileges, since we may need them to
 	// deprovision policies or to drop caches.
 
-	log.Print("locking policies protected with login protector")
-	needDropCaches, errLock := lockLoginPolicies(handle)
+	if !args[unlockOnlyFlag] {
+		log.Print("locking policies protected with login protector")
+		needDropCaches, errLock := lockLoginPolicies(handle)
 
-	var errCache error
-	if needDropCaches {
-		log.Print("dropping appropriate filesystem caches at session close")
-		errCache = security.DropFilesystemCache()
+		var errCache error
+		if needDropCaches {
+			log.Print("dropping appropriate filesystem caches at session close")
+			errCache = security.DropFilesystemCache()
+		}
+		if errLock != nil {
+			return errLock
+		}
+		return errCache
 	}
-
-	if errLock != nil {
-		return errLock
-	}
-	return errCache
+	return nil
 }
 
 // lockLoginPolicies deprovisions all policy keys that are protected by the
