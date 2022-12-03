@@ -179,8 +179,10 @@ func loginProtector(handle *pam.Handle) (*actions.Protector, error) {
 }
 
 // policiesUsingProtector searches all the mountpoints for any policies
-// protected with the specified protector.
-func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
+// protected with the specified protector.  If provisioned is true, then only
+// policies provisioned by the target user are returned; otherwise only policies
+// *not* provisioned by the target user are returned.
+func policiesUsingProtector(protector *actions.Protector, provisioned bool) []*actions.Policy {
 	mounts, err := filesystem.AllFilesystems()
 	if err != nil {
 		log.Print(err)
@@ -213,9 +215,23 @@ func policiesUsingProtector(protector *actions.Protector) []*actions.Policy {
 				continue
 			}
 
-			if policy.UsesProtector(protector) {
-				policies = append(policies, policy)
+			if !policy.UsesProtector(protector) {
+				continue
 			}
+			if provisioned {
+				if !policy.IsProvisionedByTargetUser() {
+					log.Printf("policy %s not provisioned by %v",
+						policy.Descriptor(), ctx.TargetUser.Username)
+					continue
+				}
+			} else {
+				if policy.IsProvisionedByTargetUser() {
+					log.Printf("policy %s already provisioned by %v",
+						policy.Descriptor(), ctx.TargetUser.Username)
+					continue
+				}
+			}
+			policies = append(policies, policy)
 		}
 	}
 	return policies

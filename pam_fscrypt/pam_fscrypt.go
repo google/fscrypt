@@ -193,7 +193,7 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 		log.Printf("no protector to unlock: %s", err)
 		return nil
 	}
-	policies := policiesUsingProtector(protector)
+	policies := policiesUsingProtector(protector, false)
 	if len(policies) == 0 {
 		log.Print("no policies to unlock")
 		return nil
@@ -234,11 +234,6 @@ func OpenSession(handle *pam.Handle, _ map[string]bool) error {
 
 	// We don't stop provisioning polices on error, we try all of them.
 	for _, policy := range policies {
-		if policy.IsProvisionedByTargetUser() {
-			log.Printf("policy %s already provisioned by %v",
-				policy.Descriptor(), handle.PamUser.Username)
-			continue
-		}
 		if err := policy.UnlockWithProtector(protector); err != nil {
 			log.Printf("unlocking policy %s: %s", policy.Descriptor(), err)
 			continue
@@ -316,7 +311,7 @@ func lockLoginPolicies(handle *pam.Handle) (bool, error) {
 		log.Printf("nothing to lock: %s", err)
 		return needDropCaches, nil
 	}
-	policies := policiesUsingProtector(protector)
+	policies := policiesUsingProtector(protector, true)
 	if len(policies) == 0 {
 		log.Print("no policies to lock")
 		return needDropCaches, nil
@@ -328,11 +323,6 @@ func lockLoginPolicies(handle *pam.Handle) (bool, error) {
 
 	// We will try to deprovision all of the policies.
 	for _, policy := range policies {
-		if !policy.IsProvisionedByTargetUser() {
-			log.Printf("policy %s not provisioned by %v",
-				policy.Descriptor(), handle.PamUser.Username)
-			continue
-		}
 		if policy.NeedsUserKeyring() {
 			needDropCaches = true
 		}
