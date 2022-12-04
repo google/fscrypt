@@ -20,7 +20,7 @@
 package actions
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 	"time"
@@ -54,7 +54,7 @@ func TestCostsSearch(t *testing.T) {
 
 func benchmarkCostsSearch(b *testing.B, target time.Duration) {
 	// Disable logging for benchmarks
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	for i := 0; i < b.N; i++ {
 		_, err := getHashingCosts(target)
 		if err != nil {

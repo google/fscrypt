@@ -26,7 +26,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 
@@ -110,8 +110,8 @@ func setupCommand(command *cli.Command) {
 // io.Writers and that we haven't over-specified our flags. We only print the
 // logs when using verbose, and only print normal stuff when not using quiet.
 func setupBefore(c *cli.Context) error {
-	log.SetOutput(ioutil.Discard)
-	c.App.Writer = ioutil.Discard
+	log.SetOutput(io.Discard)
+	c.App.Writer = io.Discard
 
 	if verboseFlag.Value {
 		log.SetOutput(os.Stdout)

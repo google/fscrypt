@@ -20,7 +20,6 @@ package filesystem
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestHaveReadAccessTo(t *testing.T) {
 	if util.IsUserRoot() {
 		t.Skip("This test cannot be run as root")
 	}
-	file, err := ioutil.TempFile("", "fscrypt_test")
+	file, err := os.CreateTemp("", "fscrypt_test")
 	if err != nil {
 		t.Fatal(err)
 	}

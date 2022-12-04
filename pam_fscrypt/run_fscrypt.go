@@ -31,7 +31,6 @@ import "C"
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"log/syslog"
 	"os"
@@ -132,7 +131,7 @@ func parseArgs(argc C.int, argv **C.char) map[string]bool {
 // syslog.
 func setupLogging(args map[string]bool) io.Writer {
 	log.SetFlags(0) // Syslog already includes time data itself
-	log.SetOutput(ioutil.Discard)
+	log.SetOutput(io.Discard)
 	if args[debugFlag] {
 		debugWriter, err := syslog.New(syslog.LOG_DEBUG, moduleName)
 		if err == nil {
@@ -142,7 +141,7 @@ func setupLogging(args map[string]bool) io.Writer {
 
 	errorWriter, err := syslog.New(syslog.LOG_ERR, moduleName)
 	if err != nil {
-		return ioutil.Discard
+		return io.Discard
 	}
 	return errorWriter
 }

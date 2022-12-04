@@ -19,7 +19,6 @@
 package actions
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,7 +36,7 @@ func TestConfigFileIsCreatedWithCorrectMode(t *testing.T) {
 	defer unix.Umask(oldMask)
 	unix.Umask(0077)
 
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +56,7 @@ func TestConfigFileIsCreatedWithCorrectMode(t *testing.T) {
 }
 
 func TestCreateConfigFileV2Policy(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
