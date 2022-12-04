@@ -28,7 +28,6 @@ package metadata
 
 import (
 	"io"
-	"io/ioutil"
 
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -55,7 +54,7 @@ func WriteConfig(config *Config, out io.Writer) error {
 
 // ReadConfig writes the JSON data into the config structure
 func ReadConfig(in io.Reader) (*Config, error) {
-	bytes, err := ioutil.ReadAll(in)
+	bytes, err := io.ReadAll(in)
 	if err != nil {
 		return nil, err
 	}

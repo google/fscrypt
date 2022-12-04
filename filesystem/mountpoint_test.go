@@ -26,7 +26,6 @@ package filesystem
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,7 +121,7 @@ func TestLoadSourceDevice(t *testing.T) {
 func TestNondirectoryMountsIgnored(t *testing.T) {
 	beginLoadMountInfoTest()
 	defer endLoadMountInfoTest()
-	file, err := ioutil.TempFile("", "fscrypt_regfile")
+	file, err := os.CreateTemp("", "fscrypt_regfile")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +154,7 @@ func TestNonLatestMountsIgnored(t *testing.T) {
 
 // Test that escape sequences in the mountinfo file are unescaped correctly.
 func TestLoadMountWithSpecialCharacters(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +295,7 @@ func TestRootMountpointIsPreferred(t *testing.T) {
 // Test that a mountpoint that is not "/" but still contains all other
 // mountpoints is preferred, given independent subtrees.
 func TestHighestMountpointIsPreferred(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +330,7 @@ func TestHighestMountpointIsPreferred(t *testing.T) {
 // mountpoints are contained in other mountpoints, the chosen Mount is the root
 // of a tree of mountpoints whose mounted subtrees contain all mounted subtrees.
 func TestLoadContainedSubtreesAndMountpoints(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}

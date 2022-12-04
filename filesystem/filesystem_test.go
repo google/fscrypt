@@ -20,7 +20,6 @@
 package filesystem
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -172,7 +171,7 @@ func TestSetupWithAbsoluteSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +518,7 @@ func TestLinkedProtector(t *testing.T) {
 }
 
 func createFile(path string, size int64) error {
-	if err := ioutil.WriteFile(path, []byte{}, 0600); err != nil {
+	if err := os.WriteFile(path, []byte{}, 0600); err != nil {
 		return err
 	}
 	return os.Truncate(path, size)
@@ -532,7 +531,7 @@ func TestReadMetadataFileSafe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tempDir, err := ioutil.TempDir("", "fscrypt")
+	tempDir, err := os.MkdirTemp("", "fscrypt")
 	if err != nil {
 		t.Fatal(err)
 	}
