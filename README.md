@@ -20,6 +20,8 @@ Only certain filesystems, such as [ext4](https://en.wikipedia.org/wiki/Ext4) and
 of supported filesystems and how to enable encryption support on each one, see
 [Runtime dependencies](#runtime-dependencies).
 
+For the release notes, see the [NEWS file](NEWS.md).
+
 ## Table of contents
 
 - [Alternatives to consider](#alternatives-to-consider)

@@ -15,8 +15,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-# Update on each new release!!
+# Update this on each new release, along with the NEWS.md file.
 VERSION := v0.3.3
+
 NAME := fscrypt
 PAM_NAME := pam_$(NAME)
 
