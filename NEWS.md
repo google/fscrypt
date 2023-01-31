@@ -1,5 +1,25 @@
 # `fscrypt` release notes
 
+## Version 0.3.4
+
+* `fscrypt` now requires Go 1.16 or later to build.
+
+* `pam_fscrypt` now supports the option `unlock_only` to disable locking of
+  directories on logout.
+
+* Fixed a bug where the number of CPUs used in the passphrase hash would be
+  calculated incorrectly on systems with more than 255 CPUs.
+
+* Added support for AES-256-HCTR2 filenames encryption.
+
+* Directories are now synced immediately after an encryption policy is applied,
+  reducing the chance of an inconsistency after a sudden crash.
+
+* Added Lustre to the list of allowed filesystems.
+
+* Added a NEWS.md file that contains the release notes, and backfilled it from
+  the GitHub release notes.
+
 ## Version 0.3.3
 
 This release contains fixes for three security vulnerabilities and related
