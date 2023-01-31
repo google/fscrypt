@@ -31,7 +31,7 @@ jobs:
     name: Build (Go ${{ matrix.go }})
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/setup-go@v2
       with:
         go-version: ${{ matrix.go }}
@@ -46,7 +46,7 @@ jobs:
     name: Build (32-bit)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/setup-go@v2
       with:
         go-version: '1.18'
@@ -62,7 +62,7 @@ jobs:
     name: Run integration tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/setup-go@v2
       with:
         go-version: '1.18'
@@ -88,7 +88,7 @@ jobs:
   #       arch: [armv7, aarch64, ppc64le]
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - uses: actions/checkout@v2
+  #     - uses: actions/checkout@v3
   #     - uses: uraimo/run-on-arch-action@v2.0.5
   #       with:
   #         arch: ${{ matrix.arch }}
@@ -111,7 +111,7 @@ jobs:
     # The cli tests require kernel 5.4 or later, and thus Ubuntu 20.04 or later.
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/setup-go@v2
       with:
         go-version: '1.18'
@@ -126,7 +126,7 @@ jobs:
     name: Generate, format, and lint
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: actions/setup-go@v2
       with:
         go-version: '1.18'
