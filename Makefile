@@ -87,7 +87,7 @@ C_FILES := $(filter %.c %.h,$(FILES))
 PROTO_FILES := $(filter %.proto,$(FILES))
 
 ###### Build, Formatting, and Linting Commands ######
-.PHONY: default all gen format clean
+.PHONY: default all gen format lint clean
 default: $(BIN)/$(NAME) $(PAM_MODULE)
 all: tools gen default format lint test
 
