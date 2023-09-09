@@ -7,10 +7,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/urfave/cli v1.22.5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	golang.org/x/crypto v0.0.0-20220408190544-5352b0902921
+	golang.org/x/crypto v0.13.0
 	golang.org/x/sys v0.12.0
 	golang.org/x/term v0.12.0
-	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a
+	golang.org/x/tools v0.6.0
 	google.golang.org/protobuf v1.28.0
 	honnef.co/go/tools v0.3.0
 )
