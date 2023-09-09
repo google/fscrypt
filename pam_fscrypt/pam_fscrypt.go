@@ -403,6 +403,7 @@ func pam_sm_authenticate(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) 
 }
 
 // pam_sm_setcred needed because we use pam_sm_authenticate.
+//
 //export pam_sm_setcred
 func pam_sm_setcred(pamh unsafe.Pointer, flags, argc C.int, argv **C.char) C.int {
 	return C.PAM_SUCCESS

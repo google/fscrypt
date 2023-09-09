@@ -64,7 +64,9 @@ func fakePassphraseKey() (*Key, error) {
 
 // Values for test cases pulled from argon2 command line tool.
 // To generate run:
-//    echo "password" | argon2 "aaaaaaaaaaaaaaaa" -id -t <t> -m <m> -p <p> -l 32
+//
+//	echo "password" | argon2 "aaaaaaaaaaaaaaaa" -id -t <t> -m <m> -p <p> -l 32
+//
 // where costs.Time = <t>, costs.Memory = 2^<m>, and costs.Parallelism = <p>.
 type hashTestCase struct {
 	costs   *metadata.HashingCosts

@@ -82,8 +82,10 @@ type prettyFlag interface {
 }
 
 // How a flag should appear on the command line. We have two formats:
-//  --name
-//  --name=ARG_NAME
+//
+//	--name
+//	--name=ARG_NAME
+//
 // The ARG_NAME appears if the prettyFlag's GetArgName() method returns a
 // non-empty string. The returned string from shortDisplay() does not include
 // any leading or trailing whitespace.
@@ -96,13 +98,12 @@ func shortDisplay(f prettyFlag) string {
 
 // How our flags should appear when displaying their usage. An example would be:
 //
-//  --help                     Prints help screen for commands and subcommands.
+//	--help                     Prints help screen for commands and subcommands.
 //
 // If a default is specified, then it is appended to the usage. Example:
 //
-//  --time=TIME                Calibrate passphrase hashing to take the
-//                             specified amount of TIME (default: 1s)
-//
+//	--time=TIME                Calibrate passphrase hashing to take the
+//	                           specified amount of TIME (default: 1s)
 func longDisplay(f prettyFlag, defaultString ...string) string {
 	usage := f.GetUsage()
 	if len(defaultString) > 0 {

@@ -51,6 +51,7 @@ var (
 // userInput is run when the callback needs some input from the user. We prompt
 // the user for information and return their answer. A return value of nil
 // indicates an error occurred.
+//
 //export userInput
 func userInput(prompt *C.char) *C.char {
 	fmt.Print(C.GoString(prompt))
@@ -65,6 +66,7 @@ func userInput(prompt *C.char) *C.char {
 // passphraseInput is run when the callback needs a passphrase from the user. We
 // pass along the tokenToCheck without prompting. A return value of nil
 // indicates an error occurred.
+//
 //export passphraseInput
 func passphraseInput(prompt *C.char) *C.char {
 	log.Printf("getting secret data for PAM: %q", C.GoString(prompt))
