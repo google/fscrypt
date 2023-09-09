@@ -87,7 +87,7 @@ C_FILES := $(filter %.c %.h,$(FILES))
 PROTO_FILES := $(filter %.proto,$(FILES))
 
 ###### Build, Formatting, and Linting Commands ######
-.PHONY: default all gen format lint clean
+.PHONY: default all gen format clean
 default: $(BIN)/$(NAME) $(PAM_MODULE)
 all: tools gen default format lint test
 
@@ -105,9 +105,8 @@ format: $(BIN)/goimports
 	goimports -w $(GO_NONGEN_FILES)
 	clang-format -i -style=Google $(C_FILES)
 
-lint: $(BIN)/golint $(BIN)/staticcheck $(BIN)/misspell
+lint: $(BIN)/staticcheck $(BIN)/misspell
 	go vet ./...
-	go list ./... | xargs -L1 golint -set_exit_status
 	staticcheck ./...
 	misspell -source=text $(FILES)
 	shellcheck -s bash cmd/fscrypt/fscrypt_bash_completion
@@ -197,12 +196,10 @@ ifdef PAM_CONFIG_DIR
 endif
 
 #### Tool Building Commands ####
-TOOLS := $(addprefix $(BIN)/,protoc golint protoc-gen-go goimports staticcheck gocovmerge misspell)
+TOOLS := $(addprefix $(BIN)/,protoc protoc-gen-go goimports staticcheck gocovmerge misspell)
 .PHONY: tools
 tools: $(TOOLS)
 
-$(BIN)/golint:
-	go build -o $@ golang.org/x/lint/golint
 $(BIN)/protoc-gen-go:
 	go build -o $@ google.golang.org/protobuf/cmd/protoc-gen-go
 $(BIN)/goimports:

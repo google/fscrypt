@@ -8,7 +8,6 @@ require (
 	github.com/urfave/cli v1.22.5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/crypto v0.0.0-20220408190544-5352b0902921
-	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616
 	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/tools v0.1.11-0.20220316014157-77aa08bb151a

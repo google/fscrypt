@@ -1,7 +1,6 @@
 bin/fscrypt
 bin/pam_fscrypt.so
 bin/protoc
-bin/golint
 bin/protoc-gen-go
 bin/goimports
 bin/staticcheck
