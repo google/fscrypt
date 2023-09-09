@@ -219,12 +219,12 @@ information about each of the commands.
     - Arch: [`pam`](https://www.archlinux.org/packages/core/x86_64/pam/)
       package (usually installed by default)
 
-Once all the dependencies are installed, you can get the repository by running:
+Once all the dependencies are installed, clone the repository by running:
 ```shell
-go get -d github.com/google/fscrypt/...
+git clone https://github.com/google/fscrypt
 ```
-Running `make` in `$GOPATH/src/github.com/google/fscrypt` builds the binary
-(`fscrypt`) and PAM module (`pam_fscrypt.so`) in the `bin/` directory.
+Running `make` builds the binary (`fscrypt`) and PAM module (`pam_fscrypt.so`)
+in the `bin/` directory.
 
 Running `sudo make install` installs `fscrypt` into `/usr/local/bin`,
 `pam_fscrypt.so` into `/usr/local/lib/security`, and `pam_fscrypt/config` into
@@ -245,7 +245,7 @@ binary, or `make install-pam` to only install the PAM files.
 Alternatively, if you only want to install the `fscrypt` binary to
 `$GOPATH/bin`, simply run:
 ```shell
-go get github.com/google/fscrypt/cmd/fscrypt
+go install github.com/google/fscrypt/cmd/fscrypt@latest
 ```
 
 See the `Makefile` for instructions on how to further customize the build.
