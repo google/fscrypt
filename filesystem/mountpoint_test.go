@@ -17,10 +17,9 @@
  * the License.
  */
 
-// Note: these tests assume the existence of some well-known directories and
-// devices: /mnt, /home, /tmp, and /dev/loop0.  This is because the mountpoint
-// loading code only retains mountpoints on valid directories, and only retains
-// device names for valid device nodes.
+// Note: these tests assume the existence of some well-known directories: /mnt,
+// /home, and /tmp.  This is because the mountpoint loading code only retains
+// mountpoints on valid directories.
 
 package filesystem
 
@@ -100,6 +99,11 @@ func TestLoadMountInfoBasic(t *testing.T) {
 // Test that Mount.Device is set to the mountpoint's source device if
 // applicable, otherwise it is set to the empty string.
 func TestLoadSourceDevice(t *testing.T) {
+	// The mountinfo parser ignores devices that don't exist.  For the valid
+	// device, try /dev/loop0.  If it doesn't exist, skip the test.
+	if _, err := os.Stat("/dev/loop0"); err != nil {
+		t.Skip("/dev/loop0 does not exist, skipping test")
+	}
 	var mountinfo = `
 15 0 7:0 / / rw shared:1 - foo /dev/loop0 rw,data=ordered
 31 15 0:27 / /tmp rw,nosuid,nodev shared:17 - tmpfs tmpfs rw
