@@ -21,11 +21,11 @@
 
 // Package filesystem deals with the structure of the files on disk used to
 // store the metadata for fscrypt. Specifically, this package includes:
-//	- mountpoint management (mountpoint.go)
+//	1. mountpoint management (mountpoint.go)
 //		- querying existing mounted filesystems
 //		- getting filesystems from a UUID
 //		- finding the filesystem for a specific path
-//	- metadata organization (filesystem.go)
+//	2. metadata organization (filesystem.go)
 //		- setting up a mounted filesystem for use with fscrypt
 //		- adding/querying/deleting metadata
 //		- making links to other filesystems' metadata

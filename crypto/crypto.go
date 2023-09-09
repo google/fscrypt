@@ -18,11 +18,11 @@
  */
 
 // Package crypto manages all the cryptography for fscrypt. This includes:
-//	- Key management (key.go)
+//	1. Key management (key.go)
 //		- Securely holding keys in memory
 //		- Making recovery keys
-//	- Randomness (rand.go)
-//	- Cryptographic algorithms (crypto.go)
+//	2. Randomness (rand.go)
+//	3. Cryptographic algorithms (crypto.go)
 //		- encryption (AES256-CTR)
 //		- authentication (SHA256-based HMAC)
 //		- key stretching (SHA256-based HKDF)
