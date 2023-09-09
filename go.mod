@@ -1,6 +1,6 @@
 module github.com/google/fscrypt
 
-go 1.16
+go 1.18
 
 require (
 	github.com/client9/misspell v0.3.4
@@ -13,4 +13,12 @@ require (
 	golang.org/x/tools v0.13.0
 	google.golang.org/protobuf v1.31.0
 	honnef.co/go/tools v0.4.5
+)
+
+require (
+	github.com/BurntSushi/toml v1.3.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20221208152030-732eee02a75a // indirect
+	golang.org/x/mod v0.12.0 // indirect
 )
