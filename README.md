@@ -274,6 +274,9 @@ filesystem encryption API.  Currently, the filesystems that support this are:
   contain `CONFIG_FS_ENCRYPTION=y` (for kernels v5.1+) or
   `CONFIG_UBIFS_FS_ENCRYPTION=y` (for older kernels).
 
+* CephFS, with upstream kernel v6.6 or later.  The kernel configuration must
+  contain `CONFIG_FS_ENCRYPTION=y`.
+
 * [Lustre](https://www.lustre.org/), with Lustre v2.14.0 or later.  For details,
   see the Lustre documentation.  Please note that Lustre is not part of the
   upstream Linux kernel, and its encryption implementation has not been reviewed

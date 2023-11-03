@@ -230,6 +230,10 @@ func getErrorSuggestions(err error) string {
 			if !util.IsKernelVersionAtLeast(4, 10) {
 				return "ubifs encryption requires kernel v4.10 or later."
 			}
+		case "ceph":
+			if !util.IsKernelVersionAtLeast(6, 6) {
+				return "CephFS encryption requires kernel v6.6 or later."
+			}
 		}
 		return ""
 	case *filesystem.ErrNoCreatePermission:
