@@ -52,3 +52,14 @@ _expect_failure "fscrypt lock '$dir'"
 cat "$dir/file"
 fscrypt lock --all-users "$dir"
 _expect_failure "cat '$dir/file'"
+
+_print_header "Try to operate on locked regular file"
+_reset_filesystems
+rm -rf "$dir"
+mkdir "$dir"
+echo hunter2 | fscrypt encrypt --quiet --name=prot "$dir"
+echo contents > "$dir/file"
+mv "$dir/file" "$MNT/file"  # Make it a loose encrypted file.
+fscrypt lock "$dir"
+_expect_failure "fscrypt status '$MNT/file'"
+_expect_failure "fscrypt unlock '$MNT/file'"
