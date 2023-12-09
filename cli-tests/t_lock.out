@@ -85,3 +85,18 @@ If you want to force the directory to be locked, use:
 contents
 "MNT/dir" is now locked.
 cat: MNT/dir/file: No such file or directory
+
+# Try to operate on locked regular file
+"MNT/dir" is now locked.
+[ERROR] fscrypt status: cannot operate on locked regular file
+                        "MNT/file"
+
+It is not possible to operate directly on a locked regular file, since the
+kernel does not support this. Specify the parent directory instead. (For loose
+files, any directory with the file's policy works.)
+[ERROR] fscrypt unlock: cannot operate on locked regular file
+                        "MNT/file"
+
+It is not possible to operate directly on a locked regular file, since the
+kernel does not support this. Specify the parent directory instead. (For loose
+files, any directory with the file's policy works.)

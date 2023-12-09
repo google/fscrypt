@@ -251,6 +251,11 @@ func getErrorSuggestions(err error) string {
 		return `This is usually the result of a bad PAM configuration.
 			Either correct the problem in your PAM stack, enable
 			pam_keyinit.so, or run "keyctl link @u @s".`
+	case *metadata.ErrLockedRegularFile:
+		return `It is not possible to operate directly on a locked
+			regular file, since the kernel does not support this.
+			Specify the parent directory instead. (For loose files,
+			any directory with the file's policy works.)`
 	}
 	switch errors.Cause(err) {
 	case crypto.ErrMlockUlimit:
