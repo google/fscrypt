@@ -7,9 +7,9 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/urfave/cli v1.22.14
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	golang.org/x/crypto v0.13.0
-	golang.org/x/sys v0.12.0
-	golang.org/x/term v0.12.0
+	golang.org/x/crypto v0.17.0
+	golang.org/x/sys v0.15.0
+	golang.org/x/term v0.15.0
 	golang.org/x/tools v0.13.0
 	google.golang.org/protobuf v1.31.0
 	honnef.co/go/tools v0.4.5
