@@ -80,6 +80,16 @@ Before using `fscrypt`, you should consider other solutions:
   device.  dm-crypt/LUKS is usually configured using
   [cryptsetup](https://gitlab.com/cryptsetup/cryptsetup/-/wikis/home).
 
+* [`systemd-homed`](https://systemd.io/HOME_DIRECTORY/) supports encrypting home
+  directories using the same Linux native filesystem encryption API that
+  `fscrypt` uses.  Note that while the `systemd-homed` documentation refers to
+  this as fscrypt support, it does not use the `fscrypt` tool; directories set
+  up using `systemd-homed` cannot be managed by `fscrypt` and vice versa.
+  `systemd-homed` has better integration with systemd than `fscrypt` does;
+  however, `systemd-homed` (as of systemd v255) uses an obsolete version of the
+  Linux native filesystem encryption API, and users may run into known issues.
+  Issues with `systemd-homed` should be reported to the systemd developers.
+
 * [**eCryptfs**](https://en.wikipedia.org/wiki/ECryptfs) is an alternative
   filesystem-level encryption solution.  It is a stacked filesystem, which means
   it sits on top of a real filesystem, rather than being directly integrated
@@ -88,10 +98,12 @@ Before using `fscrypt`, you should consider other solutions:
   disadvantages.  eCryptfs is usually configured using
   [ecryptfs-utils](https://packages.debian.org/stretch/ecryptfs-utils).
 
-* The [**ZFS**](https://en.wikipedia.org/wiki/ZFS) filesystem supports
-  encryption in its own way (not compatible with `fscrypt`).  ZFS encryption has
-  some advantages; however, ZFS isn't part of the upstream Linux kernel and is
-  less common than other filesystems, so this solution usually isn't an option.
+* Some Linux filesystems support encryption natively, but not in a way that is
+  compatible with the common API that `fscrypt` uses.  Examples of this are
+  Bcachefs and ZFS.  (Note: ZFS is not part of the upstream kernel.)  Bcachefs
+  encryption is similar to dm-crypt in that it encrypts the full filesystem with
+  one key.  ZFS encryption operates on a per-dataset basis.  If you are using
+  one of these filesystems, refer to the documentation for that filesystem.
 
 Which solution to use?  Here are our recommendations:
 
@@ -101,9 +113,9 @@ Which solution to use?  Here are our recommendations:
   filesystem encryption instead.  The largest users of eCryptfs (Ubuntu and
   Chrome OS) have switched to dm-crypt or Linux native filesystem encryption.
 
-* If you need fine-grained control of encryption within a filesystem, then use
-  `fscrypt`, or `fscrypt` together with dm-crypt/LUKS.  If you don't need this,
-  then use dm-crypt/LUKS.
+* If you need fine-grained control of encryption within a filesystem and you are
+  using a filesystem that supports `fscrypt`, then use `fscrypt`, or `fscrypt`
+  together with dm-crypt/LUKS.  If you don't need this, then use dm-crypt/LUKS.
 
   To understand this recommendation: consider that the main advantage of
   `fscrypt` is to allow different files on the same filesystem to be encrypted
