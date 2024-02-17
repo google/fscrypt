@@ -305,10 +305,6 @@ It is also recommended to use Linux kernel v5.4 or later, since this
 allows the use of v2 encryption policies.  v2 policies have several
 security and usability improvements over v1 policies.
 
-Be careful when using ext4 encryption on removable media, since ext4 filesystems
-with the `encrypt` feature cannot be mounted on systems with kernel versions
-older than the minimums listed above -- even to access unencrypted files!
-
 If you configure `fscrypt` to use non-default features, other kernel
 prerequisites may be needed too.  See [Configuration
 file](#configuration-file).
