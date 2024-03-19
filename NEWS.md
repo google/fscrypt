@@ -1,5 +1,16 @@
 # `fscrypt` release notes
 
+## Version 0.3.5
+
+* Upgraded various dependencies, resolving two security alerts from GitHub.
+
+* `fscrypt` now requires Go 1.18 or later to build.
+
+* `fscrypt` now provides a better error message when it's asked to operate on a
+  locked regular file.
+
+* Made some improvements to the documentation.
+
 ## Version 0.3.4
 
 * `fscrypt` now requires Go 1.16 or later to build.
