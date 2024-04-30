@@ -86,7 +86,7 @@ Before using `fscrypt`, you should consider other solutions:
   this as fscrypt support, it does not use the `fscrypt` tool; directories set
   up using `systemd-homed` cannot be managed by `fscrypt` and vice versa.
   `systemd-homed` has better integration with systemd than `fscrypt` does;
-  however, `systemd-homed` (as of systemd v255) uses an obsolete version of the
+  however, `systemd-homed` (as of systemd v255) [uses an obsolete version](https://github.com/systemd/systemd/issues/18280) of the
   Linux native filesystem encryption API, and users may run into known issues.
   Issues with `systemd-homed` should be reported to the systemd developers.
 
