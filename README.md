@@ -85,9 +85,13 @@ Before using `fscrypt`, you should consider other solutions:
   `fscrypt` uses.  Note that while the `systemd-homed` documentation refers to
   this as fscrypt support, it does not use the `fscrypt` tool; directories set
   up using `systemd-homed` cannot be managed by `fscrypt` and vice versa.
-  `systemd-homed` has better integration with systemd than `fscrypt` does;
-  however, `systemd-homed` (as of systemd v255) [uses an obsolete version](https://github.com/systemd/systemd/issues/18280) of the
-  Linux native filesystem encryption API, and users may run into known issues.
+  `systemd-homed` has better integration with systemd than `fscrypt` does.
+  However, `systemd-homed` (as of systemd v255) uses the
+  ["V1" Linux kernel encryption API](https://www.kernel.org/doc/html/v6.8/filesystems/fscrypt.html#limitations-of-v1-policies),
+  while `fscrypt` perfers the "V2" API. The older API causes
+  [known issues](#some-processes-cant-access-unlocked-encrypted-files), and
+  migrating `systemd-home` to the "V2" API is tracked
+  [in this `systemd` issue](https://github.com/systemd/systemd/issues/18280).
   Issues with `systemd-homed` should be reported to the systemd developers.
 
 * [**eCryptfs**](https://en.wikipedia.org/wiki/ECryptfs) is an alternative
