@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -542,5 +543,23 @@ func BenchmarkLoadFirst(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// Test mount comparison by values instead of by reference,
+// as the map mountsByDevice gets recreated on each load.
+// This ensures that concurrent mounts work properly.
+func TestMountComparison(t *testing.T) {
+	var mountinfo = `
+15 0 259:3 / /home rw,relatime shared:1 - ext4 /dev/root rw,data=ordered
+`
+	beginLoadMountInfoTest()
+	defer endLoadMountInfoTest()
+	loadMountInfoFromString(mountinfo)
+	firstMnt := mountForDevice("259:3")
+	loadMountInfoFromString(mountinfo)
+	secondMnt := mountForDevice("259:3")
+	if !reflect.DeepEqual(firstMnt, secondMnt) {
+		t.Errorf("Mount comparison does not work")
 	}
 }
