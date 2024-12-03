@@ -222,7 +222,8 @@ var (
 		Usage: `Use the contents of FILE as the wrapping key when
 			creating or unlocking raw_key protectors. FILE should be
 			formatted as raw binary and should be exactly 32 bytes
-			long.`,
+			long. When running non-interactively and no key is provided,
+			will try to read the key from stdin.`,
 	}
 	userFlag = &stringFlag{
 		Name:    "user",
