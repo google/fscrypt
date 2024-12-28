@@ -88,7 +88,7 @@ Before using `fscrypt`, you should consider other solutions:
   `systemd-homed` has better integration with systemd than `fscrypt` does.
   However, `systemd-homed` (as of systemd v255) uses the
   ["V1" Linux kernel encryption API](https://www.kernel.org/doc/html/v6.8/filesystems/fscrypt.html#limitations-of-v1-policies),
-  while `fscrypt` perfers the "V2" API. The older API causes
+  while `fscrypt` prefers the "V2" API. The older API causes
   [known issues](#some-processes-cant-access-unlocked-encrypted-files), and
   migrating `systemd-home` to the "V2" API is tracked
   [in this `systemd` issue](https://github.com/systemd/systemd/issues/18280).
