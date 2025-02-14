@@ -414,7 +414,7 @@ func unlockAction(c *cli.Context) error {
 	if policy.IsProvisionedByTargetUser() {
 		log.Printf("policy %s is already provisioned by %v",
 			policy.Descriptor(), ctx.TargetUser.Username)
-		return newExitError(c, errors.Wrapf(ErrDirAlreadyUnlocked, path))
+		return newExitError(c, errors.Wrapf(ErrDirAlreadyUnlocked, "path: %s", path))
 	}
 
 	if err := policy.Unlock(optionFn, existingKeyFn); err != nil {
@@ -521,7 +521,7 @@ func lockAction(c *cli.Context) error {
 		// locking the directory by dropping caches again.
 		if !policy.NeedsUserKeyring() || !isDirUnlockedHeuristic(path) {
 			log.Printf("policy %s is already fully deprovisioned", policy.Descriptor())
-			return newExitError(c, errors.Wrapf(ErrDirAlreadyLocked, path))
+			return newExitError(c, errors.Wrapf(ErrDirAlreadyLocked, "path: %s", path))
 		}
 	}
 
