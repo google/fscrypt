@@ -108,8 +108,7 @@ jobs:
 
   run-cli-tests:
     name: Run command-line interface tests
-    # The cli tests require kernel 5.4 or later, and thus Ubuntu 20.04 or later.
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v2
