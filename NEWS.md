@@ -1,5 +1,17 @@
 # `fscrypt` release notes
 
+## Version 0.3.6
+
+* Upgraded various dependencies, including `golang.org/x/crypto` where the
+  upgrade resolves CVE-2024-45337 and CVE-2025-22869.  (These vulnerabilities
+  didn't actually affect `fscrypt`, as it doesn't use the relevant features.)
+
+* `fscrypt` now requires Go 1.23 or later to build.
+
+* Added fallback logic for when sysfs is not mounted.
+
+* Other minor fixes and documentation improvements.
+
 ## Version 0.3.5
 
 * Upgraded various dependencies, resolving two security alerts from GitHub.

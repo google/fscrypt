@@ -16,7 +16,7 @@
 # the License.
 
 # Update this on each new release, along with the NEWS.md file.
-VERSION := v0.3.5
+VERSION := v0.3.6
 
 NAME := fscrypt
 PAM_NAME := pam_$(NAME)
