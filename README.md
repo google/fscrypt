@@ -224,7 +224,7 @@ information about each of the commands.
 ## Building and installing
 
 `fscrypt` has a minimal set of build dependencies:
-*   [Go](https://golang.org/doc/install) 1.18 or higher. Older versions may work
+*   [Go](https://golang.org/doc/install) 1.22 or higher. Older versions may work
     but they are not tested or supported.
 *   A C compiler (`gcc` or `clang`)
 *   `make`
