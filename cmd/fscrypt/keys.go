@@ -145,7 +145,7 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 				panic("this KeyFunc does not support retrying")
 			}
 			// Don't retry for non-interactive sessions
-			if quietFlag.Value {
+			if !term.IsTerminal(stdinFd) {
 				return nil, ErrWrongKey
 			}
 			fmt.Println("Incorrect Passphrase")

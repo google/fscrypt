@@ -62,6 +62,42 @@ Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc2  No      custom protector "prot"
 
+# Try to unlock with no stdin
+[ERROR] fscrypt unlock: incorrect key provided
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Try to unlock with only a newline
+[ERROR] fscrypt unlock: incorrect key provided
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
+# Try infinitely many wrong passwords
+Enter custom passphrase for protector "prot": [ERROR] fscrypt unlock: incorrect key provided
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc1
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc2  No      custom protector "prot"
+
 # Unlock directory
 Enter custom passphrase for protector "prot": "MNT/dir" is now unlocked and ready for use.
 
@@ -90,7 +126,7 @@ desc1  Yes       desc2
                         the policy metadata for "MNT/dir".
                         This directory has either been encrypted with another
                         tool (such as e4crypt), or the file
-                        "MNT/.fscrypt/policies/desc20"
+                        "MNT/.fscrypt/policies/desc26"
                         has been deleted.
 
 # Try to unlock with missing protector metadata
@@ -103,14 +139,14 @@ information.
 [ERROR] fscrypt unlock: inconsistent metadata between encrypted directory
                         "MNT/dir1" and its corresponding
                         metadata file
-                        "MNT/.fscrypt/policies/desc21".
+                        "MNT/.fscrypt/policies/desc27".
 
                         Directory has
-                        descriptor:desc21 padding:32
+                        descriptor:desc27 padding:32
                         contents:AES_256_XTS filenames:AES_256_CTS
                         policy_version:2
 
                         Metadata file has
-                        descriptor:desc23 padding:32
+                        descriptor:desc29 padding:32
                         contents:AES_256_XTS filenames:AES_256_CTS
                         policy_version:2

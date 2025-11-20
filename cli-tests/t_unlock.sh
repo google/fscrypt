@@ -38,6 +38,18 @@ _print_header "Try to unlock with wrong passphrase"
 _expect_failure "echo bad | fscrypt unlock --quiet '$dir'"
 fscrypt status "$dir"
 
+_print_header "Try to unlock with no stdin"
+_expect_failure "fscrypt unlock --quiet '$dir' </dev/null"
+fscrypt status "$dir"
+
+_print_header "Try to unlock with only a newline"
+_expect_failure "echo | fscrypt unlock --quiet '$dir'"
+fscrypt status "$dir"
+
+_print_header "Try infinitely many wrong passwords"
+_expect_failure "yes wrong | fscrypt unlock '$dir'"
+fscrypt status "$dir"
+
 _print_header "Unlock directory"
 echo hunter2 | fscrypt unlock "$dir"
 _print_header "=> Check dir status"
