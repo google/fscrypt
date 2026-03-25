@@ -172,12 +172,13 @@ func TestParseMountInfoLine(t *testing.T) {
 	}
 }
 
-func TestDetectVersion(t *testing.T) {
+func TestParseProcCgroup(t *testing.T) {
 	tests := []struct {
-		name        string
-		content     string
-		wantVersion int
-		wantGroup   string
+		name           string
+		content        string
+		wantVersion    int
+		wantGroup      string
+		wantSubsystems map[string]string
 	}{
 		{
 			name:        "cgroup v2",
@@ -189,12 +190,20 @@ func TestDetectVersion(t *testing.T) {
 			name:        "cgroup v1 only",
 			content:     "12:memory:/docker/abc123\n11:cpu,cpuacct:/docker/abc123\n",
 			wantVersion: 1,
+			wantSubsystems: map[string]string{
+				"memory":  "/docker/abc123",
+				"cpu":     "/docker/abc123",
+				"cpuacct": "/docker/abc123",
+			},
 		},
 		{
 			name:        "hybrid v1 and v2",
 			content:     "12:memory:/docker/abc123\n0::/docker/abc123\n",
 			wantVersion: 2,
 			wantGroup:   "/docker/abc123",
+			wantSubsystems: map[string]string{
+				"memory": "/docker/abc123",
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -202,15 +211,23 @@ func TestDetectVersion(t *testing.T) {
 			f := filepath.Join(t.TempDir(), "cgroup")
 			writeFile(t, f, tt.content)
 
-			ver, err := detectVersion(f)
+			cg, err := parseProcCgroup(f)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if ver.version != tt.wantVersion {
-				t.Errorf("version = %d, want %d", ver.version, tt.wantVersion)
+			if cg.version != tt.wantVersion {
+				t.Errorf("version = %d, want %d", cg.version, tt.wantVersion)
 			}
-			if tt.wantVersion == 2 && ver.v2GroupPath != tt.wantGroup {
-				t.Errorf("v2GroupPath = %q, want %q", ver.v2GroupPath, tt.wantGroup)
+			if tt.wantVersion == 2 && cg.v2GroupPath != tt.wantGroup {
+				t.Errorf("v2GroupPath = %q, want %q", cg.v2GroupPath, tt.wantGroup)
+			}
+			for k, want := range tt.wantSubsystems {
+				got, ok := cg.v1Subsystems[k]
+				if !ok {
+					t.Errorf("v1Subsystems missing key %q", k)
+				} else if got != want {
+					t.Errorf("v1Subsystems[%q] = %q, want %q", k, got, want)
+				}
 			}
 		})
 	}
@@ -344,8 +361,12 @@ func TestCPUQuotaV1(t *testing.T) {
 				"cpu.cfs_quota_us":  tt.quota,
 				"cpu.cfs_period_us": tt.period,
 			})
+			cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			got, err := cpuQuotaV1(root)
+			got, err := cpuQuotaV1(root, cg)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("error = %v, want error containing %q", err, tt.wantErr)
@@ -377,8 +398,12 @@ func TestMemoryLimitV1(t *testing.T) {
 			root := setupV1Root(t, "memory", "/docker/abc123", map[string]string{
 				"memory.limit_in_bytes": tt.limit,
 			})
+			cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			got, err := memoryLimitV1(root)
+			got, err := memoryLimitV1(root, cg)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("error = %v, want error containing %q", err, tt.wantErr)
