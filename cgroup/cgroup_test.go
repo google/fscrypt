@@ -491,7 +491,7 @@ type testdataExpected struct {
 // by bin/snapshot-cgroup. Each subdirectory of testdata/ is a separate test
 // case containing a proc/ and sys/ tree plus an expected.json.
 //
-// Regenerate with: bin/generate-cgroupv1-testdata and bin/generate-cgroupv2-testdata
+// Regenerate with: bin/gen-cgroupv1-testdata and bin/gen-cgroupv2-testdata
 func TestWithRootFromTestdata(t *testing.T) {
 	entries, err := os.ReadDir("testdata")
 	if err != nil {

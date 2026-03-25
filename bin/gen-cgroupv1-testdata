@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# generate-cgroupv1-testdata - Generate cgroup v1 testdata by running
+# gen-cgroupv1-testdata - Generate cgroup v1 testdata by running
 # bin/snapshot-cgroup inside Docker containers with known resource limits,
 # inside a Lima VM running Ubuntu 20.04 (which uses cgroup v1 by default).
 #
-# Usage: generate-cgroupv1-testdata
+# Usage: gen-cgroupv1-testdata
 #
 # Prerequisites:
 #   Lima with a running "cgroupv1" instance:
-#     limactl start --name=cgroupv1 bin/cgroupv1.yaml
+#     limactl start --name=cgroupv1 cgroup/testdata/cgroupv1.yaml
 #
 # Each testdata directory contains:
 #   expected.json  - {"cpu_quota": <float>, "memory_limit": <int>}
@@ -28,7 +28,7 @@ ensure_lima_vm() {
         | jq -e "select(.name == \"$lima_instance\" and .status == \"Running\")" \
             >/dev/null 2>&1; then
         echo "Error: Lima instance '$lima_instance' is not running." >&2
-        echo "Start it with:  limactl start --name=$lima_instance bin/cgroupv1.yaml" >&2
+        echo "Start it with:  limactl start --name=$lima_instance cgroup/testdata/cgroupv1.yaml" >&2
         exit 1
     fi
 }

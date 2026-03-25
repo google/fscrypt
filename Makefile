@@ -116,11 +116,11 @@ clean:
 	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES) $(PAM_CONFIG)
 
 ###### Cgroup testdata ######
-.PHONY: generate-cgroupv1-testdata generate-cgroupv2-testdata
-generate-cgroupv1-testdata:
-	bin/generate-cgroupv1-testdata
-generate-cgroupv2-testdata:
-	bin/generate-cgroupv2-testdata
+.PHONY: gen-cgroupv1-testdata gen-cgroupv2-testdata
+gen-cgroupv1-testdata:
+	bin/gen-cgroupv1-testdata
+gen-cgroupv2-testdata:
+	bin/gen-cgroupv2-testdata
 
 ###### Go tests ######
 .PHONY: test test-setup test-teardown

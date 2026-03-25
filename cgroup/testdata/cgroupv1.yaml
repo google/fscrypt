@@ -5,8 +5,8 @@
 # be launched with --cpus / --memory resource limits.
 #
 # Usage:
-#   limactl start --name=cgroupv1 bin/cgroupv1.yaml
-#   bin/generate-cgroupv1-testdata
+#   limactl start --name=cgroupv1 cgroup/testdata/cgroupv1.yaml
+#   bin/gen-cgroupv1-testdata
 #   limactl stop cgroupv1          # when done
 
 images:
