@@ -24,6 +24,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -537,5 +538,47 @@ func TestWithRootFromTestdata(t *testing.T) {
 				t.Errorf("MemoryLimitWithRoot() = %v, want %v", gotMem, *want.MemoryLimit)
 			}
 		})
+	}
+}
+
+// TestIntegrationCgroupLimits calls the real CPUQuota() and MemoryLimit()
+// functions against the live kernel cgroup interface. It is intended to run
+// inside a Docker container started with --cpus and --memory flags.
+//
+// The test is skipped unless CGROUP_EXPECTED_CPU_QUOTA and
+// CGROUP_EXPECTED_MEMORY_LIMIT are set in the environment.
+func TestIntegrationCgroupLimits(t *testing.T) {
+	cpuStr := os.Getenv("CGROUP_EXPECTED_CPU_QUOTA")
+	memStr := os.Getenv("CGROUP_EXPECTED_MEMORY_LIMIT")
+	if cpuStr == "" && memStr == "" {
+		t.Skip("set CGROUP_EXPECTED_CPU_QUOTA and CGROUP_EXPECTED_MEMORY_LIMIT to run")
+	}
+
+	if cpuStr != "" {
+		wantCPU, err := strconv.ParseFloat(cpuStr, 64)
+		if err != nil {
+			t.Fatalf("bad CGROUP_EXPECTED_CPU_QUOTA %q: %v", cpuStr, err)
+		}
+		gotCPU, err := CPUQuota()
+		if err != nil {
+			t.Fatalf("CPUQuota() error: %v", err)
+		}
+		if math.Abs(gotCPU-wantCPU) > 0.001 {
+			t.Errorf("CPUQuota() = %v, want %v", gotCPU, wantCPU)
+		}
+	}
+
+	if memStr != "" {
+		wantMem, err := strconv.ParseInt(memStr, 10, 64)
+		if err != nil {
+			t.Fatalf("bad CGROUP_EXPECTED_MEMORY_LIMIT %q: %v", memStr, err)
+		}
+		gotMem, err := MemoryLimit()
+		if err != nil {
+			t.Fatalf("MemoryLimit() error: %v", err)
+		}
+		if gotMem != wantMem {
+			t.Errorf("MemoryLimit() = %v, want %v", gotMem, wantMem)
+		}
 	}
 }
