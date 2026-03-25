@@ -19,6 +19,7 @@
 package cgroup
 
 import (
+	"encoding/json"
 	"errors"
 	"math"
 	"os"
@@ -476,5 +477,66 @@ func TestMemoryLimitWithRootV1(t *testing.T) {
 	}
 	if got != 268435456 {
 		t.Errorf("MemoryLimitWithRoot() = %v, want 268435456", got)
+	}
+}
+
+// testdataExpected holds the expected values from a testdata/*/expected.json.
+// Null fields indicate that ErrNoLimit is expected.
+type testdataExpected struct {
+	CPUQuota    *float64 `json:"cpu_quota"`
+	MemoryLimit *int64   `json:"memory_limit"`
+}
+
+// TestWithRootFromTestdata runs CPUQuotaWithRoot and MemoryLimitWithRoot
+// against filesystem snapshots captured from real Docker containers (or VMs)
+// by bin/snapshot-cgroup. Each subdirectory of testdata/ is a separate test
+// case containing a proc/ and sys/ tree plus an expected.json.
+//
+// Regenerate with: bin/generate-cgroup-testdata
+func TestWithRootFromTestdata(t *testing.T) {
+	entries, err := os.ReadDir("testdata")
+	if err != nil {
+		t.Fatalf("no testdata directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		root := filepath.Join("testdata", name)
+
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join(root, "expected.json"))
+			if err != nil {
+				t.Fatalf("reading expected.json: %v", err)
+			}
+			var want testdataExpected
+			if err := json.Unmarshal(data, &want); err != nil {
+				t.Fatalf("parsing expected.json: %v", err)
+			}
+
+			gotCPU, err := CPUQuotaWithRoot(root)
+			if want.CPUQuota == nil {
+				if !errors.Is(err, ErrNoLimit) {
+					t.Errorf("CPUQuotaWithRoot() error = %v, want ErrNoLimit", err)
+				}
+			} else if err != nil {
+				t.Fatalf("CPUQuotaWithRoot(%q): %v", root, err)
+			} else if math.Abs(gotCPU-*want.CPUQuota) > 0.001 {
+				t.Errorf("CPUQuotaWithRoot() = %v, want %v", gotCPU, *want.CPUQuota)
+			}
+
+			gotMem, err := MemoryLimitWithRoot(root)
+			if want.MemoryLimit == nil {
+				if !errors.Is(err, ErrNoLimit) {
+					t.Errorf("MemoryLimitWithRoot() error = %v, want ErrNoLimit", err)
+				}
+			} else if err != nil {
+				t.Fatalf("MemoryLimitWithRoot(%q): %v", root, err)
+			} else if gotMem != *want.MemoryLimit {
+				t.Errorf("MemoryLimitWithRoot() = %v, want %v", gotMem, *want.MemoryLimit)
+			}
+		})
 	}
 }

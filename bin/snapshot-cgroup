@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+#
+# snapshot-cgroup - Copy cgroup-related files from the live system into a
+# directory tree suitable for use with CPUQuotaWithRoot / MemoryLimitWithRoot.
+#
+# Usage: snapshot-cgroup <output-dir>
+#
+# The script reads /proc/self/cgroup to determine the cgroup version and
+# copies exactly the files that the cgroup package needs:
+#
+#   Always:
+#     proc/self/cgroup
+#
+#   cgroup v2:
+#     sys/fs/cgroup/<group>/cpu.max
+#     sys/fs/cgroup/<group>/memory.max
+#
+#   cgroup v1:
+#     proc/self/mountinfo
+#     <cpu-mount>/<cpu-path>/cpu.cfs_quota_us
+#     <cpu-mount>/<cpu-path>/cpu.cfs_period_us
+#     <memory-mount>/<memory-path>/memory.limit_in_bytes
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <output-dir>" >&2
+    exit 1
+fi
+
+out="$1"
+mkdir -p "$out"
+
+copy_file() {
+    local src="$1" dst="$out/$2"
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+}
+
+# v1_cgroup_rel extracts the cgroup relative path for a given controller
+# from /proc/self/cgroup. The controller list field is comma-separated,
+# so we split and match exactly.
+v1_cgroup_rel() {
+    local controller="$1"
+    awk -F: -v ctrl="$controller" '
+    $1 != "0" {
+        n = split($2, ctrls, ",")
+        for (i = 1; i <= n; i++) {
+            if (ctrls[i] == ctrl) { print $3; exit }
+        }
+    }' /proc/self/cgroup
+}
+
+# v1_mount_point finds the mount point for a cgroup v1 controller from
+# /proc/self/mountinfo. It looks for lines with fstype "cgroup" whose
+# super-options contain the controller name.
+v1_mount_point() {
+    local controller="$1"
+    awk -v ctrl="$controller" '
+    {
+        sep = 0
+        for (i = 1; i <= NF; i++) {
+            if ($i == "-") { sep = i; break }
+        }
+        if (sep == 0) next
+        fstype = $(sep + 1)
+        if (fstype != "cgroup") next
+        superopts = $(sep + 3)
+        n = split(superopts, opts, ",")
+        for (i = 1; i <= n; i++) {
+            if (opts[i] == ctrl) { print $5; exit }
+        }
+    }' /proc/self/mountinfo
+}
+
+snapshot_v2() {
+    local group cgdir
+    group=$(awk -F: '/^0::/ { print $3 }' /proc/self/cgroup)
+    cgdir="/sys/fs/cgroup${group}"
+
+    for f in cpu.max memory.max; do
+        if [[ -f "$cgdir/$f" ]]; then
+            copy_file "$cgdir/$f" "sys/fs/cgroup${group}/$f"
+        fi
+    done
+}
+
+snapshot_v1() {
+    copy_file /proc/self/mountinfo proc/self/mountinfo
+
+    # Copy cpu subsystem files.
+    local cpu_rel cpu_mount cpu_dir
+    cpu_rel=$(v1_cgroup_rel cpu)
+    if [[ -n "$cpu_rel" ]]; then
+        cpu_mount=$(v1_mount_point cpu)
+        if [[ -n "$cpu_mount" ]]; then
+            cpu_dir="${cpu_mount}${cpu_rel}"
+            for f in cpu.cfs_quota_us cpu.cfs_period_us; do
+                if [[ -f "$cpu_dir/$f" ]]; then
+                    copy_file "$cpu_dir/$f" "${cpu_dir#/}/$f"
+                fi
+            done
+        fi
+    fi
+
+    # Copy memory subsystem files.
+    local mem_rel mem_mount mem_dir
+    mem_rel=$(v1_cgroup_rel memory)
+    if [[ -n "$mem_rel" ]]; then
+        mem_mount=$(v1_mount_point memory)
+        if [[ -n "$mem_mount" ]]; then
+            mem_dir="${mem_mount}${mem_rel}"
+            if [[ -f "$mem_dir/memory.limit_in_bytes" ]]; then
+                copy_file "$mem_dir/memory.limit_in_bytes" "${mem_dir#/}/memory.limit_in_bytes"
+            fi
+        fi
+    fi
+}
+
+copy_file /proc/self/cgroup proc/self/cgroup
+
+if grep -q '^0::' /proc/self/cgroup; then
+    snapshot_v2
+else
+    snapshot_v1
+fi
+
+echo "Snapshot written to $out"
