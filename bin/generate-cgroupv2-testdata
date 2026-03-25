@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# generate-cgroupv2-testdata - Generate cgroup v2 testdata by running
+# bin/snapshot-cgroup inside Docker containers with known resource limits.
+#
+# Usage: generate-cgroupv2-testdata
+#
+# Prerequisites: Docker on a host running cgroup v2.
+#
+# Each testdata directory contains:
+#   expected.json  - {"cpu_quota": <float>, "memory_limit": <int>}
+#   proc/          - snapshot of /proc/self/cgroup
+#   sys/           - snapshot of cgroup control files
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+testdata="cgroup/testdata"
+snapshot_script="bin/snapshot-cgroup"
+
+generate() {
+    local name="$1" cpu_quota="$2" memory_limit="$3"
+    shift 3
+    local outdir="$testdata/$name"
+
+    echo "Generating $name..."
+    rm -rf "$outdir"
+    mkdir -p "$outdir"
+
+    docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        "$@" \
+        -v "$PWD/$snapshot_script:/snapshot:ro" \
+        -v "$PWD/$outdir:/out" \
+        debian:bookworm-slim \
+        /snapshot /out
+
+    cat > "$outdir/expected.json" <<EOF
+{"cpu_quota": $cpu_quota, "memory_limit": $memory_limit}
+EOF
+}
+
+generate "v2-half-core-128m"   0.5  134217728  --cpus=0.5 --memory=128m
+generate "v2-two-cores-256m"   2.0  268435456  --cpus=2   --memory=256m
+generate "v2-quarter-core-64m" 0.25 67108864   --cpus=0.25 --memory=64m
+generate "v2-no-limit"         null null
+
+echo "v2 testdata generated successfully."

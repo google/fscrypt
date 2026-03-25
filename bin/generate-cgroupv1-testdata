@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# generate-cgroupv1-testdata - Generate cgroup v1 testdata by running
+# bin/snapshot-cgroup inside Docker containers with known resource limits,
+# inside a Lima VM running Ubuntu 20.04 (which uses cgroup v1 by default).
+#
+# Usage: generate-cgroupv1-testdata
+#
+# Prerequisites:
+#   Lima with a running "cgroupv1" instance:
+#     limactl start --name=cgroupv1 bin/cgroupv1.yaml
+#
+# Each testdata directory contains:
+#   expected.json  - {"cpu_quota": <float>, "memory_limit": <int>}
+#   proc/          - snapshot of /proc/self/cgroup and /proc/self/mountinfo
+#   sys/           - snapshot of cgroup control files
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+testdata="cgroup/testdata"
+snapshot_script="bin/snapshot-cgroup"
+lima_instance="cgroupv1"
+
+ensure_lima_vm() {
+    if ! limactl list --json 2>/dev/null \
+        | jq -e "select(.name == \"$lima_instance\" and .status == \"Running\")" \
+            >/dev/null 2>&1; then
+        echo "Error: Lima instance '$lima_instance' is not running." >&2
+        echo "Start it with:  limactl start --name=$lima_instance bin/cgroupv1.yaml" >&2
+        exit 1
+    fi
+}
+
+generate() {
+    local name="$1" cpu_quota="$2" memory_limit="$3"
+    shift 3
+    local outdir="$testdata/$name"
+
+    echo "Generating $name..."
+    rm -rf "$outdir"
+    mkdir -p "$outdir"
+
+    limactl shell "$lima_instance" \
+        sudo docker run --rm \
+            "$@" \
+            -v "$PWD/$snapshot_script:/snapshot:ro" \
+            -v "$PWD/$outdir:/out" \
+            debian:bookworm-slim \
+            /snapshot /out
+
+    cat > "$outdir/expected.json" <<EOF
+{"cpu_quota": $cpu_quota, "memory_limit": $memory_limit}
+EOF
+}
+
+ensure_lima_vm
+
+generate "v1-half-core-128m"   0.5  134217728  --cpus=0.5 --memory=128m
+generate "v1-two-cores-256m"   2.0  268435456  --cpus=2   --memory=256m
+generate "v1-quarter-core-64m" 0.25 67108864   --cpus=0.25 --memory=64m
+generate "v1-no-limit"         null null
+
+echo "v1 testdata generated successfully."

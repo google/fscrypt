@@ -200,8 +200,7 @@ func TestParseProcCgroup(t *testing.T) {
 		{
 			name:        "hybrid v1 and v2",
 			content:     "12:memory:/docker/abc123\n0::/docker/abc123\n",
-			wantVersion: 2,
-			wantGroup:   "/docker/abc123",
+			wantVersion: 1,
 			wantSubsystems: map[string]string{
 				"memory": "/docker/abc123",
 			},
@@ -492,7 +491,7 @@ type testdataExpected struct {
 // by bin/snapshot-cgroup. Each subdirectory of testdata/ is a separate test
 // case containing a proc/ and sys/ tree plus an expected.json.
 //
-// Regenerate with: bin/generate-cgroup-testdata
+// Regenerate with: bin/generate-cgroupv1-testdata and bin/generate-cgroupv2-testdata
 func TestWithRootFromTestdata(t *testing.T) {
 	entries, err := os.ReadDir("testdata")
 	if err != nil {

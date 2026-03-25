@@ -51,10 +51,10 @@ v1_cgroup_rel() {
     }' /proc/self/cgroup
 }
 
-# v1_mount_point finds the mount point for a cgroup v1 controller from
-# /proc/self/mountinfo. It looks for lines with fstype "cgroup" whose
+# v1_mount_info prints "mount_point mount_root" for a cgroup v1 controller
+# from /proc/self/mountinfo. It looks for lines with fstype "cgroup" whose
 # super-options contain the controller name.
-v1_mount_point() {
+v1_mount_info() {
     local controller="$1"
     awk -v ctrl="$controller" '
     {
@@ -68,7 +68,7 @@ v1_mount_point() {
         superopts = $(sep + 3)
         n = split(superopts, opts, ",")
         for (i = 1; i <= n; i++) {
-            if (opts[i] == ctrl) { print $5; exit }
+            if (opts[i] == ctrl) { print $5, $4; exit }
         }
     }' /proc/self/mountinfo
 }
@@ -85,44 +85,69 @@ snapshot_v2() {
     done
 }
 
+# v1_resolve_path computes the live filesystem path and the snapshot output
+# path for a cgroup v1 controller, matching the Go code's v1SubsystemPath:
+#   live_path  = mount_point + relpath(mount_root, cgroup_rel)
+#   out_path   = strip leading "/" from live_path
+# Prints "live_path out_path".
+#
+# Parsing is a PITA, but it seems there's no better way.
+# See also https://lwn.net/Articles/934469/
+v1_resolve_path() {
+    local controller="$1"
+    local cgroup_rel mount_point mount_root info rel
+
+    cgroup_rel=$(v1_cgroup_rel "$controller")
+    [[ -n "$cgroup_rel" ]] || return 0
+
+    info=$(v1_mount_info "$controller")
+    [[ -n "$info" ]] || return 0
+    mount_point=${info%% *}
+    mount_root=${info#* }
+
+    rel=$(realpath -m --relative-to="$mount_root" "$cgroup_rel")
+    local live="${mount_point}/${rel}"
+    echo "$live" "${live#/}"
+}
+
 snapshot_v1() {
     copy_file /proc/self/mountinfo proc/self/mountinfo
 
     # Copy cpu subsystem files.
-    local cpu_rel cpu_mount cpu_dir
-    cpu_rel=$(v1_cgroup_rel cpu)
-    if [[ -n "$cpu_rel" ]]; then
-        cpu_mount=$(v1_mount_point cpu)
-        if [[ -n "$cpu_mount" ]]; then
-            cpu_dir="${cpu_mount}${cpu_rel}"
-            for f in cpu.cfs_quota_us cpu.cfs_period_us; do
-                if [[ -f "$cpu_dir/$f" ]]; then
-                    copy_file "$cpu_dir/$f" "${cpu_dir#/}/$f"
-                fi
-            done
-        fi
+    local cpu_paths
+    cpu_paths=$(v1_resolve_path cpu)
+    if [[ -n "$cpu_paths" ]]; then
+        local cpu_live=${cpu_paths%% *} cpu_out=${cpu_paths#* }
+        for f in cpu.cfs_quota_us cpu.cfs_period_us; do
+            if [[ -f "$cpu_live/$f" ]]; then
+                copy_file "$cpu_live/$f" "$cpu_out/$f"
+            fi
+        done
     fi
 
     # Copy memory subsystem files.
-    local mem_rel mem_mount mem_dir
-    mem_rel=$(v1_cgroup_rel memory)
-    if [[ -n "$mem_rel" ]]; then
-        mem_mount=$(v1_mount_point memory)
-        if [[ -n "$mem_mount" ]]; then
-            mem_dir="${mem_mount}${mem_rel}"
-            if [[ -f "$mem_dir/memory.limit_in_bytes" ]]; then
-                copy_file "$mem_dir/memory.limit_in_bytes" "${mem_dir#/}/memory.limit_in_bytes"
-            fi
+    local mem_paths
+    mem_paths=$(v1_resolve_path memory)
+    if [[ -n "$mem_paths" ]]; then
+        local mem_live=${mem_paths%% *} mem_out=${mem_paths#* }
+        if [[ -f "$mem_live/memory.limit_in_bytes" ]]; then
+            copy_file "$mem_live/memory.limit_in_bytes" "$mem_out/memory.limit_in_bytes"
         fi
     fi
 }
 
+# Detect cgroup version. In hybrid setups (v1 controllers present alongside
+# a v2 "0::" line), we treat the system as v1.
+has_v1_controllers() {
+    awk -F: '$1 != "0" && $2 != "" { found=1 } END { exit !found }' /proc/self/cgroup
+}
+
 copy_file /proc/self/cgroup proc/self/cgroup
 
-if grep -q '^0::' /proc/self/cgroup; then
-    snapshot_v2
-else
+if has_v1_controllers; then
     snapshot_v1
+else
+    snapshot_v2
 fi
 
 echo "Snapshot written to $out"

@@ -102,8 +102,14 @@ type procCgroup struct {
 	v1Subsystems map[string]string
 }
 
-// parseProcCgroup parses /proc/self/cgroup in a single pass, extracting
-// both v2 and v1 information.
+// parseProcCgroup parses /proc/self/cgroup, extracting both v2 and v1
+// information.
+//
+// In hybrid setups (e.g. Ubuntu 20.04 with Docker) the file contains both
+// v1 controller lines and a v2 "0::" line. Resource limits are set via the
+// v1 controllers in that case, so we treat the system as v1 whenever v1
+// controllers are present.
+//
 // https://man7.org/linux/man-pages/man7/cgroups.7.html
 func parseProcCgroup(path string) (procCgroup, error) {
 	f, err := os.Open(path)
@@ -112,10 +118,8 @@ func parseProcCgroup(path string) (procCgroup, error) {
 	}
 	defer f.Close()
 
-	result := procCgroup{
-		version:      1,
-		v1Subsystems: make(map[string]string),
-	}
+	var result procCgroup
+	result.v1Subsystems = make(map[string]string)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -125,7 +129,6 @@ func parseProcCgroup(path string) (procCgroup, error) {
 		}
 		// v2 entry: hierarchy-ID is 0 and controllers field is empty.
 		if parts[0] == "0" && parts[1] == "" {
-			result.version = 2
 			result.v2GroupPath = parts[2]
 			continue
 		}
@@ -136,7 +139,19 @@ func parseProcCgroup(path string) (procCgroup, error) {
 			}
 		}
 	}
-	return result, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return procCgroup{}, err
+	}
+
+	// Treat as v1 when any v1 controllers are present (covers hybrid).
+	if len(result.v1Subsystems) > 0 {
+		result.version = 1
+	} else if result.v2GroupPath != "" {
+		result.version = 2
+	} else {
+		result.version = 1
+	}
+	return result, nil
 }
 
 // cpuQuotaV2 reads cpu.max from the given cgroup v2 directory.
