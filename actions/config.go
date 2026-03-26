@@ -255,7 +255,11 @@ func getHashingCosts(target time.Duration) (*metadata.HashingCosts, error) {
 // taking cgroup limits into account. Falls back to runtime.NumCPU() when
 // cgroup information is unavailable.
 func effectiveCPUCount() int {
-	quota, err := cgroup.CPUQuota()
+	cg, err := cgroup.New()
+	if err != nil {
+		return runtime.NumCPU()
+	}
+	quota, err := cg.CPUQuota()
 	if err != nil || quota <= 0 {
 		return runtime.NumCPU()
 	}
@@ -273,8 +277,10 @@ func memoryBytesLimit() int64 {
 	util.NeverError(err)
 
 	totalRAMBytes := int64(info.Totalram)
-	if cgroupMem, err := cgroup.MemoryLimit(); err == nil && cgroupMem > 0 {
-		totalRAMBytes = util.MinInt64(totalRAMBytes, cgroupMem)
+	if cg, err := cgroup.New(); err == nil {
+		if cgroupMem, err := cg.MemoryLimit(); err == nil && cgroupMem > 0 {
+			totalRAMBytes = util.MinInt64(totalRAMBytes, cgroupMem)
+		}
 	}
 	return util.MinInt64(totalRAMBytes/8, maxMemoryBytes)
 }

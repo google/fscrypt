@@ -35,48 +35,77 @@ import (
 	"strings"
 )
 
-// ErrNoLimit indicates that no cgroup limit is set.
-var ErrNoLimit = errors.New("no cgroup limit set")
+// Errors.
+var (
+	// ErrNoLimit indicates that no cgroup limit is set.
+	ErrNoLimit = errors.New("no cgroup limit set")
+
+	// ErrV1Detected indicates that cgroup v1 controllers were found. Only v2 is
+	// supported.
+	ErrV1Detected = errors.New("cgroup v1 detected; only v2 is supported")
+)
+
+// Cgroup provides access to cgroup v2 resource limits. Create one with
+// New or NewFromRoot.
+type Cgroup struct {
+	// cgroupDir is the resolved filesystem path to the cgroup directory
+	// (e.g. /sys/fs/cgroup/user.slice/...).
+	cgroupDir string
+}
+
+// New returns a Cgroup by reading /proc/self/cgroup on the live system.
+func New() (Cgroup, error) {
+	return NewFromRoot("/")
+}
+
+// NewFromRoot is like New but resolves all filesystem paths relative to
+// root instead of "/". This is useful for testing with a mock filesystem.
+func NewFromRoot(root string) (Cgroup, error) {
+	groupPath, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+	if err != nil {
+		return Cgroup{}, err
+	}
+	return Cgroup{
+		cgroupDir: filepath.Join(root, "sys/fs/cgroup", groupPath),
+	}, nil
+}
 
 // CPUQuota returns the CPU quota as a fractional number of CPUs (e.g. 0.5
 // means half a core). Returns ErrNoLimit if no CPU limit is configured.
-func CPUQuota() (float64, error) {
-	return CPUQuotaWithRoot("/")
-}
-
-// CPUQuotaWithRoot is like CPUQuota but resolves all filesystem paths
-// relative to root instead of "/". This is useful for testing with a
-// mock filesystem.
-func CPUQuotaWithRoot(root string) (float64, error) {
-	groupPath, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+func (c Cgroup) CPUQuota() (float64, error) {
+	data, err := c.readFile("cpu.max")
 	if err != nil {
 		return 0, err
 	}
-	return cpuQuotaV2(filepath.Join(root, "sys/fs/cgroup", groupPath))
+	return parseCPUMax(data)
 }
 
 // MemoryLimit returns the cgroup memory limit in bytes. Returns ErrNoLimit
 // if no memory limit is configured.
-func MemoryLimit() (int64, error) {
-	return MemoryLimitWithRoot("/")
-}
-
-// MemoryLimitWithRoot is like MemoryLimit but resolves all filesystem paths
-// relative to root instead of "/". This is useful for testing with a
-// mock filesystem.
-func MemoryLimitWithRoot(root string) (int64, error) {
-	groupPath, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+func (c Cgroup) MemoryLimit() (int64, error) {
+	data, err := c.readFile("memory.max")
 	if err != nil {
 		return 0, err
 	}
-	return memoryLimitV2(filepath.Join(root, "sys/fs/cgroup", groupPath))
+	return parseMemoryMax(data)
+}
+
+func (c Cgroup) readFile(path string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(c.cgroupDir, path))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", ErrNoLimit
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // parseProcCgroup parses /proc/self/cgroup and returns the cgroup v2 group
 // path. The v2 entry is the line with hierarchy-ID "0" and an empty
 // controller list: "0::<path>".
 //
-// Returns an error if no v2 entry is found.
+// Returns an error if v1 controllers are detected or no v2 entry is found.
 //
 // https://man7.org/linux/man-pages/man7/cgroups.7.html
 func parseProcCgroup(path string) (string, error) {
@@ -86,6 +115,8 @@ func parseProcCgroup(path string) (string, error) {
 	}
 	defer f.Close()
 
+	var v2Path string
+
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		parts := strings.SplitN(scanner.Text(), ":", 3)
@@ -93,27 +124,18 @@ func parseProcCgroup(path string) (string, error) {
 			continue
 		}
 		if parts[0] == "0" && parts[1] == "" {
-			return parts[2], nil
+			v2Path = parts[2]
+		} else if parts[1] != "" {
+			return "", ErrV1Detected
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return "", err
 	}
-	return "", fmt.Errorf("no cgroup v2 entry found in %s", path)
-}
-
-// cpuQuotaV2 reads cpu.max from the given cgroup v2 directory.
-// Format: "$MAX $PERIOD" or "max $PERIOD".
-// https://docs.kernel.org/admin-guide/cgroup-v2.html
-func cpuQuotaV2(cgroupDir string) (float64, error) {
-	data, err := os.ReadFile(filepath.Join(cgroupDir, "cpu.max"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, ErrNoLimit
-		}
-		return 0, err
+	if v2Path == "" {
+		return "", fmt.Errorf("no cgroup v2 entry found in %s", path)
 	}
-	return parseCPUMax(strings.TrimSpace(string(data)))
+	return v2Path, nil
 }
 
 func parseCPUMax(content string) (float64, error) {
@@ -139,18 +161,6 @@ func parseCPUMax(content string) (float64, error) {
 		}
 	}
 	return quota / period, nil
-}
-
-// memoryLimitV2 reads memory.max from the given cgroup v2 directory.
-func memoryLimitV2(cgroupDir string) (int64, error) {
-	data, err := os.ReadFile(filepath.Join(cgroupDir, "memory.max"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, ErrNoLimit
-		}
-		return 0, err
-	}
-	return parseMemoryMax(strings.TrimSpace(string(data)))
 }
 
 func parseMemoryMax(content string) (int64, error) {
