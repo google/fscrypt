@@ -41,7 +41,6 @@ generate() {
 EOF
 }
 
-generate "v2-half-core-128m"   0.5  134217728  --cpus=0.5 --memory=128m
 generate "v2-two-cores-256m"   2.0  268435456  --cpus=2   --memory=256m
 generate "v2-quarter-core-64m" 0.25 67108864   --cpus=0.25 --memory=64m
 generate "v2-no-limit"         null null

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # snapshot-cgroup - Copy cgroup v2 files from the live system into a
-# directory tree suitable for use with CPUQuotaWithRoot / MemoryLimitWithRoot.
+# directory tree suitable for use with TestIntegrationCgroupLimits.
 #
 # Usage: snapshot-cgroup <output-dir>
 #
