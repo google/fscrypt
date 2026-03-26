@@ -1,5 +1,5 @@
 /*
- * cgroup.go - Read CPU and memory limits from Linux cgroups (v1 and v2).
+ * cgroup.go - Read CPU and memory limits from Linux cgroups v2.
  *
  * Copyright 2026 Google LLC
  *
@@ -17,17 +17,12 @@
  */
 
 // Package cgroup reads CPU and memory resource limits from Linux control
-// groups. Both cgroup v1 and v2 are supported.
+// groups (cgroup v2).
 //
 // References:
 //   - cgroups(7):           https://man7.org/linux/man-pages/man7/cgroups.7.html
 //   - cgroup v2 (cpu.max, memory.max): https://docs.kernel.org/admin-guide/cgroup-v2.html
-//   - cgroup v1 CPU bandwidth (cpu.cfs_quota_us, cpu.cfs_period_us):
-//     https://docs.kernel.org/scheduler/sched-bwc.html
-//   - cgroup v1 memory (memory.limit_in_bytes):
-//     https://docs.kernel.org/admin-guide/cgroup-v1/memory.html
 //   - /proc/self/cgroup:    https://man7.org/linux/man-pages/man7/cgroups.7.html (see "/proc files")
-//   - /proc/self/mountinfo: https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html
 package cgroup
 
 import (
@@ -36,7 +31,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -54,14 +48,11 @@ func CPUQuota() (float64, error) {
 // relative to root instead of "/". This is useful for testing with a
 // mock filesystem.
 func CPUQuotaWithRoot(root string) (float64, error) {
-	cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+	groupPath, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
 	if err != nil {
 		return 0, err
 	}
-	if cg.version == 2 {
-		return cpuQuotaV2(filepath.Join(root, "sys/fs/cgroup", cg.v2GroupPath))
-	}
-	return cpuQuotaV1(root, cg)
+	return cpuQuotaV2(filepath.Join(root, "sys/fs/cgroup", groupPath))
 }
 
 // MemoryLimit returns the cgroup memory limit in bytes. Returns ErrNoLimit
@@ -74,52 +65,26 @@ func MemoryLimit() (int64, error) {
 // relative to root instead of "/". This is useful for testing with a
 // mock filesystem.
 func MemoryLimitWithRoot(root string) (int64, error) {
-	cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
+	groupPath, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
 	if err != nil {
 		return 0, err
 	}
-	if cg.version == 2 {
-		return memoryLimitV2(filepath.Join(root, "sys/fs/cgroup", cg.v2GroupPath))
-	}
-	return memoryLimitV1(root, cg)
+	return memoryLimitV2(filepath.Join(root, "sys/fs/cgroup", groupPath))
 }
 
-// procCgroup holds the parsed contents of /proc/self/cgroup.
+// parseProcCgroup parses /proc/self/cgroup and returns the cgroup v2 group
+// path. The v2 entry is the line with hierarchy-ID "0" and an empty
+// controller list: "0::<path>".
 //
-// The file format is documented in cgroups(7). Each line has the format:
-//
-//	hierarchy-ID:controller-list:cgroup-path
-//
-// For v2, there is a single line "0::<path>". For v1, each line has a
-// non-zero hierarchy ID and a comma-separated list of controllers.
-type procCgroup struct {
-	// version is 1 or 2.
-	version int
-	// v2GroupPath is the cgroup path (only set when version is 2).
-	v2GroupPath string
-	// v1Subsystems maps controller names to their cgroup paths (only
-	// populated when version is 1).
-	v1Subsystems map[string]string
-}
-
-// parseProcCgroup parses /proc/self/cgroup, extracting both v2 and v1
-// information.
-//
-// In hybrid setups (e.g. Ubuntu 20.04 with Docker) the file contains both
-// v1 controller lines and a v2 "0::" line. Resource limits are set via the
-// v1 controllers in that case, so we treat the system as v1 whenever v1
-// controllers are present.
+// Returns an error if no v2 entry is found.
 //
 // https://man7.org/linux/man-pages/man7/cgroups.7.html
-func parseProcCgroup(path string) (procCgroup, error) {
+func parseProcCgroup(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return procCgroup{}, err
+		return "", err
 	}
 	defer f.Close()
-
-	var result procCgroup
-	result.v1Subsystems = make(map[string]string)
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -127,31 +92,14 @@ func parseProcCgroup(path string) (procCgroup, error) {
 		if len(parts) != 3 {
 			continue
 		}
-		// v2 entry: hierarchy-ID is 0 and controllers field is empty.
 		if parts[0] == "0" && parts[1] == "" {
-			result.v2GroupPath = parts[2]
-			continue
-		}
-		// v1 entry: map each controller to its cgroup path.
-		for _, ctrl := range strings.Split(parts[1], ",") {
-			if ctrl != "" {
-				result.v1Subsystems[ctrl] = parts[2]
-			}
+			return parts[2], nil
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return procCgroup{}, err
+		return "", err
 	}
-
-	// Treat as v1 when any v1 controllers are present (covers hybrid).
-	if len(result.v1Subsystems) > 0 {
-		result.version = 1
-	} else if result.v2GroupPath != "" {
-		result.version = 2
-	} else {
-		result.version = 1
-	}
-	return result, nil
+	return "", fmt.Errorf("no cgroup v2 entry found in %s", path)
 }
 
 // cpuQuotaV2 reads cpu.max from the given cgroup v2 directory.
@@ -214,150 +162,4 @@ func parseMemoryMax(content string) (int64, error) {
 		return 0, fmt.Errorf("parsing memory.max: %w", err)
 	}
 	return v, nil
-}
-
-// cpuQuotaV1 reads cpu.cfs_quota_us and cpu.cfs_period_us from the cpu
-// cgroup v1 subsystem.
-func cpuQuotaV1(root string, cg procCgroup) (float64, error) {
-	cgroupPath, err := v1SubsystemPath(root, "cpu", cg)
-	if err != nil {
-		return 0, err
-	}
-	quotaData, err := os.ReadFile(filepath.Join(cgroupPath, "cpu.cfs_quota_us"))
-	if err != nil {
-		return 0, err
-	}
-	quota, err := strconv.ParseInt(strings.TrimSpace(string(quotaData)), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parsing cpu.cfs_quota_us: %w", err)
-	}
-	if quota < 0 {
-		return 0, ErrNoLimit
-	}
-	periodData, err := os.ReadFile(filepath.Join(cgroupPath, "cpu.cfs_period_us"))
-	if err != nil {
-		return 0, err
-	}
-	period, err := strconv.ParseInt(strings.TrimSpace(string(periodData)), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parsing cpu.cfs_period_us: %w", err)
-	}
-	if period == 0 {
-		return 0, fmt.Errorf("cpu.cfs_period_us is zero")
-	}
-	return float64(quota) / float64(period), nil
-}
-
-// memoryLimitV1 reads memory.limit_in_bytes from the memory cgroup v1
-// subsystem.
-func memoryLimitV1(root string, cg procCgroup) (int64, error) {
-	cgroupPath, err := v1SubsystemPath(root, "memory", cg)
-	if err != nil {
-		return 0, err
-	}
-	data, err := os.ReadFile(filepath.Join(cgroupPath, "memory.limit_in_bytes"))
-	if err != nil {
-		return 0, err
-	}
-	v, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("parsing memory.limit_in_bytes: %w", err)
-	}
-	// The kernel uses a very large value (close to max int64) to indicate
-	// "no limit". Treat anything above 1 EiB as unlimited.
-	const oneEiB = 1 << 60
-	if v >= oneEiB {
-		return 0, ErrNoLimit
-	}
-	return v, nil
-}
-
-// v1SubsystemPath finds the filesystem path for a cgroup v1 subsystem by
-// looking up the already-parsed /proc/self/cgroup data and correlating it
-// with /proc/self/mountinfo. All paths are resolved relative to root.
-func v1SubsystemPath(root, subsystem string, cg procCgroup) (string, error) {
-	relPath, ok := cg.v1Subsystems[subsystem]
-	if !ok {
-		return "", fmt.Errorf("cgroup v1 subsystem %q not found", subsystem)
-	}
-	// mountinfo contains absolute paths (e.g. /sys/fs/cgroup/cpu). We
-	// prepend root so that file reads go to the right place.
-	procMountInfo := filepath.Join(root, "proc/self/mountinfo")
-	mountPoint, mountRoot, err := v1MountPoint(procMountInfo, subsystem)
-	if err != nil {
-		return "", err
-	}
-	rel, err := filepath.Rel(mountRoot, relPath)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(root, mountPoint, rel), nil
-}
-
-// v1MountPoint finds the mount point and root for a cgroup v1 subsystem
-// from /proc/self/mountinfo. The returned paths are absolute (as written
-// in mountinfo); the caller is responsible for prepending the root.
-func v1MountPoint(procMountInfo, subsystem string) (mountPoint, root string, err error) {
-	f, err := os.Open(procMountInfo)
-	if err != nil {
-		return "", "", err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		mp, err := parseMountInfoLine(scanner.Text())
-		if err != nil {
-			continue
-		}
-		if mp.fsType != "cgroup" {
-			continue
-		}
-		if slices.Contains(mp.superOptions, subsystem) {
-			return mp.mountPoint, mp.root, nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", "", err
-	}
-	return "", "", fmt.Errorf("cgroup v1 mount for %q not found in %s", subsystem, procMountInfo)
-}
-
-type mountInfo struct {
-	root         string
-	mountPoint   string
-	fsType       string
-	superOptions []string
-}
-
-// parseMountInfoLine parses a single line from /proc/self/mountinfo.
-// Format: id parent devid root mount opts [optional...] - fstype source superopts
-// https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html
-func parseMountInfoLine(line string) (mountInfo, error) {
-	fields := strings.Split(line, " ")
-	if len(fields) < 7 {
-		return mountInfo{}, fmt.Errorf("too few fields in mountinfo line")
-	}
-
-	root := fields[3]
-	mp := fields[4]
-
-	// Find the separator "-" that marks the end of optional fields.
-	sepIdx := -1
-	for i := 6; i < len(fields); i++ {
-		if fields[i] == "-" {
-			sepIdx = i
-			break
-		}
-	}
-	if sepIdx == -1 || sepIdx+3 > len(fields) {
-		return mountInfo{}, fmt.Errorf("no separator in mountinfo line")
-	}
-
-	return mountInfo{
-		root:         root,
-		mountPoint:   mp,
-		fsType:       fields[sepIdx+1],
-		superOptions: strings.Split(fields[sepIdx+3], ","),
-	}, nil
 }

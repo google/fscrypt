@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# gen-cgroupv2-testdata - Generate cgroup v2 testdata by running
+# gen-cgroup-testdata - Generate cgroup testdata by running
 # bin/snapshot-cgroup inside Docker containers with known resource limits.
 #
-# Usage: gen-cgroupv2-testdata
+# Usage: gen-cgroup-testdata
 #
 # Prerequisites: Docker on a host running cgroup v2.
 #

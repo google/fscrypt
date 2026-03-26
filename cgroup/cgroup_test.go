@@ -102,109 +102,27 @@ func TestParseMemoryMax(t *testing.T) {
 	}
 }
 
-func TestParseMountInfoLine(t *testing.T) {
-	tests := []struct {
-		name         string
-		line         string
-		wantFSType   string
-		wantRoot     string
-		wantMount    string
-		wantSuperOpt string
-		wantErr      bool
-	}{
-		{
-			name:         "cgroup v1 cpu",
-			line:         "35 26 0:30 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpu,cpuacct",
-			wantFSType:   "cgroup",
-			wantRoot:     "/",
-			wantMount:    "/sys/fs/cgroup/cpu,cpuacct",
-			wantSuperOpt: "cpu",
-		},
-		{
-			name:         "cgroup v2",
-			line:         "30 23 0:26 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
-			wantFSType:   "cgroup2",
-			wantRoot:     "/",
-			wantMount:    "/sys/fs/cgroup",
-			wantSuperOpt: "nsdelegate",
-		},
-		{
-			name:    "too short",
-			line:    "a b c",
-			wantErr: true,
-		},
-		{
-			name:    "no separator",
-			line:    "35 26 0:30 / /mnt rw,relatime shared:1 cgroup cgroup rw",
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseMountInfoLine(tt.line)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got.fsType != tt.wantFSType {
-				t.Errorf("fsType = %q, want %q", got.fsType, tt.wantFSType)
-			}
-			if got.root != tt.wantRoot {
-				t.Errorf("root = %q, want %q", got.root, tt.wantRoot)
-			}
-			if got.mountPoint != tt.wantMount {
-				t.Errorf("mountPoint = %q, want %q", got.mountPoint, tt.wantMount)
-			}
-			found := false
-			for _, opt := range got.superOptions {
-				if opt == tt.wantSuperOpt {
-					found = true
-					break
-				}
-			}
-			if !found {
-				t.Errorf("superOptions = %v, want to contain %q", got.superOptions, tt.wantSuperOpt)
-			}
-		})
-	}
-}
-
 func TestParseProcCgroup(t *testing.T) {
 	tests := []struct {
-		name           string
-		content        string
-		wantVersion    int
-		wantGroup      string
-		wantSubsystems map[string]string
+		name      string
+		content   string
+		wantGroup string
+		wantErr   string
 	}{
 		{
-			name:        "cgroup v2",
-			content:     "0::/user.slice/user-1000.slice/session-1.scope\n",
-			wantVersion: 2,
-			wantGroup:   "/user.slice/user-1000.slice/session-1.scope",
+			name:      "cgroup v2",
+			content:   "0::/user.slice/user-1000.slice/session-1.scope\n",
+			wantGroup: "/user.slice/user-1000.slice/session-1.scope",
 		},
 		{
-			name:        "cgroup v1 only",
-			content:     "12:memory:/docker/abc123\n11:cpu,cpuacct:/docker/abc123\n",
-			wantVersion: 1,
-			wantSubsystems: map[string]string{
-				"memory":  "/docker/abc123",
-				"cpu":     "/docker/abc123",
-				"cpuacct": "/docker/abc123",
-			},
+			name:    "v1 only (no v2 entry)",
+			content: "12:memory:/docker/abc123\n11:cpu,cpuacct:/docker/abc123\n",
+			wantErr: "no cgroup v2 entry",
 		},
 		{
-			name:        "hybrid v1 and v2",
-			content:     "12:memory:/docker/abc123\n0::/docker/abc123\n",
-			wantVersion: 1,
-			wantSubsystems: map[string]string{
-				"memory": "/docker/abc123",
-			},
+			name:      "hybrid v1 and v2",
+			content:   "12:memory:/docker/abc123\n0::/docker/abc123\n",
+			wantGroup: "/docker/abc123",
 		},
 	}
 	for _, tt := range tests {
@@ -212,23 +130,18 @@ func TestParseProcCgroup(t *testing.T) {
 			f := filepath.Join(t.TempDir(), "cgroup")
 			writeFile(t, f, tt.content)
 
-			cg, err := parseProcCgroup(f)
+			groupPath, err := parseProcCgroup(f)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("parseProcCgroup() error = %v, want error containing %q", err, tt.wantErr)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if cg.version != tt.wantVersion {
-				t.Errorf("version = %d, want %d", cg.version, tt.wantVersion)
-			}
-			if tt.wantVersion == 2 && cg.v2GroupPath != tt.wantGroup {
-				t.Errorf("v2GroupPath = %q, want %q", cg.v2GroupPath, tt.wantGroup)
-			}
-			for k, want := range tt.wantSubsystems {
-				got, ok := cg.v1Subsystems[k]
-				if !ok {
-					t.Errorf("v1Subsystems missing key %q", k)
-				} else if got != want {
-					t.Errorf("v1Subsystems[%q] = %q, want %q", k, got, want)
-				}
+			if groupPath != tt.wantGroup {
+				t.Errorf("parseProcCgroup() = %q, want %q", groupPath, tt.wantGroup)
 			}
 		})
 	}
@@ -313,115 +226,7 @@ func TestMemoryLimitV2MissingFile(t *testing.T) {
 	}
 }
 
-// setupV1Root creates a mock cgroup v1 filesystem under a temp directory.
-// The mountinfo file contains absolute paths (as the kernel writes them),
-// and the code prepends root when reading.
-func setupV1Root(t *testing.T, subsystem, cgroupRelPath string, files map[string]string) string {
-	t.Helper()
-	root := t.TempDir()
-
-	// /proc/self/cgroup
-	var cgroupLine string
-	switch subsystem {
-	case "cpu":
-		cgroupLine = "11:cpu,cpuacct:" + cgroupRelPath + "\n"
-	case "memory":
-		cgroupLine = "12:memory:" + cgroupRelPath + "\n"
-	}
-	writeFile(t, filepath.Join(root, "proc/self/cgroup"), cgroupLine)
-
-	// /proc/self/mountinfo with absolute mount point
-	mountPoint := "/sys/fs/cgroup/" + subsystem
-	mountInfoLine := "35 26 0:30 / " + mountPoint + " rw,nosuid - cgroup cgroup rw," + subsystem + "\n"
-	writeFile(t, filepath.Join(root, "proc/self/mountinfo"), mountInfoLine)
-
-	// cgroup control files under root + mountPoint + cgroupRelPath
-	cgroupDir := filepath.Join(root, mountPoint, cgroupRelPath)
-	for name, content := range files {
-		writeFile(t, filepath.Join(cgroupDir, name), content)
-	}
-
-	return root
-}
-
-func TestCPUQuotaV1(t *testing.T) {
-	tests := []struct {
-		name    string
-		quota   string
-		period  string
-		want    float64
-		wantErr string
-	}{
-		{"half core", "50000\n", "100000\n", 0.5, ""},
-		{"two cores", "200000\n", "100000\n", 2.0, ""},
-		{"unlimited", "-1\n", "100000\n", 0, "no cgroup limit set"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			root := setupV1Root(t, "cpu", "/docker/abc123", map[string]string{
-				"cpu.cfs_quota_us":  tt.quota,
-				"cpu.cfs_period_us": tt.period,
-			})
-			cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			got, err := cpuQuotaV1(root, cg)
-			if tt.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("error = %v, want error containing %q", err, tt.wantErr)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if math.Abs(got-tt.want) > 0.001 {
-				t.Errorf("cpuQuotaV1() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMemoryLimitV1(t *testing.T) {
-	tests := []struct {
-		name    string
-		limit   string
-		want    int64
-		wantErr string
-	}{
-		{"128 MiB", "134217728\n", 134217728, ""},
-		{"unlimited (large value)", "9223372036854771712\n", 0, "no cgroup limit set"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			root := setupV1Root(t, "memory", "/docker/abc123", map[string]string{
-				"memory.limit_in_bytes": tt.limit,
-			})
-			cg, err := parseProcCgroup(filepath.Join(root, "proc/self/cgroup"))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			got, err := memoryLimitV1(root, cg)
-			if tt.wantErr != "" {
-				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("error = %v, want error containing %q", err, tt.wantErr)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("memoryLimitV1() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCPUQuotaWithRootV2(t *testing.T) {
+func TestCPUQuotaWithRoot(t *testing.T) {
 	root := t.TempDir()
 
 	writeFile(t, filepath.Join(root, "proc/self/cgroup"), "0::/kubepods/pod123\n")
@@ -436,7 +241,7 @@ func TestCPUQuotaWithRootV2(t *testing.T) {
 	}
 }
 
-func TestMemoryLimitWithRootV2(t *testing.T) {
+func TestMemoryLimitWithRoot(t *testing.T) {
 	root := t.TempDir()
 
 	writeFile(t, filepath.Join(root, "proc/self/cgroup"), "0::/kubepods/pod123\n")
@@ -451,35 +256,6 @@ func TestMemoryLimitWithRootV2(t *testing.T) {
 	}
 }
 
-func TestCPUQuotaWithRootV1(t *testing.T) {
-	root := setupV1Root(t, "cpu", "/docker/abc123", map[string]string{
-		"cpu.cfs_quota_us":  "150000\n",
-		"cpu.cfs_period_us": "100000\n",
-	})
-
-	got, err := CPUQuotaWithRoot(root)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if math.Abs(got-1.5) > 0.001 {
-		t.Errorf("CPUQuotaWithRoot() = %v, want 1.5", got)
-	}
-}
-
-func TestMemoryLimitWithRootV1(t *testing.T) {
-	root := setupV1Root(t, "memory", "/docker/abc123", map[string]string{
-		"memory.limit_in_bytes": "268435456\n",
-	})
-
-	got, err := MemoryLimitWithRoot(root)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got != 268435456 {
-		t.Errorf("MemoryLimitWithRoot() = %v, want 268435456", got)
-	}
-}
-
 // testdataExpected holds the expected values from a testdata/*/expected.json.
 // Null fields indicate that ErrNoLimit is expected.
 type testdataExpected struct {
@@ -488,11 +264,11 @@ type testdataExpected struct {
 }
 
 // TestWithRootFromTestdata runs CPUQuotaWithRoot and MemoryLimitWithRoot
-// against filesystem snapshots captured from real Docker containers (or VMs)
-// by bin/snapshot-cgroup. Each subdirectory of testdata/ is a separate test
+// against filesystem snapshots captured from real Docker containers by
+// bin/snapshot-cgroup. Each subdirectory of testdata/ is a separate test
 // case containing a proc/ and sys/ tree plus an expected.json.
 //
-// Regenerate with: bin/gen-cgroupv1-testdata and bin/gen-cgroupv2-testdata
+// Regenerate with: bin/gen-cgroup-testdata
 func TestWithRootFromTestdata(t *testing.T) {
 	entries, err := os.ReadDir("testdata")
 	if err != nil {

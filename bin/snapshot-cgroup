@@ -1,25 +1,16 @@
 #!/usr/bin/env bash
 #
-# snapshot-cgroup - Copy cgroup-related files from the live system into a
+# snapshot-cgroup - Copy cgroup v2 files from the live system into a
 # directory tree suitable for use with CPUQuotaWithRoot / MemoryLimitWithRoot.
 #
 # Usage: snapshot-cgroup <output-dir>
 #
-# The script reads /proc/self/cgroup to determine the cgroup version and
-# copies exactly the files that the cgroup package needs:
+# The script reads /proc/self/cgroup to find the v2 group path and copies
+# exactly the files that the cgroup package needs:
 #
-#   Always:
-#     proc/self/cgroup
-#
-#   cgroup v2:
-#     sys/fs/cgroup/<group>/cpu.max
-#     sys/fs/cgroup/<group>/memory.max
-#
-#   cgroup v1:
-#     proc/self/mountinfo
-#     <cpu-mount>/<cpu-path>/cpu.cfs_quota_us
-#     <cpu-mount>/<cpu-path>/cpu.cfs_period_us
-#     <memory-mount>/<memory-path>/memory.limit_in_bytes
+#   proc/self/cgroup
+#   sys/fs/cgroup/<group>/cpu.max
+#   sys/fs/cgroup/<group>/memory.max
 
 set -euo pipefail
 
@@ -37,117 +28,15 @@ copy_file() {
     cp "$src" "$dst"
 }
 
-# v1_cgroup_rel extracts the cgroup relative path for a given controller
-# from /proc/self/cgroup. The controller list field is comma-separated,
-# so we split and match exactly.
-v1_cgroup_rel() {
-    local controller="$1"
-    awk -F: -v ctrl="$controller" '
-    $1 != "0" {
-        n = split($2, ctrls, ",")
-        for (i = 1; i <= n; i++) {
-            if (ctrls[i] == ctrl) { print $3; exit }
-        }
-    }' /proc/self/cgroup
-}
-
-# v1_mount_info prints "mount_point mount_root" for a cgroup v1 controller
-# from /proc/self/mountinfo. It looks for lines with fstype "cgroup" whose
-# super-options contain the controller name.
-v1_mount_info() {
-    local controller="$1"
-    awk -v ctrl="$controller" '
-    {
-        sep = 0
-        for (i = 1; i <= NF; i++) {
-            if ($i == "-") { sep = i; break }
-        }
-        if (sep == 0) next
-        fstype = $(sep + 1)
-        if (fstype != "cgroup") next
-        superopts = $(sep + 3)
-        n = split(superopts, opts, ",")
-        for (i = 1; i <= n; i++) {
-            if (opts[i] == ctrl) { print $5, $4; exit }
-        }
-    }' /proc/self/mountinfo
-}
-
-snapshot_v2() {
-    local group cgdir
-    group=$(awk -F: '/^0::/ { print $3 }' /proc/self/cgroup)
-    cgdir="/sys/fs/cgroup${group}"
-
-    for f in cpu.max memory.max; do
-        if [[ -f "$cgdir/$f" ]]; then
-            copy_file "$cgdir/$f" "sys/fs/cgroup${group}/$f"
-        fi
-    done
-}
-
-# v1_resolve_path computes the live filesystem path and the snapshot output
-# path for a cgroup v1 controller, matching the Go code's v1SubsystemPath:
-#   live_path  = mount_point + relpath(mount_root, cgroup_rel)
-#   out_path   = strip leading "/" from live_path
-# Prints "live_path out_path".
-#
-# Parsing is a PITA, but it seems there's no better way.
-# See also https://lwn.net/Articles/934469/
-v1_resolve_path() {
-    local controller="$1"
-    local cgroup_rel mount_point mount_root info rel
-
-    cgroup_rel=$(v1_cgroup_rel "$controller")
-    [[ -n "$cgroup_rel" ]] || return 0
-
-    info=$(v1_mount_info "$controller")
-    [[ -n "$info" ]] || return 0
-    mount_point=${info%% *}
-    mount_root=${info#* }
-
-    rel=$(realpath -m --relative-to="$mount_root" "$cgroup_rel")
-    local live="${mount_point}/${rel}"
-    echo "$live" "${live#/}"
-}
-
-snapshot_v1() {
-    copy_file /proc/self/mountinfo proc/self/mountinfo
-
-    # Copy cpu subsystem files.
-    local cpu_paths
-    cpu_paths=$(v1_resolve_path cpu)
-    if [[ -n "$cpu_paths" ]]; then
-        local cpu_live=${cpu_paths%% *} cpu_out=${cpu_paths#* }
-        for f in cpu.cfs_quota_us cpu.cfs_period_us; do
-            if [[ -f "$cpu_live/$f" ]]; then
-                copy_file "$cpu_live/$f" "$cpu_out/$f"
-            fi
-        done
-    fi
-
-    # Copy memory subsystem files.
-    local mem_paths
-    mem_paths=$(v1_resolve_path memory)
-    if [[ -n "$mem_paths" ]]; then
-        local mem_live=${mem_paths%% *} mem_out=${mem_paths#* }
-        if [[ -f "$mem_live/memory.limit_in_bytes" ]]; then
-            copy_file "$mem_live/memory.limit_in_bytes" "$mem_out/memory.limit_in_bytes"
-        fi
-    fi
-}
-
-# Detect cgroup version. In hybrid setups (v1 controllers present alongside
-# a v2 "0::" line), we treat the system as v1.
-has_v1_controllers() {
-    awk -F: '$1 != "0" && $2 != "" { found=1 } END { exit !found }' /proc/self/cgroup
-}
-
 copy_file /proc/self/cgroup proc/self/cgroup
 
-if has_v1_controllers; then
-    snapshot_v1
-else
-    snapshot_v2
-fi
+group=$(awk -F: '/^0::/ { print $3 }' /proc/self/cgroup)
+cgdir="/sys/fs/cgroup${group}"
+
+for f in cpu.max memory.max; do
+    if [[ -f "$cgdir/$f" ]]; then
+        copy_file "$cgdir/$f" "sys/fs/cgroup${group}/$f"
+    fi
+done
 
 echo "Snapshot written to $out"
