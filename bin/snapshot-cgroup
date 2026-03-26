@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# snapshot-cgroup - Copy cgroup v2 files from the live system into a
+# directory tree suitable for use with TestIntegrationCgroupLimits.
+#
+# Usage: snapshot-cgroup <output-dir>
+#
+# The script reads /proc/self/cgroup to find the v2 group path and copies
+# exactly the files that the cgroup package needs:
+#
+#   proc/self/cgroup
+#   sys/fs/cgroup/<group>/cpu.max
+#   sys/fs/cgroup/<group>/memory.max
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <output-dir>" >&2
+    exit 1
+fi
+
+out="$1"
+mkdir -p "$out"
+
+copy_file() {
+    local src="$1" dst="$out/$2"
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+}
+
+copy_file /proc/self/cgroup proc/self/cgroup
+
+group=$(awk -F: '/^0::/ { print $3 }' /proc/self/cgroup)
+cgdir="/sys/fs/cgroup${group}"
+
+for f in cpu.max memory.max; do
+    if [[ -f "$cgdir/$f" ]]; then
+        copy_file "$cgdir/$f" "sys/fs/cgroup${group}/$f"
+    fi
+done
+
+echo "Snapshot written to $out"

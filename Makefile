@@ -115,6 +115,11 @@ lint: $(BIN)/staticcheck $(BIN)/misspell
 clean:
 	rm -f $(BIN)/$(NAME) $(PAM_MODULE) $(TOOLS) coverage.out $(COVERAGE_FILES) $(PAM_CONFIG)
 
+###### Cgroup testdata ######
+.PHONY: gen-cgroup-testdata
+gen-cgroup-testdata:
+	bin/gen-cgroup-testdata
+
 ###### Go tests ######
 .PHONY: test test-setup test-teardown
 
