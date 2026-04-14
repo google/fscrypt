@@ -272,7 +272,8 @@ func getErrorSuggestions(err error) string {
 		return fmt.Sprintf("If desired, use %s to automatically run destructive operations.",
 			shortDisplay(forceFlag))
 	case ErrSpecifyProtector:
-		return fmt.Sprintf("Use %s to specify a protector.", shortDisplay(protectorFlag))
+		return fmt.Sprintf("Use %s or %s to specify a protector.",
+			shortDisplay(protectorFlag), shortDisplay(unlockWithFlag))
 	case ErrSpecifyKeyFile:
 		return fmt.Sprintf("Use %s to specify a key file.", shortDisplay(keyFileFlag))
 	case ErrDropCachesPerm:
