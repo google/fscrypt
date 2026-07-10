@@ -1,15 +1,15 @@
 module github.com/google/fscrypt
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/client9/misspell v0.3.4
 	github.com/pkg/errors v0.9.1
 	github.com/urfave/cli v1.22.17
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	golang.org/x/crypto v0.45.0
-	golang.org/x/sys v0.38.0
-	golang.org/x/term v0.37.0
+	golang.org/x/crypto v0.52.0
+	golang.org/x/sys v0.45.0
+	golang.org/x/term v0.43.0
 	golang.org/x/tools v0.36.0
 	google.golang.org/protobuf v1.36.10
 	honnef.co/go/tools v0.6.1
