@@ -29,6 +29,7 @@ For the release notes, see the [NEWS file](NEWS.md).
 - [Features](#features)
 - [Building and installing](#building-and-installing)
 - [Runtime dependencies](#runtime-dependencies)
+  - [udev dependency for cross-filesystem links](#udev-dependency-for-cross-filesystem-links)
 - [Configuration file](#configuration-file)
 - [Setting up `fscrypt` on a filesystem](#setting-up-fscrypt-on-a-filesystem)
 - [Setting up for login protectors](#setting-up-for-login-protectors)
@@ -312,6 +313,32 @@ security and usability improvements over v1 policies.
 If you configure `fscrypt` to use non-default features, other kernel
 prerequisites may be needed too.  See [Configuration
 file](#configuration-file).
+
+### udev dependency for cross-filesystem links
+
+Cross-filesystem metadata links (for example `.fscrypt/protectors/*.link` files
+that point at a protector stored on another filesystem) prefer to identify the
+target filesystem by UUID via `/dev/disk/by-uuid`.  Those symlinks are created by
+the standard udev rule `60-persistent-storage.rules` (from systemd/udev, eudev,
+or classic udev).
+
+This is a **runtime / link-creation** dependency, not a build-time dependency:
+
+* **Link creation time:** when `fscrypt` writes a cross-filesystem link, it looks
+  up the target filesystem UUID under `/dev/disk/by-uuid`.  If that directory is
+  missing or does not contain a usable UUID symlink for the device, `fscrypt`
+  falls back to storing the mountpoint path only.
+* **Runtime (following a link):** when resolving an existing link that contains a
+  `UUID=` entry, `fscrypt` again uses `/dev/disk/by-uuid` (with a path fallback if
+  the UUID cannot be resolved).
+
+Most Linux distributions ship `60-persistent-storage.rules` by default.  If you
+run a minimal or custom udev setup without that rule, ensure equivalent rules
+still create `/dev/disk/by-uuid/*` symlinks before relying on UUID-based
+cross-filesystem links.  Example upstream sources:
+
+* [systemd `60-persistent-storage.rules`](https://github.com/systemd/systemd/blob/master/rules.d/60-persistent-storage.rules)
+* [eudev `60-persistent-storage.rules`](https://github.com/gentoo/eudev/blob/master/rules/60-persistent-storage.rules)
 
 ## Configuration file
 
