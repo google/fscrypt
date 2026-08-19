@@ -72,3 +72,25 @@ Unlocked: Yes
 Protected with 1 protector:
 PROTECTOR         LINKED  DESCRIPTION
 desc11  No      raw key protector "prot"
+
+# Try to unlock with wrong key, both with and without --quiet
+"MNT/dir" is now locked.
+[ERROR] fscrypt unlock: incorrect key provided
+[ERROR] fscrypt unlock: incorrect key provided
+ext4 filesystem "MNT" has 1 protector and 1 policy.
+All users can create fscrypt metadata on this filesystem.
+
+PROTECTOR         LINKED  DESCRIPTION
+desc16  No      raw key protector "prot"
+
+POLICY                            UNLOCKED  PROTECTORS
+desc17  No        desc16
+"MNT/dir" is encrypted with fscrypt.
+
+Policy:   desc17
+Options:  padding:32 contents:AES_256_XTS filenames:AES_256_CTS policy_version:2
+Unlocked: No
+
+Protected with 1 protector:
+PROTECTOR         LINKED  DESCRIPTION
+desc16  No      raw key protector "prot"
