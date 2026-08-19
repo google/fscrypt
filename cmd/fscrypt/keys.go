@@ -144,11 +144,17 @@ func makeKeyFunc(supportRetry, shouldConfirm bool, prefix string) actions.KeyFun
 			if !supportRetry {
 				panic("this KeyFunc does not support retrying")
 			}
-			// Don't retry for non-interactive sessions
-			if quietFlag.Value || !term.IsTerminal(stdinFd) {
+			// Don't retry in --quiet mode, for non-interactive
+			// sessions, or when a key file was specified.
+			if quietFlag.Value || !term.IsTerminal(stdinFd) ||
+				(info.Source() == metadata.SourceType_raw_key && keyFileFlag.Value != "") {
 				return nil, ErrWrongKey
 			}
-			fmt.Println("Incorrect Passphrase")
+			if info.Source() == metadata.SourceType_raw_key {
+				fmt.Println("Incorrect Key")
+			} else {
+				fmt.Println("Incorrect Passphrase")
+			}
 		}
 
 		switch info.Source() {

@@ -51,3 +51,12 @@ fscrypt encrypt --quiet --name=prot --source=raw_key --key="$raw_key_file" "$dir
 fscrypt lock "$dir"
 fscrypt unlock --quiet "$dir" < "$raw_key_file"
 show_status true
+
+begin "Try to unlock with wrong key, both with and without --quiet"
+head -c 32 /dev/urandom > "$raw_key_file"
+fscrypt encrypt --quiet --name=prot --source=raw_key --key="$raw_key_file" "$dir"
+fscrypt lock "$dir"
+head -c 32 /dev/urandom > "$raw_key_file"
+_expect_failure "fscrypt unlock --quiet --key='$raw_key_file' '$dir'"
+_expect_failure "fscrypt unlock --key='$raw_key_file' '$dir'"
+show_status true
