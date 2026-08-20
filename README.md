@@ -337,8 +337,8 @@ run a minimal or custom udev setup without that rule, ensure equivalent rules
 still create `/dev/disk/by-uuid/*` symlinks before relying on UUID-based
 cross-filesystem links.  Example upstream sources:
 
-* [systemd `60-persistent-storage.rules`](https://github.com/systemd/systemd/blob/master/rules.d/60-persistent-storage.rules)
-* [eudev `60-persistent-storage.rules`](https://github.com/gentoo/eudev/blob/master/rules/60-persistent-storage.rules)
+* [systemd `60-persistent-storage.rules`](https://github.com/systemd/systemd/blob/main/rules.d/60-persistent-storage.rules.in)
+* [eudev `60-persistent-storage.rules`](https://github.com/eudev-project/eudev/blob/master/rules/60-persistent-storage.rules)
 
 ## Configuration file
 
