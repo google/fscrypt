@@ -1,5 +1,28 @@
 # `fscrypt` release notes
 
+## Version 0.3.7
+
+* Upgraded various dependencies, including `golang.org/x/crypto` to resolve the
+  usual CVEs in it (but as usual, not actually affecting `fscrypt`'s use of it).
+
+* When selecting password hashing parameters, `fscrypt` now takes cgroup
+  limitations into consideration.
+
+* `fscrypt encrypt` no longer follows trailing symlinks when writing the
+  recovery instructions.
+
+* `fscrypt unlock` no longer enters an infinite loop when an incorrect key file
+  is specified using `--key=FILE`, `--quiet` isn't specified, and standard input
+  is a terminal.
+
+* `fscrypt unlock` no longer enters an infinite loop when an incorrect password
+  is specified, `--quiet` isn't specified, and standard input isn't a terminal.
+
+* The error message when multiple protectors are available now mentions
+  `--unlock-with` in addition to `--protector`.
+
+* Documented the udev dependency for `/dev/disk/by-uuid/` links.
+
 ## Version 0.3.6
 
 * Upgraded various dependencies, including `golang.org/x/crypto` where the
