@@ -257,8 +257,10 @@ var (
 )
 
 // The first group is optional and corresponds to the mountpoint. The second
-// group is required and corresponds to the descriptor.
-var idFlagRegex = regexp.MustCompile("^([[:print:]]+):([[:alnum:]]+)$")
+// group is required and corresponds to the descriptor. The mountpoint may
+// contain any non-control Unicode character (e.g. accented letters in paths),
+// so we use [^\p{Cc}] rather than the ASCII-only [[:print:]].
+var idFlagRegex = regexp.MustCompile(`^([^\p{Cc}]+):([[:alnum:]]+)$`)
 
 func matchMetadataFlag(flagValue string) (mountpoint, descriptor string, err error) {
 	matches := idFlagRegex.FindStringSubmatch(flagValue)
