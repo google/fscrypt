@@ -91,7 +91,7 @@ Before using `fscrypt`, you should consider other solutions:
   ["V1" Linux kernel encryption API](https://www.kernel.org/doc/html/v6.8/filesystems/fscrypt.html#limitations-of-v1-policies),
   while `fscrypt` prefers the "V2" API. The older API causes
   [known issues](#some-processes-cant-access-unlocked-encrypted-files), and
-  migrating `systemd-home` to the "V2" API is tracked
+  migrating `systemd-homed` to the "V2" API is tracked
   [in this `systemd` issue](https://github.com/systemd/systemd/issues/18280).
   Issues with `systemd-homed` should be reported to the systemd developers.
 
@@ -558,7 +558,7 @@ The `fscrypt` PAM module implements the Auth, Session, and Password
 
 The Password functionality of `pam_fscrypt.so` is used to automatically rewrap
 a user's login protector when their unix passphrase changes. An easy way to get
-the working is to add the line:
+this working is to add the line:
 ```
 password    optional    pam_fscrypt.so
 ```
@@ -1064,7 +1064,7 @@ guidelines in `CONTRIBUTING.md`. We will try our best to help.
 
 Usually, the PAM module `pam_fscrypt.so` will automatically detect changes to a
 user's login passphrase and update the user's `fscrypt` login protector so that
-they retain access their login-passphrase protected directories.  However,
+they retain access to their login-passphrase protected directories.  However,
 sometimes a user's login passphrase can become desynchronized from their
 `fscrypt` login protector.  This can happen if `root` assigns the user a new
 passphrase without providing the old one, if the user's login passphrase is
